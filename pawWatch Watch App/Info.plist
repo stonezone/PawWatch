@@ -8,9 +8,31 @@
 	<key>WKWatchOnly</key>
 	<true/>
 	
+	<!-- Bundle Identifier -->
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+
 	<!-- App Display Name -->
 	<key>CFBundleDisplayName</key>
 	<string>pawWatch</string>
+
+	<!-- Bundle Name -->
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+
+	<!-- Bundle Version -->
+	<key>CFBundleShortVersionString</key>
+	<string>0.1.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+
+	<!-- Executable -->
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+
+	<!-- Package Type -->
+	<key>CFBundlePackageType</key>
+	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
 	
 	<!-- Location Services Permissions -->
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
