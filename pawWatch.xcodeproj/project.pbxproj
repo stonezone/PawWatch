@@ -7,247 +7,257 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		8B41F6832DEDD23B001A66F9 /* pawWatchFeature in Frameworks */ = {isa = PBXBuildFile; productRef = 8B41F6822DEDD23B001A66F9 /* pawWatchFeature */; };
-		8B41F6852DEDD25C001A66F9 /* pawWatchFeature in Frameworks */ = {isa = PBXBuildFile; productRef = 8B41F6842DEDD25C001A66F9 /* pawWatchFeature */; };
+		0E3589B340742665FCB48483 /* pawWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C17C02071845B52C99D8AFAF /* pawWatchApp.swift */; };
+		6A4889B958D5A146E4F8E308 /* pawWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 332C74C6C210BDC7E42FAB0B /* pawWatchApp.swift */; };
+		6F425FF4E0BD3D78DF26C474 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 33AC2CD8AB3941DC48825948 /* Assets.xcassets */; };
+		BFE171C459CD5760E7997CEE /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31CF20CA899DE2D203ABA5E0 /* ContentView.swift */; };
+		CE68223DCCF237599C6ABF9C /* pawWatchFeature in Frameworks */ = {isa = PBXBuildFile; productRef = CC2F6242165D6F162A627F2C /* pawWatchFeature */; };
+		E575984C7A181CFECE73E9C1 /* pawWatchFeature in Frameworks */ = {isa = PBXBuildFile; productRef = D1DEC52533FBF1BEBDC06C9C /* pawWatchFeature */; };
+		EBD92BF7E3C90D2ED912EE97 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 6AAB458652C595976E7FA680 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
-/* Begin PBXContainerItemProxy section */
-		8B41F65D2DEDD0D6001A66F9 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 8B41F63D2DEDD0D5001A66F9 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 8B41F6442DEDD0D5001A66F9;
-			remoteInfo = pawWatch;
-		};
-/* End PBXContainerItemProxy section */
-
 /* Begin PBXFileReference section */
-		8B41F6452DEDD0D5001A66F9 /* pawWatch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = pawWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		8B41F65C2DEDD0D6001A66F9 /* pawWatch.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = pawWatch.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		24A9551A73A98AE2FB4AA8C3 /* pawWatch.xctestplan */ = {isa = PBXFileReference; path = pawWatch.xctestplan; sourceTree = "<group>"; };
+		31CF20CA899DE2D203ABA5E0 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		332C74C6C210BDC7E42FAB0B /* pawWatchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = pawWatchApp.swift; sourceTree = "<group>"; };
+		33AC2CD8AB3941DC48825948 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		594D3B7268AF24EF28D0EA80 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		6AAB458652C595976E7FA680 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		950A0AD89D5233A618F6D2BF /* pawWatch Watch App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "pawWatch Watch App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		A516D3F21A55137C5D54F3DF /* pawWatchPackage */ = {isa = PBXFileReference; lastKnownFileType = folder; name = pawWatchPackage; path = pawWatchPackage; sourceTree = SOURCE_ROOT; };
+		C17C02071845B52C99D8AFAF /* pawWatchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = pawWatchApp.swift; sourceTree = "<group>"; };
+		D8DF9D5B77E59B7AD1D4407E /* pawWatch.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = pawWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
-/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		8BD71C0A2DEE41E000CEDD92 /* Exceptions for "Config" folder in "pawWatch" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Debug.xcconfig,
-				Release.xcconfig,
-				Shared.xcconfig,
-				Tests.xcconfig,
-			);
-			target = 8B41F6442DEDD0D5001A66F9 /* pawWatch */;
-		};
-/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
-
-/* Begin PBXFileSystemSynchronizedRootGroup section */
-		8B41F6472DEDD0D5001A66F9 /* pawWatch */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = pawWatch;
-			sourceTree = "<group>";
-		};
-		8B41F65F2DEDD0D6001A66F9 /* pawWatchUITests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = pawWatchUITests;
-			sourceTree = "<group>";
-		};
-		8BD71C052DEE41D800CEDD92 /* Config */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				8BD71C0A2DEE41E000CEDD92 /* Exceptions for "Config" folder in "pawWatch" target */,
-			);
-			path = Config;
-			sourceTree = "<group>";
-		};
-/* End PBXFileSystemSynchronizedRootGroup section */
-
 /* Begin PBXFrameworksBuildPhase section */
-		8B41F6422DEDD0D5001A66F9 /* Frameworks */ = {
+		5F1A1540E815DEDD9F610AD1 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				8B41F6852DEDD25C001A66F9 /* pawWatchFeature in Frameworks */,
+				E575984C7A181CFECE73E9C1 /* pawWatchFeature in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		8B41F6592DEDD0D6001A66F9 /* Frameworks */ = {
+		81051F5D748EDF4D1C0F5945 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				8B41F6832DEDD23B001A66F9 /* pawWatchFeature in Frameworks */,
+				CE68223DCCF237599C6ABF9C /* pawWatchFeature in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		8B41F63C2DEDD0D5001A66F9 = {
+		16DCA9FDD5EEA668C9A2283B /* Packages */ = {
 			isa = PBXGroup;
 			children = (
-				8BD71C052DEE41D800CEDD92 /* Config */,
-				8B41F6472DEDD0D5001A66F9 /* pawWatch */,
-				8B41F65F2DEDD0D6001A66F9 /* pawWatchUITests */,
-				8B41F6812DEDD23B001A66F9 /* Frameworks */,
-				8B41F6462DEDD0D5001A66F9 /* Products */,
+				A516D3F21A55137C5D54F3DF /* pawWatchPackage */,
+			);
+			name = Packages;
+			sourceTree = "<group>";
+		};
+		22AF874BEB830E0592595306 /* pawWatch Watch App */ = {
+			isa = PBXGroup;
+			children = (
+				33AC2CD8AB3941DC48825948 /* Assets.xcassets */,
+				31CF20CA899DE2D203ABA5E0 /* ContentView.swift */,
+				594D3B7268AF24EF28D0EA80 /* Info.plist */,
+				332C74C6C210BDC7E42FAB0B /* pawWatchApp.swift */,
+			);
+			path = "pawWatch Watch App";
+			sourceTree = "<group>";
+		};
+		75B3FE4A8DA07E67838C107C /* pawWatch */ = {
+			isa = PBXGroup;
+			children = (
+				6AAB458652C595976E7FA680 /* Assets.xcassets */,
+				24A9551A73A98AE2FB4AA8C3 /* pawWatch.xctestplan */,
+				C17C02071845B52C99D8AFAF /* pawWatchApp.swift */,
+			);
+			path = pawWatch;
+			sourceTree = "<group>";
+		};
+		B7696481AC996D78CBB7804A = {
+			isa = PBXGroup;
+			children = (
+				16DCA9FDD5EEA668C9A2283B /* Packages */,
+				75B3FE4A8DA07E67838C107C /* pawWatch */,
+				22AF874BEB830E0592595306 /* pawWatch Watch App */,
+				E6532C0AB8A77F10F8C60061 /* Products */,
 			);
 			sourceTree = "<group>";
 		};
-		8B41F6462DEDD0D5001A66F9 /* Products */ = {
+		E6532C0AB8A77F10F8C60061 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				8B41F6452DEDD0D5001A66F9 /* pawWatch.app */,
-				8B41F65C2DEDD0D6001A66F9 /* pawWatch.xctest */,
+				950A0AD89D5233A618F6D2BF /* pawWatch Watch App.app */,
+				D8DF9D5B77E59B7AD1D4407E /* pawWatch.app */,
 			);
 			name = Products;
-			sourceTree = "<group>";
-		};
-		8B41F6812DEDD23B001A66F9 /* Frameworks */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		8B41F6442DEDD0D5001A66F9 /* pawWatch */ = {
+		73B1D24D6D37160012C57894 /* pawWatch Watch App */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 8B41F6662DEDD0D6001A66F9 /* Build configuration list for PBXNativeTarget "pawWatch" */;
+			buildConfigurationList = E8A856CF80F27C995A6EF70B /* Build configuration list for PBXNativeTarget "pawWatch Watch App" */;
 			buildPhases = (
-				8B41F6412DEDD0D5001A66F9 /* Sources */,
-				8B41F6422DEDD0D5001A66F9 /* Frameworks */,
-				8B41F6432DEDD0D5001A66F9 /* Resources */,
+				9B93ED7C11A21FD20C5C6EBA /* Sources */,
+				5776554AAD689C458A5C3A8C /* Resources */,
+				5F1A1540E815DEDD9F610AD1 /* Frameworks */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 			);
-			fileSystemSynchronizedGroups = (
-				8B41F6472DEDD0D5001A66F9 /* pawWatch */,
-				8BD71C052DEE41D800CEDD92 /* Config */,
+			name = "pawWatch Watch App";
+			packageProductDependencies = (
+				D1DEC52533FBF1BEBDC06C9C /* pawWatchFeature */,
+			);
+			productName = "pawWatch Watch App";
+			productReference = 950A0AD89D5233A618F6D2BF /* pawWatch Watch App.app */;
+			productType = "com.apple.product-type.application";
+		};
+		F114C28D00A22C7F66E1F7E8 /* pawWatch */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = FA2E77C34DEF63E27435554B /* Build configuration list for PBXNativeTarget "pawWatch" */;
+			buildPhases = (
+				2C7C1392F402153C30440725 /* Sources */,
+				A1DF51BD767A5A4EFAE51D46 /* Resources */,
+				81051F5D748EDF4D1C0F5945 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
 			);
 			name = pawWatch;
 			packageProductDependencies = (
-				8B41F6842DEDD25C001A66F9 /* pawWatchFeature */,
+				CC2F6242165D6F162A627F2C /* pawWatchFeature */,
 			);
 			productName = pawWatch;
-			productReference = 8B41F6452DEDD0D5001A66F9 /* pawWatch.app */;
+			productReference = D8DF9D5B77E59B7AD1D4407E /* pawWatch.app */;
 			productType = "com.apple.product-type.application";
-		};
-		8B41F65B2DEDD0D6001A66F9 /* pawWatchUITests */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 8B41F66C2DEDD0D6001A66F9 /* Build configuration list for PBXNativeTarget "pawWatchUITests" */;
-			buildPhases = (
-				8B41F6582DEDD0D6001A66F9 /* Sources */,
-				8B41F6592DEDD0D6001A66F9 /* Frameworks */,
-				8B41F65A2DEDD0D6001A66F9 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				8B41F65E2DEDD0D6001A66F9 /* PBXTargetDependency */,
-			);
-			fileSystemSynchronizedGroups = (
-				8B41F65F2DEDD0D6001A66F9 /* pawWatchUITests */,
-			);
-			name = pawWatchUITests;
-			packageProductDependencies = (
-				8B41F6822DEDD23B001A66F9 /* pawWatchFeature */,
-			);
-			productName = pawWatchUITests;
-			productReference = 8B41F65C2DEDD0D6001A66F9 /* pawWatch.xctest */;
-			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
-		8B41F63D2DEDD0D5001A66F9 /* Project object */ = {
+		5B295C316277830C19C95E54 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
-				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 1630;
+				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1630;
-				TargetAttributes = {
-					8B41F6442DEDD0D5001A66F9 = {
-						CreatedOnToolsVersion = 16.3;
-					};
-					8B41F65B2DEDD0D6001A66F9 = {
-						CreatedOnToolsVersion = 16.3;
-						TestTargetID = 8B41F6442DEDD0D5001A66F9;
-					};
-				};
 			};
-			buildConfigurationList = 8B41F6402DEDD0D5001A66F9 /* Build configuration list for PBXProject "pawWatch" */;
+			buildConfigurationList = 532430E6AEA7CFF5A795E48E /* Build configuration list for PBXProject "pawWatch" */;
+			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
-				en,
 				Base,
+				en,
 			);
-			mainGroup = 8B41F63C2DEDD0D5001A66F9;
+			mainGroup = B7696481AC996D78CBB7804A;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				75FCD03AE4A9E679D60BBE1C /* XCLocalSwiftPackageReference "pawWatchPackage" */,
+			);
 			preferredProjectObjectVersion = 77;
-			productRefGroup = 8B41F6462DEDD0D5001A66F9 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				8B41F6442DEDD0D5001A66F9 /* pawWatch */,
-				8B41F65B2DEDD0D6001A66F9 /* pawWatchUITests */,
+				F114C28D00A22C7F66E1F7E8 /* pawWatch */,
+				73B1D24D6D37160012C57894 /* pawWatch Watch App */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		8B41F6432DEDD0D5001A66F9 /* Resources */ = {
+		5776554AAD689C458A5C3A8C /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				6F425FF4E0BD3D78DF26C474 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		8B41F65A2DEDD0D6001A66F9 /* Resources */ = {
+		A1DF51BD767A5A4EFAE51D46 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				EBD92BF7E3C90D2ED912EE97 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		8B41F6412DEDD0D5001A66F9 /* Sources */ = {
+		2C7C1392F402153C30440725 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				0E3589B340742665FCB48483 /* pawWatchApp.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		8B41F6582DEDD0D6001A66F9 /* Sources */ = {
+		9B93ED7C11A21FD20C5C6EBA /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				BFE171C459CD5760E7997CEE /* ContentView.swift in Sources */,
+				6A4889B958D5A146E4F8E308 /* pawWatchApp.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
-/* Begin PBXTargetDependency section */
-		8B41F65E2DEDD0D6001A66F9 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 8B41F6442DEDD0D5001A66F9 /* pawWatch */;
-			targetProxy = 8B41F65D2DEDD0D6001A66F9 /* PBXContainerItemProxy */;
-		};
-/* End PBXTargetDependency section */
-
 /* Begin XCBuildConfiguration section */
-		8B41F6642DEDD0D6001A66F9 /* Debug */ = {
+		07B5D789754C15B19A722C6B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.4;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.stonezone.pawWatch;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		3B3E3C5BAAE4E231336C23D5 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.4;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.stonezone.pawWatch;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		7E0C29F20D3BF43B174A8993 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
-				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
 				CLANG_ENABLE_OBJC_WEAK = YES;
@@ -274,17 +284,17 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
-				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_OPTIMIZATION_LEVEL = 0;
 				GCC_PREPROCESSOR_DEFINITIONS = (
-					"DEBUG=1",
 					"$(inherited)",
+					"DEBUG=1",
 				);
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
@@ -293,25 +303,26 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.4;
-				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MARKETING_VERSION = 1.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
-				SDKROOT = iphoneos;
-				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.2;
+				WATCHOS_DEPLOYMENT_TARGET = 11.0;
 			};
 			name = Debug;
 		};
-		8B41F6652DEDD0D6001A66F9 /* Release */ = {
+		B8BEB1F224612DF9916E12B1 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
-				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
 				CLANG_ENABLE_OBJC_WEAK = YES;
@@ -338,11 +349,11 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
-				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
@@ -351,132 +362,106 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.4;
-				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MARKETING_VERSION = 1.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
-				SDKROOT = iphoneos;
+				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_COMPILATION_MODE = wholemodule;
-				SWIFT_VERSION = 5.0;
-				VALIDATE_PRODUCT = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 6.2;
+				WATCHOS_DEPLOYMENT_TARGET = 11.0;
 			};
 			name = Release;
 		};
-		8B41F6672DEDD0D6001A66F9 /* Debug */ = {
+		E09C2F5152435CDBC0CB9C43 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReferenceAnchor = 8BD71C052DEE41D800CEDD92 /* Config */;
-			baseConfigurationReferenceRelativePath = Debug.xcconfig;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_ENTITLEMENTS = Config/pawWatch_Watch_App.entitlements;
+				COPY_PHASE_STRIP = NO;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "$(PRODUCT_DISPLAY_NAME)";
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-				);
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
+				INFOPLIST_FILE = "pawWatch Watch App/Info.plist";
+				PRODUCT_BUNDLE_IDENTIFIER = com.stonezone.pawWatch.watchkitapp;
+				PRODUCT_NAME = "pawWatch Watch App";
+				SDKROOT = watchos;
+				SKIP_INSTALL = NO;
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_VERSION = 6.2;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 11.0;
 			};
-			name = Debug;
+			name = Release;
 		};
-		8B41F6682DEDD0D6001A66F9 /* Release */ = {
+		F83A02A02FA3E7298F9AE95A /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReferenceAnchor = 8BD71C052DEE41D800CEDD92 /* Config */;
-			baseConfigurationReferenceRelativePath = Release.xcconfig;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_ENTITLEMENTS = Config/pawWatch_Watch_App.entitlements;
+				COPY_PHASE_STRIP = NO;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "$(PRODUCT_DISPLAY_NAME)";
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-				);
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
-			};
-			name = Release;
-		};
-		8B41F66D2DEDD0D6001A66F9 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			baseConfigurationReferenceAnchor = 8BD71C052DEE41D800CEDD92 /* Config */;
-			baseConfigurationReferenceRelativePath = Tests.xcconfig;
-			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
-				GENERATE_INFOPLIST_FILE = YES;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = pawWatch;
+				INFOPLIST_FILE = "pawWatch Watch App/Info.plist";
+				PRODUCT_BUNDLE_IDENTIFIER = com.stonezone.pawWatch.watchkitapp;
+				PRODUCT_NAME = "pawWatch Watch App";
+				SDKROOT = watchos;
+				SKIP_INSTALL = NO;
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_VERSION = 6.2;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 11.0;
 			};
 			name = Debug;
-		};
-		8B41F66E2DEDD0D6001A66F9 /* Release */ = {
-			isa = XCBuildConfiguration;
-			baseConfigurationReferenceAnchor = 8BD71C052DEE41D800CEDD92 /* Config */;
-			baseConfigurationReferenceRelativePath = Tests.xcconfig;
-			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
-				GENERATE_INFOPLIST_FILE = YES;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = pawWatch;
-			};
-			name = Release;
 		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		8B41F6402DEDD0D5001A66F9 /* Build configuration list for PBXProject "pawWatch" */ = {
+		532430E6AEA7CFF5A795E48E /* Build configuration list for PBXProject "pawWatch" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				8B41F6642DEDD0D6001A66F9 /* Debug */,
-				8B41F6652DEDD0D6001A66F9 /* Release */,
+				7E0C29F20D3BF43B174A8993 /* Debug */,
+				B8BEB1F224612DF9916E12B1 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
+			defaultConfigurationName = Debug;
 		};
-		8B41F6662DEDD0D6001A66F9 /* Build configuration list for PBXNativeTarget "pawWatch" */ = {
+		E8A856CF80F27C995A6EF70B /* Build configuration list for PBXNativeTarget "pawWatch Watch App" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				8B41F6672DEDD0D6001A66F9 /* Debug */,
-				8B41F6682DEDD0D6001A66F9 /* Release */,
+				F83A02A02FA3E7298F9AE95A /* Debug */,
+				E09C2F5152435CDBC0CB9C43 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
+			defaultConfigurationName = Debug;
 		};
-		8B41F66C2DEDD0D6001A66F9 /* Build configuration list for PBXNativeTarget "pawWatchUITests" */ = {
+		FA2E77C34DEF63E27435554B /* Build configuration list for PBXNativeTarget "pawWatch" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				8B41F66D2DEDD0D6001A66F9 /* Debug */,
-				8B41F66E2DEDD0D6001A66F9 /* Release */,
+				3B3E3C5BAAE4E231336C23D5 /* Debug */,
+				07B5D789754C15B19A722C6B /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
+			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
 
+/* Begin XCLocalSwiftPackageReference section */
+		75FCD03AE4A9E679D60BBE1C /* XCLocalSwiftPackageReference "pawWatchPackage" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = pawWatchPackage;
+		};
+/* End XCLocalSwiftPackageReference section */
+
 /* Begin XCSwiftPackageProductDependency section */
-		8B41F6822DEDD23B001A66F9 /* pawWatchFeature */ = {
+		CC2F6242165D6F162A627F2C /* pawWatchFeature */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = pawWatchFeature;
 		};
-		8B41F6842DEDD25C001A66F9 /* pawWatchFeature */ = {
+		D1DEC52533FBF1BEBDC06C9C /* pawWatchFeature */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = pawWatchFeature;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
-	rootObject = 8B41F63D2DEDD0D5001A66F9 /* Project object */;
+	rootObject = 5B295C316277830C19C95E54 /* Project object */;
 }
