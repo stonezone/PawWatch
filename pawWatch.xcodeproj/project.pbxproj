@@ -158,7 +158,7 @@
 			);
 			productName = "pawWatch Watch App";
 			productReference = 950A0AD89D5233A618F6D2BF /* pawWatch Watch App.app */;
-			productType = "com.apple.product-type.application.watchapp2";
+			productType = "com.apple.product-type.application";
 		};
 		F114C28D00A22C7F66E1F7E8 /* pawWatch */ = {
 			isa = PBXNativeTarget;
@@ -420,22 +420,18 @@
 		E09C2F5152435CDBC0CB9C43 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				APPLY_RULES_IN_COPY_FILES = YES;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Config/pawWatch_Watch_App.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CREATE_INFOPLIST_SECTION_IN_BINARY = NO;
 				DEVELOPMENT_TEAM = 78725QX6PZ;
 				COPY_PHASE_STRIP = NO;
 				ENABLE_PREVIEWS = YES;
 				INFOPLIST_FILE = "pawWatch Watch App/Info.plist";
-				ONLY_ACTIVE_ARCH = NO;
 				PRODUCT_BUNDLE_IDENTIFIER = com.stonezone.pawWatch.watchkitapp;
 				PRODUCT_NAME = "pawWatch Watch App";
 				SDKROOT = watchos;
 				SKIP_INSTALL = NO;
-				VALID_ARCHS = "arm64 arm64_32";
 				SUPPORTS_MACCATALYST = NO;
 				SWIFT_VERSION = 6.2;
 				TARGETED_DEVICE_FAMILY = 4;
@@ -446,22 +442,20 @@
 		F83A02A02FA3E7298F9AE95A /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				APPLY_RULES_IN_COPY_FILES = YES;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Config/pawWatch_Watch_App.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CREATE_INFOPLIST_SECTION_IN_BINARY = NO;
 				DEVELOPMENT_TEAM = 78725QX6PZ;
 				COPY_PHASE_STRIP = NO;
 				ENABLE_PREVIEWS = YES;
+				"EXCLUDED_ARCHS[sdk=watchsimulator*]" = "x86_64 i386";
 				INFOPLIST_FILE = "pawWatch Watch App/Info.plist";
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.stonezone.pawWatch.watchkitapp;
 				PRODUCT_NAME = "pawWatch Watch App";
 				SDKROOT = watchos;
 				SKIP_INSTALL = NO;
-				VALID_ARCHS = "arm64 arm64_32";
 				SUPPORTS_MACCATALYST = NO;
 				SWIFT_VERSION = 6.2;
 				TARGETED_DEVICE_FAMILY = 4;
