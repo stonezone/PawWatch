@@ -9,7 +9,7 @@
 PRODUCT_NAME = pawWatch
 PRODUCT_DISPLAY_NAME = pawWatch
 PRODUCT_BUNDLE_IDENTIFIER = com.stonezone.pawWatch
-MARKETING_VERSION = 0.1.0
+MARKETING_VERSION = 1.0.0
 CURRENT_PROJECT_VERSION = 1
 
 // ==========================================
@@ -23,9 +23,16 @@ TARGETED_DEVICE_FAMILY = 1,2
 // ==========================================
 // Info PLIST
 // ==========================================
-GENERATE_INFOPLIST_FILE = YES
+GENERATE_INFOPLIST_FILE = NO
+INFOPLIST_FILE = pawWatch/Info.plist
 INFOPLIST_KEY_UISupportedInterfaceOrientations = portrait
 INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = UIInterfaceOrientationLandscapeRight UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown
+
+// ==========================================
+// Code Signing
+// ==========================================
+DEVELOPMENT_TEAM = 78725QX6PZ
+CODE_SIGN_STYLE = Automatic
 
 // ==========================================
 // Entitlements

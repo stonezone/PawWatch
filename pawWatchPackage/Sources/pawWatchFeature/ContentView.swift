@@ -11,6 +11,7 @@
 //  Platform: iOS 26.1+
 //
 
+#if os(iOS)
 import SwiftUI
 
 /// Main iPhone dashboard for pawWatch app.
@@ -170,3 +171,4 @@ struct HistoryCountView: View {
 #Preview {
     ContentView()
 }
+#endif

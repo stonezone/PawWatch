@@ -11,6 +11,7 @@
 //  Platform: iOS 26.1+
 //
 
+#if os(iOS)
 import SwiftUI
 
 /// Liquid Glass status card showing pet GPS metadata.
@@ -330,3 +331,4 @@ struct ErrorBanner: View {
         .transition(.scale.combined(with: .opacity))
     }
 }
+#endif

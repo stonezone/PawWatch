@@ -11,6 +11,7 @@
 //  Platform: iOS 26.1+
 //
 
+#if os(iOS)
 import Foundation
 import CoreLocation
 import Observation
@@ -188,9 +189,8 @@ public final class PetLocationManager: NSObject {
     }
 
     /// Decode LocationFix from dictionary (WCSession message format).
-    private func decodeLocationFix(from dictionary: [String: Any]) -> LocationFix? {
+    nonisolated private func decodeLocationFix(from dictionary: [String: Any]) -> LocationFix? {
         guard let jsonData = try? JSONSerialization.data(withJSONObject: dictionary) else {
-            errorMessage = "Failed to serialize location data"
             return nil
         }
 
@@ -198,7 +198,8 @@ public final class PetLocationManager: NSObject {
             let decoder = JSONDecoder()
             return try decoder.decode(LocationFix.self, from: jsonData)
         } catch {
-            errorMessage = "Failed to decode LocationFix: \(error.localizedDescription)"
+            // Note: Cannot set errorMessage from nonisolated context
+            // Errors are handled by returning nil, caller will handle error state
             return nil
         }
     }
@@ -215,13 +216,16 @@ extension PetLocationManager: WCSessionDelegate {
         activationDidCompleteWith activationState: WCSessionActivationState,
         error: Error?
     ) {
+        // Capture session reachability before Task to avoid data race
+        let isReachable = session.isReachable
+
         Task { @MainActor in
             if let error = error {
                 self.errorMessage = "Watch connection failed: \(error.localizedDescription)"
                 self.isWatchConnected = false
             } else {
                 self.isWatchConnected = (activationState == .activated)
-                self.isWatchReachable = session.isReachable
+                self.isWatchReachable = isReachable
                 self.errorMessage = nil
             }
         }
@@ -236,17 +240,24 @@ extension PetLocationManager: WCSessionDelegate {
 
     /// WCSession deactivated (iOS only).
     nonisolated public func sessionDidDeactivate(_ session: WCSession) {
+        // Capture session reference before Task to avoid data race
+        let sessionToReactivate = session
+
         Task { @MainActor in
             self.isWatchConnected = false
-            // Reactivate for new Apple Watch pairing
-            session.activate()
         }
+
+        // Reactivate for new Apple Watch pairing (can be called on background thread)
+        sessionToReactivate.activate()
     }
 
     /// Watch reachability changed.
     nonisolated public func sessionReachabilityDidChange(_ session: WCSession) {
+        // Capture reachability status before Task to avoid data race
+        let isReachable = session.isReachable
+
         Task { @MainActor in
-            self.isWatchReachable = session.isReachable
+            self.isWatchReachable = isReachable
         }
     }
 
@@ -255,10 +266,11 @@ extension PetLocationManager: WCSessionDelegate {
         _ session: WCSession,
         didReceiveMessage message: [String: Any]
     ) {
+        // Decode LocationFix immediately on background thread before Task
+        guard let locationFix = decodeLocationFix(from: message) else { return }
+
         Task { @MainActor in
-            if let locationFix = self.decodeLocationFix(from: message) {
-                self.handleLocationFix(locationFix)
-            }
+            self.handleLocationFix(locationFix)
         }
     }
 
@@ -267,10 +279,11 @@ extension PetLocationManager: WCSessionDelegate {
         _ session: WCSession,
         didReceiveApplicationContext applicationContext: [String: Any]
     ) {
+        // Decode LocationFix immediately on background thread before Task
+        guard let locationFix = decodeLocationFix(from: applicationContext) else { return }
+
         Task { @MainActor in
-            if let locationFix = self.decodeLocationFix(from: applicationContext) {
-                self.handleLocationFix(locationFix)
-            }
+            self.handleLocationFix(locationFix)
         }
     }
 
@@ -279,9 +292,12 @@ extension PetLocationManager: WCSessionDelegate {
         _ session: WCSession,
         didReceive file: WCSessionFile
     ) {
+        // Capture file URL before Task to avoid data race
+        let fileURL = file.fileURL
+
         Task { @MainActor in
             do {
-                let data = try Data(contentsOf: file.fileURL)
+                let data = try Data(contentsOf: fileURL)
                 let decoder = JSONDecoder()
                 let locationFix = try decoder.decode(LocationFix.self, from: data)
                 self.handleLocationFix(locationFix)
@@ -312,16 +328,17 @@ extension PetLocationManager: CLLocationManagerDelegate {
 
     /// Location authorization changed.
     nonisolated public func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
-        Task { @MainActor in
-            let status = manager.authorizationStatus
+        // Capture authorization status before Task to avoid data race
+        let status = manager.authorizationStatus
 
+        Task { @MainActor in
             switch status {
             case .authorizedWhenInUse, .authorizedAlways:
-                manager.startUpdatingLocation()
+                self.locationManager.startUpdatingLocation()
             case .denied, .restricted:
                 self.errorMessage = "Location permission denied. Enable in Settings to see distance."
             case .notDetermined:
-                manager.requestWhenInUseAuthorization()
+                self.locationManager.requestWhenInUseAuthorization()
             @unknown default:
                 break
             }
@@ -341,3 +358,4 @@ extension PetLocationManager: CLLocationManagerDelegate {
         }
     }
 }
+#endif

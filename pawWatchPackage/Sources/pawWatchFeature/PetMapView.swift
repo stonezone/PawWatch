@@ -11,6 +11,7 @@
 //  Platform: iOS 26.1+
 //
 
+#if os(iOS)
 import SwiftUI
 import MapKit
 
@@ -202,3 +203,4 @@ extension MKMapRect {
         )
     }
 }
+#endif

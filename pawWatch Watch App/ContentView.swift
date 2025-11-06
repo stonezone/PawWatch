@@ -11,6 +11,7 @@
 import SwiftUI
 import WatchKit
 import WatchConnectivity
+import pawWatchFeature
 
 // MARK: - Watch Location Manager
 
