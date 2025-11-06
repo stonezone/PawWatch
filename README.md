@@ -3,8 +3,9 @@
 **Transform your spare Apple Watch into a comprehensive pet tracker**
 
 [![Platform](https://img.shields.io/badge/platform-iOS%2026%2B%20%7C%20watchOS%2026%2B-blue.svg)](https://developer.apple.com/ios/)
-[![Swift](https://img.shields.io/badge/Swift-6.0-orange.svg)](https://swift.org)
-[![Status](https://img.shields.io/badge/status-Planning-yellow.svg)](https://github.com/yourusername/pawWatch-app)
+[![Swift](https://img.shields.io/badge/Swift-6.2-orange.svg)](https://swift.org)
+[![Xcode](https://img.shields.io/badge/Xcode-26.0.1-blue.svg)](https://developer.apple.com/xcode/)
+[![Status](https://img.shields.io/badge/status-In%20Development-green.svg)](https://github.com/stonezone/PawWatch)
 
 ## 🎯 What is pawWatch?
 
@@ -107,10 +108,10 @@ See [screenshots/](screenshots/) for UI mockups.
 ## 📋 Requirements
 
 ### Platform
-- iOS 26.0+ (iPhone)
-- watchOS 26.0+ (Apple Watch Series 4+)
-- Xcode 17.0+
-- Swift 6.0+
+- iOS 26.0+ (iPhone) - Current: iOS 26.1
+- watchOS 26.0+ (Apple Watch Series 4+) - Current: watchOS 26.1
+- Xcode 26.0.1+ (Build 17A400)
+- Swift 6.2 (with Inline Arrays, Span Type, enhanced concurrency)
 
 ### Device Requirements
 - iPhone 11+
