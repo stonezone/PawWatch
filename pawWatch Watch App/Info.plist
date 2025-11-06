@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- WatchKit Configuration -->
+	<key>WKApplication</key>
+	<true/>
+	<key>WKWatchOnly</key>
+	<true/>
+	
+	<!-- App Display Name -->
+	<key>CFBundleDisplayName</key>
+	<string>pawWatch</string>
+	
+	<!-- Location Services Permissions -->
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>pawWatch needs continuous location access to track your pet's movements even when the app is in the background.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>pawWatch needs location access to track your pet's current position.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>pawWatch requires always-on location access for continuous pet tracking.</string>
+	
+	<!-- HealthKit Permission -->
+	<key>NSHealthShareUsageDescription</key>
+	<string>pawWatch can optionally integrate with HealthKit to track your pet's activity alongside your own health data.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>pawWatch can update HealthKit with pet activity data for comprehensive health tracking.</string>
+	
+	<!-- Background Modes for Location Tracking -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+		<string>processing</string>
+	</array>
+	
+	<!-- Required Device Capabilities -->
+	<key>UIRequiredDeviceCapabilities</key>
+	<array>
+		<string>watch-companion</string>
+		<string>location-services</string>
+		<string>gps</string>
+	</array>
+	
+	<!-- App Category -->
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.lifestyle</string>
+</dict>
+</plist>

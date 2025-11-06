@@ -1,0 +1,31 @@
+name: pawWatch
+options:
+  bundleIdPrefix: com.stonezone
+  deploymentTarget:
+    iOS: "18.4"
+    watchOS: "26.0"
+  developmentLanguage: en
+  xcodeVersion: "16.3"
+
+settings:
+  base:
+    SWIFT_VERSION: "6.2"
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+
+packages:
+  pawWatchFeature:
+    path: pawWatchPackage
+
+targets:
+  pawWatch:
+    type: application
+    platform: iOS
+    deploymentTarget: "18.4"
+    sources:
+      - pawWatch
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.stonezone.pawWatch
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
