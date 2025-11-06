@@ -435,6 +435,7 @@
 				PRODUCT_NAME = "pawWatch Watch App";
 				SDKROOT = watchos;
 				SKIP_INSTALL = NO;
+				VALID_ARCHS = "arm64 arm64_32";
 				SUPPORTS_MACCATALYST = NO;
 				SWIFT_VERSION = 6.2;
 				TARGETED_DEVICE_FAMILY = 4;
@@ -460,6 +461,7 @@
 				PRODUCT_NAME = "pawWatch Watch App";
 				SDKROOT = watchos;
 				SKIP_INSTALL = NO;
+				VALID_ARCHS = "arm64 arm64_32";
 				SUPPORTS_MACCATALYST = NO;
 				SWIFT_VERSION = 6.2;
 				TARGETED_DEVICE_FAMILY = 4;
