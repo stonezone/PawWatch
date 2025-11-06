@@ -158,7 +158,7 @@
 			);
 			productName = "pawWatch Watch App";
 			productReference = 950A0AD89D5233A618F6D2BF /* pawWatch Watch App.app */;
-			productType = "com.apple.product-type.application";
+			productType = "com.apple.product-type.application.watchapp2";
 		};
 		F114C28D00A22C7F66E1F7E8 /* pawWatch */ = {
 			isa = PBXNativeTarget;
@@ -167,10 +167,12 @@
 				2C7C1392F402153C30440725 /* Sources */,
 				A1DF51BD767A5A4EFAE51D46 /* Resources */,
 				81051F5D748EDF4D1C0F5945 /* Frameworks */,
+				F50FDDF848F24D63BA5EB8EA /* Embed Watch Content */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				E7533EC1A2AF4938B9CD8BA0 /* PBXTargetDependency */,
 			);
 			name = pawWatch;
 			packageProductDependencies = (
@@ -428,6 +430,7 @@
 				COPY_PHASE_STRIP = NO;
 				ENABLE_PREVIEWS = YES;
 				INFOPLIST_FILE = "pawWatch Watch App/Info.plist";
+				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.stonezone.pawWatch.watchkitapp;
 				PRODUCT_NAME = "pawWatch Watch App";
 				SDKROOT = watchos;
