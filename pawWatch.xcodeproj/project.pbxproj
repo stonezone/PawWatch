@@ -152,7 +152,7 @@
 			);
 			productName = "pawWatch Watch App";
 			productReference = 950A0AD89D5233A618F6D2BF /* pawWatch Watch App.app */;
-			productType = "com.apple.product-type.application.watchapp2";
+			productType = "com.apple.product-type.application";
 		};
 		F114C28D00A22C7F66E1F7E8 /* pawWatch */ = {
 			isa = PBXNativeTarget;
