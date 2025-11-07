@@ -72,9 +72,6 @@ final class WatchLocationManager: WatchLocationProviderDelegate {
     init() {
         // Set ourselves as delegate to receive GPS fixes and errors
         locationProvider.delegate = self
-
-        // Monitor WatchConnectivity session state
-        setupWatchConnectivityMonitoring()
     }
 
     // MARK: - Public Methods
@@ -193,53 +190,25 @@ final class WatchLocationManager: WatchLocationProviderDelegate {
 
     // MARK: - Private Methods
 
-    /// Sets up monitoring of WatchConnectivity session state.
-    ///
-    /// Monitors:
-    /// - Activation state (notActivated, inactive, activated)
-    /// - Reachability (whether iPhone is available for interactive messages)
-    private func setupWatchConnectivityMonitoring() {
+    /// Updates connection status display based on WCSession state.
+    /// Only checks status after session has been activated by WatchLocationProvider.
+    func updateConnectionStatus() {
         guard WCSession.isSupported() else {
             connectionStatus = "Not supported"
+            isPhoneReachable = false
             return
         }
 
         let session = WCSession.default
-
-        // Initial state
-        updateConnectionStatus(session)
-
-        // Monitor for changes via NotificationCenter
-        // Note: WCSession delegate methods are handled by WatchLocationProvider
-        NotificationCenter.default.addObserver(
-            forName: NSNotification.Name("WCSessionActivationStateChanged"),
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            self?.updateConnectionStatus(session)
+        
+        // Don't access session properties until it's been activated
+        // This prevents crashes when session is accessed too early
+        guard session.activationState != .notActivated else {
+            connectionStatus = "Initializing..."
+            isPhoneReachable = false
+            return
         }
-
-        NotificationCenter.default.addObserver(
-            forName: NSNotification.Name("WCSessionReachabilityChanged"),
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            self?.updateConnectionStatus(session)
-        }
-
-        // Poll session state periodically (backup for missing notifications)
-        Task {
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(5))
-                await updateConnectionStatus(session)
-            }
-        }
-    }
-
-    /// Updates connection status display based on WCSession state.
-    ///
-    /// - Parameter session: The WatchConnectivity session to check
-    private func updateConnectionStatus(_ session: WCSession) {
+        
         let activationState: String
         switch session.activationState {
         case .notActivated:
@@ -432,6 +401,13 @@ struct ContentView: View {
             }
             .navigationTitle("Pet Tracker")
             .navigationBarTitleDisplayMode(.inline)
+            .task {
+                // Poll WatchConnectivity status periodically
+                while !Task.isCancelled {
+                    locationManager.updateConnectionStatus()
+                    try? await Task.sleep(for: .seconds(2))
+                }
+            }
         }
     }
 

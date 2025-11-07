@@ -6,7 +6,9 @@
 	<key>WKApplication</key>
 	<true/>
 	<key>WKWatchOnly</key>
-	<true/>
+	<false/>
+	<key>WKCompanionAppBundleIdentifier</key>
+	<string>com.stonezone.pawWatch</string>
 	
 	<!-- Bundle Identifier -->
 	<key>CFBundleIdentifier</key>

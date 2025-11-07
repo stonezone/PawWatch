@@ -153,12 +153,7 @@ public final class PetLocationManager: NSObject {
         // Send request message to Watch
         session.sendMessage(
             ["action": "requestLocation"],
-            replyHandler: { reply in
-                Task { @MainActor in
-                    // Watch responded successfully
-                    self.errorMessage = nil
-                }
-            },
+            replyHandler: nil,
             errorHandler: { error in
                 Task { @MainActor in
                     self.errorMessage = "Failed to request update: \(error.localizedDescription)"
@@ -188,19 +183,21 @@ public final class PetLocationManager: NSObject {
         }
     }
 
-    /// Decode LocationFix from dictionary (WCSession message format).
-    nonisolated private func decodeLocationFix(from dictionary: [String: Any]) -> LocationFix? {
-        guard let jsonData = try? JSONSerialization.data(withJSONObject: dictionary) else {
+    /// Decode a LocationFix from raw Data produced by the watch.
+    nonisolated private func decodeLocationFix(from data: Data) -> LocationFix? {
+        do {
+            return try JSONDecoder().decode(LocationFix.self, from: data)
+        } catch {
             return nil
         }
+    }
 
-        do {
-            let decoder = JSONDecoder()
-            return try decoder.decode(LocationFix.self, from: jsonData)
-        } catch {
-            // Note: Cannot set errorMessage from nonisolated context
-            // Errors are handled by returning nil, caller will handle error state
-            return nil
+    /// Convenience to decode raw data and hop back to the main actor.
+    nonisolated private func handleLocationFixData(_ data: Data) {
+        guard let fix = decodeLocationFix(from: data) else { return }
+
+        Task { @MainActor in
+            self.handleLocationFix(fix)
         }
     }
 }
@@ -266,11 +263,12 @@ extension PetLocationManager: WCSessionDelegate {
         _ session: WCSession,
         didReceiveMessage message: [String: Any]
     ) {
-        // Decode LocationFix immediately on background thread before Task
-        guard let locationFix = decodeLocationFix(from: message) else { return }
-
-        Task { @MainActor in
-            self.handleLocationFix(locationFix)
+        if let data = message["latestFix"] as? Data {
+            Task { @MainActor in
+                self.isWatchConnected = true
+                self.isWatchReachable = true
+            }
+            handleLocationFixData(data)
         }
     }
 
@@ -279,12 +277,23 @@ extension PetLocationManager: WCSessionDelegate {
         _ session: WCSession,
         didReceiveApplicationContext applicationContext: [String: Any]
     ) {
-        // Decode LocationFix immediately on background thread before Task
-        guard let locationFix = decodeLocationFix(from: applicationContext) else { return }
-
+        guard let data = applicationContext["latestFix"] as? Data else { return }
         Task { @MainActor in
-            self.handleLocationFix(locationFix)
+            self.isWatchConnected = true
         }
+        handleLocationFixData(data)
+    }
+
+    /// Received message data payload (preferred interactive path from the watch).
+    nonisolated public func session(
+        _ session: WCSession,
+        didReceiveMessageData messageData: Data
+    ) {
+        Task { @MainActor in
+            self.isWatchConnected = true
+            self.isWatchReachable = true
+        }
+        handleLocationFixData(messageData)
     }
 
     /// Received file transfer from Apple Watch (large payloads).
@@ -298,9 +307,8 @@ extension PetLocationManager: WCSessionDelegate {
         Task { @MainActor in
             do {
                 let data = try Data(contentsOf: fileURL)
-                let decoder = JSONDecoder()
-                let locationFix = try decoder.decode(LocationFix.self, from: data)
-                self.handleLocationFix(locationFix)
+                self.isWatchConnected = true
+                self.handleLocationFixData(data)
             } catch {
                 self.errorMessage = "Failed to decode file transfer: \(error.localizedDescription)"
             }

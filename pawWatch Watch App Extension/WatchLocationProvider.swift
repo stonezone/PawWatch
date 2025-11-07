@@ -96,12 +96,16 @@ public final class WatchLocationProvider: NSObject, Sendable {
     /// Tracks active file transfers to retry on failure and clean up temp files
     private var activeFileTransfers: [WCSessionFileTransfer: (url: URL, fix: LocationFix)] = [:]
     
+    /// Most recent fix, used to satisfy manual refresh requests from the phone.
+    private var latestFix: LocationFix?
+    
     // MARK: - Initialization
     
     public override init() {
         super.init()
         locationManager.delegate = self
         encoder.outputFormatting = [.withoutEscapingSlashes]
+        WKInterfaceDevice.current().isBatteryMonitoringEnabled = true
     }
     
     // MARK: - Public Methods
@@ -143,8 +147,21 @@ public final class WatchLocationProvider: NSObject, Sendable {
     public func stop() {
         locationManager.stopUpdatingLocation()
         
-        // Capture current builder to avoid capturing self across concurrency domains
-        if let builder = self.workoutBuilder {
+        // Capture builder and session locally to avoid self reference issues
+        let builder = self.workoutBuilder
+        let session = self.workoutSession
+        
+        // Clear references immediately
+        self.workoutSession = nil
+        self.workoutBuilder = nil
+        self.lastContextSequence = nil
+        self.lastContextPushDate = nil
+        self.lastContextAccuracy = nil
+        self.activeFileTransfers.removeAll()
+        
+        // Clean up HealthKit objects asynchronously
+        // endCollection and finishWorkout can be called after references are cleared
+        if let builder {
             builder.endCollection(withEnd: Date()) { [weak delegate = self.delegate] _, error in
                 if let error {
                     Task { @MainActor in
@@ -161,13 +178,10 @@ public final class WatchLocationProvider: NSObject, Sendable {
             }
         }
         
-        // Clear references on the main actor
-        self.workoutSession = nil
-        self.workoutBuilder = nil
-        self.lastContextSequence = nil
-        self.lastContextPushDate = nil
-        self.lastContextAccuracy = nil
-        self.activeFileTransfers.removeAll()
+        // End workout session if still active
+        if let session, session.state == .running || session.state == .prepared {
+            session.end()
+        }
     }
     
     // MARK: - Private Methods - Authorization
@@ -260,8 +274,20 @@ public final class WatchLocationProvider: NSObject, Sendable {
     ///
     /// - Parameter fix: The location fix to publish
     private func publishFix(_ fix: LocationFix) {
-        Task { @MainActor in
-            delegate?.didProduce(fix)
+        latestFix = fix
+        transmitFix(fix, includeContext: true, notifyDelegate: true)
+    }
+
+    /// Sends the provided fix to the paired iPhone, optionally updating context or notifying delegate.
+    private func transmitFix(
+        _ fix: LocationFix,
+        includeContext: Bool,
+        notifyDelegate: Bool
+    ) {
+        if notifyDelegate {
+            Task { @MainActor in
+                delegate?.didProduce(fix)
+            }
         }
         
         print("[WatchLocationProvider] Session state: \(wcSession.activationState.rawValue), reachable: \(wcSession.isReachable)")
@@ -271,18 +297,18 @@ public final class WatchLocationProvider: NSObject, Sendable {
             return
         }
         
-        // PATH 1: Always update application context for latest fix (works in background)
-        updateApplicationContextWithFix(fix)
+        if includeContext {
+            updateApplicationContextWithFix(fix)
+        }
         
-        // PATH 2: Try interactive messaging first if reachable (foreground)
         if wcSession.isReachable {
             do {
                 let data = try encoder.encode(fix)
                 print("[WatchLocationProvider] Sending interactive message (\(data.count) bytes)")
                 
-                wcSession.sendMessageData(data, replyHandler: nil) { [weak self] error in
+                let payload: [String: Any] = ["latestFix": data]
+                wcSession.sendMessage(payload, replyHandler: nil) { [weak self] error in
                     print("[WatchLocationProvider] Interactive send failed: \(error.localizedDescription), falling back to file transfer")
-                    // PATH 3: Retry via background transfer on failure
                     self?.queueBackgroundTransfer(for: fix)
                 }
             } catch {
@@ -293,7 +319,6 @@ public final class WatchLocationProvider: NSObject, Sendable {
                 queueBackgroundTransfer(for: fix)
             }
         } else {
-            // PATH 3: Not reachable, use background transfer as backup
             print("[WatchLocationProvider] Not reachable, using file transfer")
             queueBackgroundTransfer(for: fix)
         }
@@ -387,7 +412,7 @@ public final class WatchLocationProvider: NSObject, Sendable {
 
 // MARK: - CLLocationManagerDelegate
 
-extension WatchLocationProvider: @MainActor CLLocationManagerDelegate {
+extension WatchLocationProvider: CLLocationManagerDelegate {
     
     /// Handles new GPS location updates from CoreLocation.
     ///
@@ -397,30 +422,35 @@ extension WatchLocationProvider: @MainActor CLLocationManagerDelegate {
     /// - Parameters:
     ///   - manager: The location manager
     ///   - locations: Array of new location updates (uses last/most recent)
-    public func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        guard let latest = locations.last else { return }
-        
-        let device = WKInterfaceDevice.current()
-        
-        // Convert CLLocation to LocationFix with Watch-specific metadata
-        let fix = LocationFix(
-            timestamp: latest.timestamp,
-            source: .watchOS,
-            coordinate: .init(
-                latitude: latest.coordinate.latitude,
-                longitude: latest.coordinate.longitude
-            ),
-            altitudeMeters: latest.verticalAccuracy >= 0 ? latest.altitude : nil,
-            horizontalAccuracyMeters: latest.horizontalAccuracy,
-            verticalAccuracyMeters: max(latest.verticalAccuracy, 0),
-            speedMetersPerSecond: max(latest.speed, 0),
-            courseDegrees: latest.course >= 0 ? latest.course : 0,
-            headingDegrees: nil,  // Apple Watch doesn't have compass hardware
-            batteryFraction: device.batteryLevel >= 0 ? Double(device.batteryLevel) : 0,
-            sequence: Int(Int64(Date().timeIntervalSinceReferenceDate * 1000) % Int64(Int.max))
-        )
-        
-        publishFix(fix)
+    nonisolated public func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        Task { @MainActor [weak self] in
+            guard
+                let self,
+                let latest = locations.last
+            else { return }
+            
+            let device = WKInterfaceDevice.current()
+            
+            // Convert CLLocation to LocationFix with Watch-specific metadata
+            let fix = LocationFix(
+                timestamp: latest.timestamp,
+                source: .watchOS,
+                coordinate: .init(
+                    latitude: latest.coordinate.latitude,
+                    longitude: latest.coordinate.longitude
+                ),
+                altitudeMeters: latest.verticalAccuracy >= 0 ? latest.altitude : nil,
+                horizontalAccuracyMeters: latest.horizontalAccuracy,
+                verticalAccuracyMeters: max(latest.verticalAccuracy, 0),
+                speedMetersPerSecond: max(latest.speed, 0),
+                courseDegrees: latest.course >= 0 ? latest.course : 0,
+                headingDegrees: nil,  // Apple Watch doesn't have compass hardware
+                batteryFraction: device.batteryLevel >= 0 ? Double(device.batteryLevel) : 0,
+                sequence: Int(Int64(Date().timeIntervalSinceReferenceDate * 1000) % Int64(Int.max))
+            )
+            
+            self.publishFix(fix)
+        }
     }
     
     /// Handles location manager errors.
@@ -428,16 +458,16 @@ extension WatchLocationProvider: @MainActor CLLocationManagerDelegate {
     /// - Parameters:
     ///   - manager: The location manager
     ///   - error: The error that occurred
-    public func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        Task { @MainActor in
-            delegate?.didFail(error)
+    nonisolated public func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        Task { @MainActor [weak self] in
+            self?.delegate?.didFail(error)
         }
     }
 }
 
 // MARK: - WCSessionDelegate
 
-extension WatchLocationProvider: @MainActor WCSessionDelegate {
+extension WatchLocationProvider: WCSessionDelegate {
     
     /// Handles WatchConnectivity session activation completion.
     ///
@@ -445,16 +475,16 @@ extension WatchLocationProvider: @MainActor WCSessionDelegate {
     ///   - session: The WatchConnectivity session
     ///   - activationState: The final activation state
     ///   - error: Optional error if activation failed
-    public func session(
+    nonisolated public func session(
         _ session: WCSession,
         activationDidCompleteWith activationState: WCSessionActivationState,
         error: Error?
     ) {
-        print("[WatchLocationProvider] WCSession activation completed with state: \(activationState.rawValue), error: \(error?.localizedDescription ?? "none")")
-        
-        if let error {
-            Task { @MainActor in
-                delegate?.didFail(error)
+        Task { @MainActor [weak self] in
+            print("[WatchLocationProvider] WCSession activation completed with state: \(activationState.rawValue), error: \(error?.localizedDescription ?? "none")")
+            
+            if let error {
+                self?.delegate?.didFail(error)
             }
         }
     }
@@ -463,27 +493,42 @@ extension WatchLocationProvider: @MainActor WCSessionDelegate {
     /// Intentionally left blank - reachability is checked during send.
     ///
     /// - Parameter session: The WatchConnectivity session
-    public func sessionReachabilityDidChange(_ session: WCSession) {
-        // Reachability is checked at send time, no action needed here
+    nonisolated public func sessionReachabilityDidChange(_ session: WCSession) {}
+    
+    /// Handles incoming message dictionaries from the phone (e.g., manual refresh requests).
+    nonisolated public func session(
+        _ session: WCSession,
+        didReceiveMessage message: [String: Any],
+        replyHandler: (([String: Any]) -> Void)? = nil
+    ) {
+        guard let action = message["action"] as? String else {
+            replyHandler?(["status": "ignored"])
+            return
+        }
+        
+        switch action {
+        case "requestLocation":
+            Task { @MainActor in
+                if let fix = self.latestFix {
+                    self.transmitFix(fix, includeContext: false, notifyDelegate: false)
+                } else {
+                    self.locationManager.requestLocation()
+                }
+            }
+        default:
+            break
+        }
     }
     
-    /// Handles incoming message data from the phone (not used in Watch-to-phone flow).
-    ///
-    /// - Parameters:
-    ///   - session: The WatchConnectivity session
-    ///   - messageData: The received message data
-    public func session(_ session: WCSession, didReceiveMessageData messageData: Data) {
-        // Watch is sender only, no incoming messages expected
-    }
+    /// Handles incoming message data (not currently used).
+    nonisolated public func session(_ session: WCSession, didReceiveMessageData messageData: Data) {}
     
     /// Handles incoming file transfers from the phone (not used in Watch-to-phone flow).
     ///
     /// - Parameters:
     ///   - session: The WatchConnectivity session
     ///   - file: The received file
-    public func session(_ session: WCSession, didReceive file: WCSessionFile) {
-        // Watch is sender only, no incoming files expected
-    }
+    nonisolated public func session(_ session: WCSession, didReceive file: WCSessionFile) {}
     
     /// Handles file transfer completion or failure.
     ///
@@ -494,28 +539,33 @@ extension WatchLocationProvider: @MainActor WCSessionDelegate {
     ///   - session: The WatchConnectivity session
     ///   - fileTransfer: The completed file transfer
     ///   - error: Optional error if transfer failed
-    public func session(
+    nonisolated public func session(
         _ session: WCSession,
         didFinish fileTransfer: WCSessionFileTransfer,
         error: Error?
     ) {
-        guard let record = activeFileTransfers.removeValue(forKey: fileTransfer) else { return }
-        
-        // Always clean up temp file
-        defer { try? fileManager.removeItem(at: record.url) }
-        
-        if let error {
-            print("[WatchLocationProvider] File transfer failed: \(error.localizedDescription). Retrying…")
-            queueBackgroundTransfer(for: record.fix)
-        } else {
-            print("[WatchLocationProvider] File transfer completed successfully")
+        Task { @MainActor [weak self] in
+            guard
+                let self,
+                let record = self.activeFileTransfers.removeValue(forKey: fileTransfer)
+            else { return }
+            
+            // Always clean up temp file
+            defer { try? self.fileManager.removeItem(at: record.url) }
+            
+            if let error {
+                print("[WatchLocationProvider] File transfer failed: \(error.localizedDescription). Retrying…")
+                self.queueBackgroundTransfer(for: record.fix)
+            } else {
+                print("[WatchLocationProvider] File transfer completed successfully")
+            }
         }
     }
 }
 
 // MARK: - HKWorkoutSessionDelegate
 
-extension WatchLocationProvider: @MainActor HKWorkoutSessionDelegate {
+extension WatchLocationProvider: HKWorkoutSessionDelegate {
     
     /// Handles workout session state changes.
     ///
@@ -526,25 +576,28 @@ extension WatchLocationProvider: @MainActor HKWorkoutSessionDelegate {
     ///   - toState: The new state
     ///   - fromState: The previous state
     ///   - date: The transition date
-    public func workoutSession(
+    nonisolated public func workoutSession(
         _ workoutSession: HKWorkoutSession,
         didChangeTo toState: HKWorkoutSessionState,
         from fromState: HKWorkoutSessionState,
         date: Date
     ) {
-        guard toState == .ended || toState == .stopped else { return }
-        
-        if let builder = self.workoutBuilder {
-            builder.endCollection(withEnd: date) { [weak delegate = self.delegate] _, error in
-                if let error {
-                    Task { @MainActor in
-                        delegate?.didFail(error)
-                    }
-                }
-                builder.finishWorkout { _, finishError in
-                    if let finishError {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            guard toState == .ended || toState == .stopped else { return }
+            
+            if let builder = self.workoutBuilder {
+                builder.endCollection(withEnd: date) { [weak delegate = self.delegate] _, error in
+                    if let error {
                         Task { @MainActor in
-                            delegate?.didFail(finishError)
+                            delegate?.didFail(error)
+                        }
+                    }
+                    builder.finishWorkout { _, finishError in
+                        if let finishError {
+                            Task { @MainActor in
+                                delegate?.didFail(finishError)
+                            }
                         }
                     }
                 }
@@ -557,23 +610,23 @@ extension WatchLocationProvider: @MainActor HKWorkoutSessionDelegate {
     /// - Parameters:
     ///   - workoutSession: The workout session
     ///   - error: The error that occurred
-    public func workoutSession(_ workoutSession: HKWorkoutSession, didFailWithError error: Error) {
-        Task { @MainActor in
-            delegate?.didFail(error)
+    nonisolated public func workoutSession(_ workoutSession: HKWorkoutSession, didFailWithError error: Error) {
+        Task { @MainActor [weak self] in
+            self?.delegate?.didFail(error)
         }
     }
 }
 
 // MARK: - HKLiveWorkoutBuilderDelegate
 
-extension WatchLocationProvider: @MainActor HKLiveWorkoutBuilderDelegate {
+extension WatchLocationProvider: HKLiveWorkoutBuilderDelegate {
     
     /// Handles workout data collection events (not used for GPS tracking).
     ///
     /// - Parameters:
     ///   - workoutBuilder: The workout builder
     ///   - collectedTypes: The types of data collected
-    public func workoutBuilder(
+    nonisolated public func workoutBuilder(
         _ workoutBuilder: HKLiveWorkoutBuilder,
         didCollectDataOf collectedTypes: Set<HKSampleType>
     ) {
@@ -583,7 +636,7 @@ extension WatchLocationProvider: @MainActor HKLiveWorkoutBuilderDelegate {
     /// Handles workout event collection (not used for GPS tracking).
     ///
     /// - Parameter workoutBuilder: The workout builder
-    public func workoutBuilderDidCollectEvent(_ workoutBuilder: HKLiveWorkoutBuilder) {
+    nonisolated public func workoutBuilderDidCollectEvent(_ workoutBuilder: HKLiveWorkoutBuilder) {
         // Event collection not needed for GPS tracking
     }
 }
@@ -615,4 +668,3 @@ public final class WatchLocationProvider: Sendable {
 }
 
 #endif
-
