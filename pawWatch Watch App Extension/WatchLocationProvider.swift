@@ -14,6 +14,7 @@
 //
 
 import Foundation
+import pawWatchFeature
 
 #if os(watchOS)
 @preconcurrency import CoreLocation

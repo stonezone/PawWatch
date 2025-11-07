@@ -12,6 +12,7 @@ import SwiftUI
 import WatchKit
 @preconcurrency import WatchConnectivity
 import CoreLocation
+import pawWatchFeature
 
 // MARK: - Watch Location Manager
 
