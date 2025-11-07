@@ -3,18 +3,21 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 77;
+	objectVersion = 63;
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0B4ABFB3DA5F4122AEDBCC54 /* pawWatch Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 950A0AD89D5233A618F6D2BF /* pawWatch Watch App.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		0E3589B340742665FCB48483 /* pawWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C17C02071845B52C99D8AFAF /* pawWatchApp.swift */; };
+		65B60F222EBD77CE00499A74 /* WatchLocationProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65B60F212EBD77CE00499A74 /* WatchLocationProvider.swift */; };
+		65B60F242EBD785F00499A74 /* LocationFix.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65B60F232EBD785F00499A74 /* LocationFix.swift */; };
+		65B60F262EBD7A0F00499A74 /* WatchLocationFix.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65B60F252EBD7A0F00499A74 /* WatchLocationFix.swift */; };
 		6A4889B958D5A146E4F8E308 /* pawWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 332C74C6C210BDC7E42FAB0B /* pawWatchApp.swift */; };
 		6F425FF4E0BD3D78DF26C474 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 33AC2CD8AB3941DC48825948 /* Assets.xcassets */; };
 		BFE171C459CD5760E7997CEE /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31CF20CA899DE2D203ABA5E0 /* ContentView.swift */; };
 		CE68223DCCF237599C6ABF9C /* pawWatchFeature in Frameworks */ = {isa = PBXBuildFile; productRef = CC2F6242165D6F162A627F2C /* pawWatchFeature */; };
 		E575984C7A181CFECE73E9C1 /* pawWatchFeature in Frameworks */ = {isa = PBXBuildFile; productRef = D1DEC52533FBF1BEBDC06C9C /* pawWatchFeature */; };
 		EBD92BF7E3C90D2ED912EE97 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 6AAB458652C595976E7FA680 /* Assets.xcassets */; };
-		0B4ABFB3DA5F4122AEDBCC54 /* pawWatch Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 950A0AD89D5233A618F6D2BF /* pawWatch Watch App.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -23,13 +26,6 @@
 			containerPortal = 5B295C316277830C19C95E54 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = 73B1D24D6D37160012C57894;
-			remoteInfo = "pawWatch Watch App";
-		};
-		87B7C3AA4DD14A6597DF6C95 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 5B295C316277830C19C95E54 /* Project object */;
-			proxyType = 2;
-			remoteGlobalIDString = 950A0AD89D5233A618F6D2BF;
 			remoteInfo = "pawWatch Watch App";
 		};
 /* End PBXContainerItemProxy section */
@@ -48,23 +44,18 @@
 		};
 /* End PBXCopyFilesBuildPhase section */
 
-/* Begin PBXTargetDependency section */
-		E7533EC1A2AF4938B9CD8BA0 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 73B1D24D6D37160012C57894 /* pawWatch Watch App */;
-			targetProxy = 976E22D2DF164C119C0E9AE2 /* PBXContainerItemProxy */;
-		};
-/* End PBXTargetDependency section */
-
 /* Begin PBXFileReference section */
-		24A9551A73A98AE2FB4AA8C3 /* pawWatch.xctestplan */ = {isa = PBXFileReference; path = pawWatch.xctestplan; sourceTree = "<group>"; };
+		24A9551A73A98AE2FB4AA8C3 /* pawWatch.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = pawWatch.xctestplan; sourceTree = "<group>"; };
 		31CF20CA899DE2D203ABA5E0 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		332C74C6C210BDC7E42FAB0B /* pawWatchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = pawWatchApp.swift; sourceTree = "<group>"; };
 		33AC2CD8AB3941DC48825948 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		594D3B7268AF24EF28D0EA80 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		65B60F212EBD77CE00499A74 /* WatchLocationProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchLocationProvider.swift; sourceTree = "<group>"; };
+		65B60F232EBD785F00499A74 /* LocationFix.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationFix.swift; sourceTree = "<group>"; };
+		65B60F252EBD7A0F00499A74 /* WatchLocationFix.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchLocationFix.swift; sourceTree = "<group>"; };
 		6AAB458652C595976E7FA680 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		950A0AD89D5233A618F6D2BF /* pawWatch Watch App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "pawWatch Watch App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
-		A516D3F21A55137C5D54F3DF /* pawWatchPackage */ = {isa = PBXFileReference; lastKnownFileType = folder; name = pawWatchPackage; path = pawWatchPackage; sourceTree = SOURCE_ROOT; };
+		A516D3F21A55137C5D54F3DF /* pawWatchPackage */ = {isa = PBXFileReference; lastKnownFileType = folder; path = pawWatchPackage; sourceTree = SOURCE_ROOT; };
 		C17C02071845B52C99D8AFAF /* pawWatchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = pawWatchApp.swift; sourceTree = "<group>"; };
 		D8DF9D5B77E59B7AD1D4407E /* pawWatch.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = pawWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -100,10 +91,12 @@
 		22AF874BEB830E0592595306 /* pawWatch Watch App */ = {
 			isa = PBXGroup;
 			children = (
+				65B60F212EBD77CE00499A74 /* WatchLocationProvider.swift */,
 				33AC2CD8AB3941DC48825948 /* Assets.xcassets */,
 				31CF20CA899DE2D203ABA5E0 /* ContentView.swift */,
 				594D3B7268AF24EF28D0EA80 /* Info.plist */,
 				332C74C6C210BDC7E42FAB0B /* pawWatchApp.swift */,
+				65B60F252EBD7A0F00499A74 /* WatchLocationFix.swift */,
 			);
 			path = "pawWatch Watch App";
 			sourceTree = "<group>";
@@ -132,6 +125,7 @@
 			isa = PBXGroup;
 			children = (
 				950A0AD89D5233A618F6D2BF /* pawWatch Watch App.app */,
+				65B60F232EBD785F00499A74 /* LocationFix.swift */,
 				D8DF9D5B77E59B7AD1D4407E /* pawWatch.app */,
 			);
 			name = Products;
@@ -204,7 +198,6 @@
 			packageReferences = (
 				75FCD03AE4A9E679D60BBE1C /* XCLocalSwiftPackageReference "pawWatchPackage" */,
 			);
-			preferredProjectObjectVersion = 77;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -238,6 +231,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				65B60F242EBD785F00499A74 /* LocationFix.swift in Sources */,
 				0E3589B340742665FCB48483 /* pawWatchApp.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -246,12 +240,22 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				65B60F262EBD7A0F00499A74 /* WatchLocationFix.swift in Sources */,
 				BFE171C459CD5760E7997CEE /* ContentView.swift in Sources */,
+				65B60F222EBD77CE00499A74 /* WatchLocationProvider.swift in Sources */,
 				6A4889B958D5A146E4F8E308 /* pawWatchApp.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		E7533EC1A2AF4938B9CD8BA0 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 73B1D24D6D37160012C57894 /* pawWatch Watch App */;
+			targetProxy = 976E22D2DF164C119C0E9AE2 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		07B5D789754C15B19A722C6B /* Release */ = {
@@ -426,8 +430,8 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Config/pawWatch_Watch_App.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = 78725QX6PZ;
 				COPY_PHASE_STRIP = NO;
+				DEVELOPMENT_TEAM = 78725QX6PZ;
 				ENABLE_PREVIEWS = YES;
 				INFOPLIST_FILE = "pawWatch Watch App/Info.plist";
 				ONLY_ACTIVE_ARCH = YES;
@@ -445,7 +449,6 @@
 		F83A02A02FA3E7298F9AE95A /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ARCHS = arm64;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Config/pawWatch_Watch_App.entitlements;

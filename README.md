@@ -1,125 +1,108 @@
-# pawWatch - iOS App
+# pawWatch
 
-A modern iOS application using a **workspace + SPM package** architecture for clean separation between app shell and feature code.
+pawWatch is a paired iOS + watchOS experience that keeps tabs on your pet’s location in real time. The iPhone app focuses on rich visualization (Liquid Glass UI, MapKit trail overlays, connection health), while the watchOS companion captures GPS fixes at 1 Hz, streams them through WatchConnectivity, and mirrors key stats directly on the wrist.
 
-## AI Assistant Rules Files
+## Highlights
+- **Live trail tracking** – Pet status card, battery estimates, and a MapKit overlay fed by Apple Watch telemetry.
+- **Swift Package core** – All production code lives in `pawWatchFeature`, keeping the app target lean.
+- **Modern Swift stack** – Swift 6.2, @Observable state, async/await, watchOS 11 workout-driven GPS.
+- **Companion-ready build** – The iOS target embeds `pawWatch Watch App.app`, so installing the phone app also deploys the watch app.
 
-This template includes **opinionated rules files** for popular AI coding assistants. These files establish coding standards, architectural patterns, and best practices for modern iOS development using the latest APIs and Swift features.
-
-### Included Rules Files
-- **Claude Code**: `CLAUDE.md` - Claude Code rules
-- **Cursor**: `.cursor/*.mdc` - Cursor-specific rules
-- **GitHub Copilot**: `.github/copilot-instructions.md` - GitHub Copilot rules
-
-### Customization Options
-These rules files are **starting points** - feel free to:
-- ✅ **Edit them** to match your team's coding standards
-- ✅ **Delete them** if you prefer different approaches
-- ✅ **Add your own** rules for other AI tools
-- ✅ **Update them** as new iOS APIs become available
-
-### What Makes These Rules Opinionated
-- **No ViewModels**: Embraces pure SwiftUI state management patterns
-- **Swift 6+ Concurrency**: Enforces modern async/await over legacy patterns
-- **Latest APIs**: Recommends iOS 18+ features with optional iOS 26 guidelines
-- **Testing First**: Promotes Swift Testing framework over XCTest
-- **Performance Focus**: Emphasizes @Observable over @Published for better performance
-
-**Note for AI assistants**: You MUST read the relevant rules files before making changes to ensure consistency with project standards.
-
-## Project Architecture
-
+## Architecture
 ```
 pawWatch/
-├── pawWatch.xcworkspace/              # Open this file in Xcode
-├── pawWatch.xcodeproj/                # App shell project
-├── pawWatch/                          # App target (minimal)
-│   ├── Assets.xcassets/                # App-level assets (icons, colors)
-│   ├── pawWatchApp.swift              # App entry point
-│   └── pawWatch.xctestplan            # Test configuration
-├── pawWatchPackage/                   # 🚀 Primary development area
-│   ├── Package.swift                   # Package configuration
-│   ├── Sources/pawWatchFeature/       # Your feature code
-│   └── Tests/pawWatchFeatureTests/    # Unit tests
-└── pawWatchUITests/                   # UI automation tests
+├── pawWatch.xcworkspace          # Open this in Xcode 16.3+
+├── pawWatch.xcodeproj            # App + watch targets
+├── pawWatch/                     # Minimal iOS shell (Assets, entry point)
+├── pawWatch Watch App/           # Native watchOS UI backed by WatchLocationProvider
+├── pawWatchPackage/
+│   ├── Package.swift
+│   ├── Sources/pawWatchFeature/  # ContentView, PetLocationManager, WatchLocationProvider, etc.
+│   └── Tests/pawWatchFeatureTests/
+├── pawWatchUITests/              # XCUITests
+└── Config/                       # Shared/Debug/Release/Test xcconfigs + entitlements
+```
+Key decisions:
+- **Workspace-first** so the package and app share a single entry point.
+- **SPM buildable folders** let you drop files in `Sources/` or `Tests/` without touching the `.xcodeproj`.
+- **Config-driven build settings** keep bundle IDs, versions, and entitlements in one place.
+
+## Requirements
+- Xcode 16.3+
+- iOS 18.4 (deployment target) and watchOS 11.0 for the companion
+- Apple Developer account for codesigning (see `Config/pawWatch.entitlements` and provisioning profile notes)
+
+## Getting Started
+1. Clone the repo and install submodules if your workflow uses them:
+   ```bash
+   git clone https://github.com/stonezone/PawWatch.git
+   cd PawWatch
+   ```
+2. Open `pawWatch.xcworkspace` in Xcode.
+3. Select the **pawWatch** scheme and your iPhone device.
+4. Ensure the Apple Watch paired with that iPhone is unlocked; Xcode will push the embedded companion automatically.
+5. Hit **Run**. The first launch prompts for Location, Health, and WatchConnectivity permissions.
+
+### Command-line builds
+```bash
+# iOS app with embedded watch app
+xcodebuild -workspace pawWatch.xcworkspace \
+           -scheme pawWatch \
+           -configuration Release \
+           -destination 'generic/platform=iOS' build
+
+# Standalone watchOS target (useful for diagnostics)
+xcodebuild -workspace pawWatch.xcworkspace \
+           -scheme "pawWatch Watch App" \
+           -configuration Release \
+           -destination 'generic/platform=watchOS' build
+
+# Tests (Swift Testing + XCUITest via plan)
+xcodebuild -workspace pawWatch.xcworkspace \
+           -scheme pawWatch \
+           -testPlan pawWatch \
+           test
 ```
 
-## Key Architecture Points
+## Swift Package: `pawWatchFeature`
+The `pawWatchFeature` target contains all presentation, state, and connectivity logic shared by the phone and watch targets.
 
-### Workspace + SPM Structure
-- **App Shell**: `pawWatch/` contains minimal app lifecycle code
-- **Feature Code**: `pawWatchPackage/Sources/pawWatchFeature/` is where most development happens
-- **Separation**: Business logic lives in the SPM package, app target just imports and displays it
+| File | Purpose |
+|------|---------|
+| `ContentView.swift` | Liquid Glass dashboard combining `PetStatusCard`, `PetMapView`, pull-to-refresh, and toolbar actions. |
+| `PetLocationManager.swift` | @Observable bridge between WatchConnectivity, CoreLocation, and SwiftUI state (stores last 100 fixes, distance, battery, errors). |
+| `WatchLocationProvider.swift` | watchOS-only manager that starts HKWorkout sessions, streams CLLocation updates at ~1 Hz, and relays data via context/messages/files. |
+| `LocationFix.swift` | Codable payload shared by both platforms. |
+| `PetStatusCard.swift`, `PetMapView.swift` | UI components for status/battery/accuracy and MapKit trail rendering. |
 
-### Buildable Folders (Xcode 16)
-- Files added to the filesystem automatically appear in Xcode
-- No need to manually add files to project targets
-- Reduces project file conflicts in teams
+Add new capabilities by editing `pawWatchPackage/Package.swift`; Package resources (images, JSON, etc.) can be added via `.process("Resources")` blocks.
 
-## Development Notes
+## Apple Watch Companion
+- Lives in `pawWatch Watch App/` and imports `pawWatchFeature` to reuse `WatchLocationProvider` APIs.
+- Uses HealthKit workouts to keep GPS active and grants background execution for pet tracking.
+- Communicates with the phone through WatchConnectivity’s messaging, application context (0.5 s throttle), and file transfer for reliability.
+- The Xcode project includes an **Embed Watch Content** build phase so the watch app is bundled under `pawWatch.app/Watch/`.
 
-### Code Organization
-Most development happens in `pawWatchPackage/Sources/pawWatchFeature/` - organize your code as you prefer.
+## Configuration & Entitlements
+- `Config/Shared.xcconfig` shares deployment targets, bundle prefixes, marketing/build versions.
+- `Config/Debug.xcconfig`, `Config/Release.xcconfig`, `Config/Tests.xcconfig` customize compiler flags per flavor.
+- `Config/pawWatch.entitlements` and `Config/pawWatch_Watch_App.entitlements` declare capabilities (Location, HealthKit, WatchConnectivity). Update these when enabling new services.
 
-### Public API Requirements
-Types exposed to the app target need `public` access:
-```swift
-public struct NewView: View {
-    public init() {}
-    
-    public var body: some View {
-        // Your view code
-    }
-}
-```
+## Testing
+- **Unit / feature tests** live in `pawWatchPackage/Tests/pawWatchFeatureTests/` and can use Swift Testing snapshots or async expectations.
+- **UI automation** is in `pawWatchUITests/` with `pawWatch.xctestplan` orchestrating suites across devices.
+- For watchOS-specific validation, use Xcode’s Watch simulator and run the `pawWatch Watch App` scheme.
 
-### Adding Dependencies
-Edit `pawWatchPackage/Package.swift` to add SPM dependencies:
-```swift
-dependencies: [
-    .package(url: "https://github.com/example/SomePackage", from: "1.0.0")
-],
-targets: [
-    .target(
-        name: "pawWatchFeature",
-        dependencies: ["SomePackage"]
-    ),
-]
-```
+## Troubleshooting
+- **“Unable to find module dependency: 'pawWatchFeature'”** – Make sure you open the workspace (not just the project) so the Swift package is resolved.
+- **Companion not installing** – Verify the phone build succeeds and that `pawWatch.app/Watch/` contains `pawWatch Watch App.app`. Rebuild the iOS target if needed.
+- **Provisioning profile warnings** – Regenerate automatic profiles from Xcode’s Signing & Capabilities pane after updating entitlements.
 
-### Test Structure
-- **Unit Tests**: `pawWatchPackage/Tests/pawWatchFeatureTests/` (Swift Testing framework)
-- **UI Tests**: `pawWatchUITests/` (XCUITest framework)
-- **Test Plan**: `pawWatch.xctestplan` coordinates all tests
+## Contributing
+1. Fork the repository and create a feature branch.
+2. Make your changes (Swift code lives under `pawWatchPackage/Sources`).
+3. Run the tests (`xcodebuild test` or from Xcode) and ensure watch + phone builds succeed.
+4. Submit a pull request that describes the change and any user-facing impact.
 
-## Configuration
-
-### XCConfig Build Settings
-Build settings are managed through **XCConfig files** in `Config/`:
-- `Config/Shared.xcconfig` - Common settings (bundle ID, versions, deployment target)
-- `Config/Debug.xcconfig` - Debug-specific settings  
-- `Config/Release.xcconfig` - Release-specific settings
-- `Config/Tests.xcconfig` - Test-specific settings
-
-### Entitlements Management
-App capabilities are managed through a **declarative entitlements file**:
-- `Config/pawWatch.entitlements` - All app entitlements and capabilities
-- AI agents can safely edit this XML file to add HealthKit, CloudKit, Push Notifications, etc.
-- No need to modify complex Xcode project files
-
-### Asset Management
-- **App-Level Assets**: `pawWatch/Assets.xcassets/` (app icon, accent color)
-- **Feature Assets**: Add `Resources/` folder to SPM package if needed
-
-### SPM Package Resources
-To include assets in your feature package:
-```swift
-.target(
-    name: "pawWatchFeature",
-    dependencies: [],
-    resources: [.process("Resources")]
-)
-```
-
-### Generated with XcodeBuildMCP
-This project was scaffolded using [XcodeBuildMCP](https://github.com/cameroncooke/XcodeBuildMCP), which provides tools for AI-assisted iOS development workflows.
+## License
+This project is released under the [MIT License](LICENSE).
