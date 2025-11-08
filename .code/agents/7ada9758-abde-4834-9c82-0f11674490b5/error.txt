@@ -1,0 +1,1 @@
+Command failed: Credit balance is too low

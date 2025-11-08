@@ -1,0 +1,674 @@
+[2025-11-08T11:03:23] OpenAI Codex v0.0.0 (research preview)
+--------
+workdir: /Users/zackjordan/code/pawWatch-app
+model: gpt-5
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: high
+reasoning summaries: auto
+--------
+[2025-11-08T11:03:23] User instructions:
+Context: Repo root: /Users/zackjordan/code/pawWatch-app. Focus on TODO Phase 1. Highlight assumptions needing human execution.
+
+
+Agent: From TODO.md Phase 1 requirements, outline a realistic hardware validation test plan (battery, accuracy, WC range) for PawWatch, including data to collect, tooling/logging steps, and doc structure for docs/HARDWARE_VALIDATION.md. Highlight constraints (Xcode 26.1 bug, WCSession).
+
+Files to consider: /Users/zackjordan/code/pawWatch-app/TODO.md
+
+[Running in read-only mode - no modifications allowed]
+[2025-11-08T11:03:23] OpenAI Codex v0.0.0 (research preview)
+--------
+workdir: /Users/zackjordan/code/pawWatch-app
+model: gpt-5
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: high
+reasoning summaries: auto
+--------
+[2025-11-08T11:03:23] User instructions:
+Context: Repo root: /Users/zackjordan/code/pawWatch-app. Focus on TODO Phase 1. Highlight assumptions needing human execution.
+
+
+Agent: From TODO.md Phase 1 requirements, outline a realistic hardware validation test plan (battery, accuracy, WC range) for PawWatch, including data to collect, tooling/logging steps, and doc structure for docs/HARDWARE_VALIDATION.md. Highlight constraints (Xcode 26.1 bug, WCSession).
+
+Files to consider: /Users/zackjordan/code/pawWatch-app/TODO.md
+
+[Running in read-only mode - no modifications allowed]
+
+[2025-11-08T11:03:27] thinking
+
+**Outlining hardware validation plan**
+
+I need to create a realistic hardware validation test plan for PawWatch based on Phase 1 requirements from TODO.md. Since we’re in read-only mode and restricted from writing files, I’ll focus on gathering the relevant content from TODO.md. My task involves highlighting aspects such as the Xcode 26.1 bug and WCSession constraints, along with assumptions that need human execution. I’ll outline the data to collect, tooling and logging steps, plus the documentation structure for docs/HARDWARE_VALIDATION.md. Let's start by accessing TODO.md.
+[2025-11-08T11:03:29] codex
+
+I’m going to open `TODO.md` to extract Phase 1 requirements and constraints.
+[2025-11-08T11:03:31] exec bash -lc "ls -la && echo '---' && sed -n '1,250p' TODO.md && echo '---' && sed -n '251,500p' TODO.md" in /Users/zackjordan/code/pawWatch-app
+[2025-11-08T11:03:31] bash -lc "ls -la && echo '---' && sed -n '1,250p' TODO.md && echo '---' && sed -n '251,500p' TODO.md" succeeded in 315ms:
+total 192
+drwxr-xr-x   39 zackjordan  staff   1248 Nov  8 00:58 .
+drwxr-xr-x  133 zackjordan  staff   4256 Nov  7 13:40 ..
+drwxr-xr-x    5 zackjordan  staff    160 Nov  7 12:56 .claude
+drwxr-xr-x    4 zackjordan  staff    128 Nov  5 22:44 .cursor
+-rw-r--r--@   1 zackjordan  staff  16388 Nov  8 00:43 .DS_Store
+drwxrwxrwx   15 zackjordan  staff    480 Nov  8 01:03 .git
+drwxr-xr-x    3 zackjordan  staff     96 Nov  5 22:44 .github
+-rw-r--r--    1 zackjordan  staff   1638 Nov  7 23:59 .gitignore
+drwxr-xr-x@   7 zackjordan  staff    224 Nov  7 13:55 .serena
+-rw-r--r--    1 zackjordan  staff   3049 Nov  5 22:48 add_watch_target_complete.py
+-rw-r--r--    1 zackjordan  staff   1110 Nov  5 22:49 add_watch_target_final.py
+-rw-r--r--    1 zackjordan  staff   2293 Nov  5 22:47 add_watch_target.py
+-rw-r--r--    1 zackjordan  staff   1130 Nov  5 22:47 add_watch_target.sh
+drwxr-xr-x    7 zackjordan  staff    224 Nov  6 15:07 build_home
+drwxr-xr-x    9 zackjordan  staff    288 Nov  7 16:46 Config
+-rw-r--r--    1 zackjordan  staff   1787 Nov  8 00:58 CURRENT_STATE.md
+drwxr-xr-x    3 zackjordan  staff     96 Nov  7 23:59 documentation_archive
+drwxr-xr-x    3 zackjordan  staff     96 Nov  7 16:47 githooks
+drwxr-xr-x    9 zackjordan  staff    288 Nov  5 21:32 images
+[2025-11-08T11:03:31] tokens used: 9,228
+
+[2025-11-08T11:03:42] thinking
+
+**Evaluating GPS Data Logging**
+
+I want to consider logging various data points about the watch and its environment. For example, it's important to capture the watchOS version and model through `WKInterfaceDevice`. However, not all information may be available, so I should focus on using `model` and `systemVersion`. Also, I'm looking to log runtime characteristics of `HKWorkoutSession`.
+
+I plan to gather GPS metadata like timestamp and coordinates to analyze accuracy. For accuracy studies, I might need to use tools like Strava or a built-in location tracker. There’ll be assumptions about physically walking predetermined paths.
+**Planning Data Collection and Logging**
+
+I want to collect several types of data, including location from the watch app, watch orientation, and environment classification. I'll compute metrics like median and p90 horizontal error compared to ground truth. For analysis, I'll consider using a Jupyter notebook or script to compute `haversine` errors and create visualizations.
+
+Also, I need to log the reachability changes and device states with timestamps. It's essential to establish a logging plan and a unified logging schema for both the watch and the phone using OSLog. I might provide sample code for JSON lines file creation too.
+**Proposing a Logging Tool**
+
+I'm considering a logging tool called `scripts/collect_logs.sh` that will likely use `idevicesyslog`. This tool can help in collecting logs effectively. I need to ensure that it captures necessary information accurately and efficiently. I wonder if there are additional features I could include to enhance its functionality. Maybe I should plan its execution flow carefully to avoid any missing logs during collection. Let's see how I can refine this tool for better usage!
+**Structuring Documentation for Hardware Validation**
+
+I'm planning to create a structured document for `HARDWARE_VALIDATION.md`. First, I want to outline the headings, such as title and objectives, devices under test (a DUT matrix), firmware versions, and the test environment. 
+
+I’ll include detailed test cases for battery performance, GPS accuracy in various settings, and connection metrics. Additionally, I'll specify constraints regarding Xcode 26.1's bug that affects the watch app installation. For clarity, I'll add sections for data schemas, procedures, acceptance criteria, and observations so the document covers everything comprehensively.
+**Planning Testing Protocols and Documentation**
+
+I’m outlining a detailed testing protocol for the `WCSession` requirements, focusing on the need for `isPaired` and `isWatchAppInstalled`. I need to clarify how to test the messaging reliably and specify the constraints involved, especially the impact of the phone being locked. 
+
+Additionally, GPS accuracy will involve careful separation of tests—using the watch's GPS alone and tethered to the iPhone. I also want to collect relevant data for battery performance and establish clear scheduling for each test phase. Lastly, I’ll highlight any assumptions regarding equipment and setup needed for successful execution.
+[2025-11-08T11:04:07] codex
+**Planning Data Collection and Logging**
+
+I want to collect several types of data, including location from the watch app, watch orientation, and environment classification. I'll compute metrics like median and p90 horizontal error compared to ground truth. For analysis, I'll consider using a Jupyter notebook or script to compute `haversine` errors and create visualizations.
+
+Also, I need to log the reachability changes and device states with timestamps. It's essential to establish a logging plan and a unified logging schema for both the watch and the phone using OSLog. I might provide sample code for JSON lines file creation too.
+[2025-11-08T11:04:07] codex
+**Proposing a Logging Tool**
+
+I'm considering a logging tool called `scripts/collect_logs.sh` that will likely use `idevicesyslog`. This tool can help in collecting logs effectively. I need to ensure that it captures necessary information accurately and efficiently. I wonder if there are additional features I could include to enhance its functionality. Maybe I should plan its execution flow carefully to avoid any missing logs during collection. Let's see how I can refine this tool for better usage!
+[2025-11-08T11:04:07] codex
+**Structuring Documentation for Hardware Validation**
+
+I'm planning to create a structured document for `HARDWARE_VALIDATION.md`. First, I want to outline the headings, such as title and objectives, devices under test (a DUT matrix), firmware versions, and the test environment. 
+
+I’ll include detailed test cases for battery performance, GPS accuracy in various settings, and connection metrics. Additionally, I'll specify constraints regarding Xcode 26.1's bug that affects the watch app installation. For clarity, I'll add sections for data schemas, procedures, acceptance criteria, and observations so the document covers everything comprehensively.
+[2025-11-08T11:04:07] codex
+**Planning Testing Protocols and Documentation**
+
+I’m outlining a detailed testing protocol for the `WCSession` requirements, focusing on the need for `isPaired` and `isWatchAppInstalled`. I need to clarify how to test the messaging reliably and specify the constraints involved, especially the impact of the phone being locked. 
+
+Additionally, GPS accuracy will involve careful separation of tests—using the watch's GPS alone and tethered to the iPhone. I also want to collect relevant data for battery performance and establish clear scheduling for each test phase. Lastly, I’ll highlight any assumptions regarding equipment and setup needed for successful execution.
+[2025-11-08T11:04:08] exec bash -lc "sed -n '1,200p' TROUBLESHOOTING.md && echo '---' && sed -n '200,400p' TROUBLESHOOTING.md" in /Users/zackjordan/code/pawWatch-app
+[2025-11-08T11:04:08] bash -lc "sed -n '1,200p' TROUBLESHOOTING.md && echo '---' && sed -n '200,400p' TROUBLESHOOTING.md" succeeded in 178ms:
+# TROUBLESHOOTING
+
+## Install / Build
+- **Error 143 (WatchKitExtensionlessApp)**: Xcode 26.1 bug. Solution: run the watch target directly (no embedding). Clean both targets, delete from Watch app list on iPhone, reinstall.
+- **`WCFileStorage … could not load file data`**: file-transfer path is now disabled; if you still see stale logs, delete the iOS app to clear WatchConnectivity's cache.
+
+## Connectivity
+| Symptom | Fix |
+| --- | --- |
+| `WCSession counterpart app not installed` | Launch the watch app manually once; ensure both devices are on the same Wi‑Fi/Bluetooth and logged into the same Apple ID. |
+| `WCErrorCodeDeliveryFailed / NotReachable` | Phone is locked or out of range. The watch now throttles interactive sends; reopen the iOS app to resume immediate updates. |
+| Phone Settings row shows “Disconnected” | Open the watch app, confirm the tracking screen is active, then tap “Request Fresh Location” in iOS Settings. |
+
+## Permissions
+- **iPhone Location denied**: Settings ▸ Privacy ▸ Location ▸ pawWatch → enable *While Using*. You can open this from Settings ▸ Permissions inside the app.
+- **Watch Workout/Location denied**: On the watch, re-open pawWatch, go to Settings → Privacy → Reset Fitness Calibration Data if needed, then tap “Restart Workout” when prompted.
+
+## GPS Accuracy / Battery
+- Ensure the watch has clear sky view. Indoors or under dense cover accuracy will degrade past 50 m.
+- Battery falls quickly if the watch display sleeps. Use Water Lock / Digital Crown to keep the tracking screen active during tests.
+[2025-11-08T11:04:08] tokens used: 23,081
+
+[2025-11-08T11:04:10] thinking
+
+**Exploring troubleshooting options**
+
+I see that TROUBLESHOOTING has some useful constraints and logging cues that could be included. I think those details will help clarify things. There's also CURRENT_STATE.md, which might have information about instrumentation. It seems like checking that would give me useful insights. I really want to make sure I have all the right details before moving forward, so a little peek at CURRENT_STATE.md sounds like a good next step!
+[2025-11-08T11:04:12] exec bash -lc "sed -n '1,200p' CURRENT_STATE.md && echo '---' && sed -n '200,400p' CURRENT_STATE.md" in /Users/zackjordan/code/pawWatch-app
+[2025-11-08T11:04:12] bash -lc "sed -n '1,200p' CURRENT_STATE.md && echo '---' && sed -n '200,400p' CURRENT_STATE.md" succeeded in 158ms:
+# CURRENT STATE – November 8, 2025
+
+| Item | Status |
+| --- | --- |
+| iOS App | ✅ Builds & runs on physical iPhone (portrait-only, iPhone-only target) |
+| Watch App | ✅ Run from Xcode directly (embedding disabled due to Xcode 26.1 bug) |
+| Version | 1.0.7 (bumped via `scripts/bump_version.py`) |
+| Connectivity | WCSession throttled, file transfers disabled, application-context updates every 0.5 s |
+| GPS Flow | Watch captures ~1 Hz fixes, sends context + debounced interactive messages; iPhone maps, history, and status card consume the shared `PetLocationManager` | 
+
+## Deployment Notes
+1. **Phone build**: `pawWatch` scheme → real device. Portrait-only, no iPad.
+2. **Watch build**: run `pawWatch Watch App` directly to the watch. Do *not* rely on Embed Watch Content (Xcode 26.1 error 143). Keep the phone app running/foregrounded for fastest WCSession delivery.
+3. **Version discipline**: before every commit, run `./scripts/bump_version.py`. The pre-commit hook enforces this.
+
+## Known Issues
+- **Xcode 26.1**: Embedding the watch app fails with `MIInstallerErrorDomain 143` because Xcode emits a real executable + stub. Workaround is manual install by running the watch target.
+- **Reachability**: Phone must stay reasonably close/awake; otherwise interactive messages are throttled and we rely on application context.
+- **Permissions**: If the watch denies HealthKit/location, tracking stalls. Use the new Settings section to review iPhone permissions and manually re-open Settings.
+
+[2025-11-08T11:04:12] tokens used: 24,713
+
+[2025-11-08T11:04:15] thinking
+
+**Checking code references**
+
+I see that I need to look into code references related to logging of reachability, such as WatchLocationProvider. It's important to ensure I'm thorough in my search. I will search sources using the term "Reachability changed" to find relevant information. This could help clarify how reachability is being handled in the code and provide deeper insights into its functionality. Let's see what I can find!
+[2025-11-08T11:04:17] exec bash -lc 'rg -n "Reachability changed|WatchLocationProvider|WCSession|sendMessage|applicationContext|WKExtendedRuntimeSession|HKWorkoutSession" -S' in /Users/zackjordan/code/pawWatch-app
+[2025-11-08T11:04:17] bash -lc 'rg -n "Reachability changed|WatchLocationProvider|WCSession|sendMessage|applicationContext|WKExtendedRuntimeSession|HKWorkoutSession" -S' succeeded in 183ms:
+verify_integration.sh:2:# WatchLocationProvider Integration Verification Script
+verify_integration.sh:5:echo "🔍 Verifying WatchLocationProvider Integration..."
+verify_integration.sh:16:THROTTLE=$(grep "contextPushInterval.*=" Sources/WatchLocationProvider/WatchLocationProvider.swift | grep -o "[0-9.]*" | head -1)
+verify_integration.sh:35:if grep -q "class WatchLocationManager.*WatchLocationProviderDelegate" "pawWatch Watch App/ContentView.swift"; then
+pawWatch.xcodeproj/project.pbxproj:12:		WATCHAPP002WatchLocProv /* WatchLocationProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65B60F212EBD77CE00499A74 /* WatchLocationProvider.swift */; };
+pawWatch.xcodeproj/project.pbxproj:16:		65B60F222EBD77CE00499A74 /* WatchLocationProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65B60F212EBD77CE00499A74 /* WatchLocationProvider.swift */; };
+pawWatch.xcodeproj/project.pbxproj:78:		65B60F212EBD77CE00499A74 /* WatchLocationProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchLocationProvider.swift; sourceTree = "<group>"; };6AAB458652C595976E7FA680 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+pawWatch.xcodeproj/project.pbxproj:120:				65B60F212EBD77CE00499A74 /* WatchLocationProvider.swift */,
+pawWatch.xcodeproj/project.pbxproj:265:				WATCHAPP002WatchLocProv /* WatchLocationProvider.swift in Sources */,
+TROUBLESHOOTING.md:10:| `WCSession counterpart app not installed` | Launch the watch app manually once; ensure both devices are on the same Wi‑Fi/Bluetooth and logged into the same Apple ID. |
+TROUBLESHOOTING.md:24:- WatchConnectivity state changes now print as `[WatchLocationProvider] Reachability changed → …`.
+pawWatch.xcodeproj/project.pbxproj.backup:12:		65B60F222EBD77CE00499A74 /* WatchLocationProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65B60F212EBD77CE00499A74 /* WatchLocationProvider.swift */; };
+pawWatch.xcodeproj/project.pbxproj.backup:21:		E05B7BB227D5E6E500B2769C /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31CF20CA899DE2D203ABA5E0 /* ContentView.swift */; };E05B7BB527D5E6E500B2769C /* WatchLocationProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65B60F212EBD77CE00499A74 /* WatchLocationProvider.swift */; };
+pawWatch.xcodeproj/project.pbxproj.backup:96:		65B60F212EBD77CE00499A74 /* WatchLocationProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchLocationProvider.swift; sourceTree = "<group>"; };6AAB458652C595976E7FA680 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+pawWatch.xcodeproj/project.pbxproj.backup:156:				65B60F212EBD77CE00499A74 /* WatchLocationProvider.swift */,
+pawWatch.xcodeproj/project.pbxproj.backup:334:				E05B7BB527D5E6E500B2769C /* WatchLocationProvider.swift in Sources */,
+CURRENT_STATE.md:8:| Connectivity | WCSession throttled, file transfers disabled, application-context updates every 0.5 s |
+CURRENT_STATE.md:13:2. **Watch build**: run `pawWatch Watch App` directly to the watch. Do *not* rely on Embed Watch Content (Xcode 26.1 error 143). Keep the phone app running/foregrounded for fastest WCSession delivery.
+CURRENT_STATE.md:23:2. Add motion-aware polling + WKExtendedRuntimeSession to extend battery.
+Sources/WatchLocationProvider/WatchLocationProvider.swift:2://  WatchLocationProvider.swift
+[2025-11-08T11:04:17] tokens used: 25,394
+
+[2025-11-08T11:04:22] thinking
+
+**Analyzing code duplication**
+
+I've discovered code duplication in the `WatchLocationProvider` between `Sources/WatchLocationProvider` and `pawWatch Watch App/WatchLocationProvider.swift`. The test plan should remain neutral, but I think it would be helpful to depend on logs from `WatchLocationProvider` to track changes in reachability and messages. I want to open `Sources/WatchLocationProvider/WatchLocationProvider.swift` to check the log message names and develop a log schema, focusing on important attributes like throttle and contextPushInterval.
+[2025-11-08T11:04:24] exec bash -lc "nl -ba Sources/WatchLocationProvider/WatchLocationProvider.swift | sed -n '1,140p' && echo '---' && sed -n '200,340p' Sources/WatchLocationProvider/WatchLocationProvider.swift && echo '---' && sed -n '260,320p' Sources/WatchLocationProvider/WatchLocationProvider.swift && echo '---' && sed -n '430,480p' Sources/WatchLocationProvider/WatchLocationProvider.swift && echo '---' && sed -n '440,560p' Sources/WatchLocationProvider/WatchLocationProvider.swift" in /Users/zackjordan/code/pawWatch-app
+[2025-11-08T11:04:25] bash -lc "nl -ba Sources/WatchLocationProvider/WatchLocationProvider.swift | sed -n '1,140p' && echo '---' && sed -n '200,340p' Sources/WatchLocationProvider/WatchLocationProvider.swift && echo '---' && sed -n '260,320p' Sources/WatchLocationProvider/WatchLocationProvider.swift && echo '---' && sed -n '430,480p' Sources/WatchLocationProvider/WatchLocationProvider.swift && echo '---' && sed -n '440,560p' Sources/WatchLocationProvider/WatchLocationProvider.swift" succeeded in 189ms:
+     1	//
+     2	//  WatchLocationProvider.swift
+     3	//  pawWatch
+     4	//
+     5	//  Purpose: Manages workout-driven GPS capture on Apple Watch with triple-path
+     6	//           WatchConnectivity messaging (interactive, context, file transfer).
+     7	//           Provides maximum-frequency location updates (~1Hz native Watch GPS)
+     8	//           with 0.5s application context throttle for efficient phone relay.
+     9	//
+    10	//  Author: Adapted from gps-relay-framework for pawWatch
+    11	//  Created: 2025-11-05
+    12	//  Swift: 6.2
+    13	//  Platform: watchOS 26.1+
+    14	//
+    15	
+    16	import Foundation
+    17	
+    18	#if os(watchOS)
+    19	import CoreLocation
+    20	import HealthKit
+[2025-11-08T11:04:25] tokens used: 39,834
+
+[2025-11-08T11:04:28] thinking
+
+**Evaluating logging strategy**
+
+It looks like I've noticed some logs that might have duplication. The logs print categories such as session state checks, reachability, and debug messages. I think I should focus on capturing these log lines sorted by time to compute reconnection latencies effectively. Also, I want to open the iPhone's PetLocationManager to check the logging for `sessionReachabilityDidChange` on the phone side. It could be useful to incorporate this into logging phone counters. Let’s get started!
+[2025-11-08T11:04:31] exec bash -lc "sed -n '1,200p' pawWatchPackage/Sources/pawWatchFeature/PetLocationManager.swift && echo '---' && sed -n '200,380p' pawWatchPackage/Sources/pawWatchFeature/PetLocationManager.swift" in /Users/zackjordan/code/pawWatch-app
+[2025-11-08T11:04:31] bash -lc "sed -n '1,200p' pawWatchPackage/Sources/pawWatchFeature/PetLocationManager.swift && echo '---' && sed -n '200,380p' pawWatchPackage/Sources/pawWatchFeature/PetLocationManager.swift" succeeded in 173ms:
+//
+//  PetLocationManager.swift
+//  pawWatch
+//
+//  Purpose: Manages pet GPS location data from Apple Watch via WatchConnectivity.
+//           Handles real-time location updates, historical trail data, and owner distance calculation.
+//
+//  Author: Created for pawWatch
+//  Created: 2025-11-05
+//  Swift: 6.2
+//  Platform: iOS 26.1+
+//
+
+#if os(iOS)
+import Foundation
+import CoreLocation
+import Observation
+#if canImport(UIKit)
+import UIKit
+#endif
+[2025-11-08T11:04:31] tokens used: 45,553
+[2025-11-08T11:04:36] exec bash -lc "sed -n '380,760p' pawWatchPackage/Sources/pawWatchFeature/PetLocationManager.swift" in /Users/zackjordan/code/pawWatch-app
+[2025-11-08T11:04:36] bash -lc "sed -n '380,760p' pawWatchPackage/Sources/pawWatchFeature/PetLocationManager.swift" succeeded in 152ms:
+        // Capture authorization status before Task to avoid data race
+        let status = manager.authorizationStatus
+
+        Task { @MainActor in
+            self.locationAuthorizationStatus = status
+            switch status {
+            case .authorizedWhenInUse, .authorizedAlways:
+                self.locationManager.startUpdatingLocation()
+            case .denied, .restricted:
+                self.errorMessage = "Location permission denied. Enable in Settings to see distance."
+            case .notDetermined:
+                self.locationManager.requestWhenInUseAuthorization()
+            @unknown default:
+                break
+            }
+        }
+    }
+
+    /// Location update failed.
+    nonisolated public func locationManager(
+[2025-11-08T11:04:36] tokens used: 48,579
+
+[2025-11-08T11:04:42] thinking
+
+**Designing a test plan**
+
+I’m thinking about how the iPhone manager tracks connectivity without logging OSLog, but for human testing, I can instruct using Console filtering. I need to create detailed steps for the test plan, including weighted criteria and instructions for configuring OSLog categories.
+
+I’ll also include guidance for filtering in Console, capturing artifacts, and structuring documentation. Additionally, I should outline the test schedule, process for performing tests, measurements for distances, edge cases, and quality gating. Lastly, it's crucial to note the Xcode 26.1 bug related to WCSession.
+**Creating execution instructions**
+
+I’ll instruct to "Open 'pawWatch Watch App' scheme and run it on the watch." Additionally, I'll clarify the "WCSession .isReachable semantics." It focuses on immediate messaging and the "phone locked/unlocked" interplay. I must also highlight some assumptions around human execution, like needing access to outdoor areas for 100ft/300ft distances and securely attaching devices to the dog or human. 
+
+Everyone must ensure both watch and phone share the same Apple ID, and they may need to restart their devices. I'll present all this information clearly with section headers and bullet points, including clickable references for documentation.
+**Including file references**
+
+I want to include references to the `TODO.md` for Phase 1 items, specifically providing line paths from line 3 onward. The content shows the Phase 1 section starting near line 3, with "1. Physical Deployment" at line 5. I’ll follow the guidelines to mention specific file paths like `TODO.md:3` for "Phase 1."
+
+Additionally, I can cite `TROUBLESHOOTING.md:4` for the Xcode bug, `CURRENT_STATE.md:13` for the watch build, and logging lines from `Sources/WatchLocationProvider/WatchLocationProvider.swift` around line 238. This should give a clear overview without overwhelming details.
+**Reviewing logging details**
+
+I didn't check the line numbers precisely, but from our previous snippet, it looks like "Activating WCSession" is at line 238 in the `Sources/WatchLocationProvider/WatchLocationProvider.swift` file. However, it seems "private func configureWatchConnectivity()" starts around line 235. I should keep that general reference in mind. Also, for logging, I’ll mention filtering for "[WatchLocationProvider]."
+
+Next, I need to provide a "Data schema" for the battery log, which includes elements like time in seconds since start, watch battery fraction, battery state, GPS fix count, interactive sends, context sends, queued file transfers, WC reachable status, activation state, and screen-on time.
+**Proposing a hardware validation plan**
+
+I’m thinking of proposing a plan for Phase 1 Hardware Validation. For the watch, I'll track parameters like timestamp, sequence, latitude, longitude, and battery fraction. On the phone, I'll capture timestamp, event, and distance. 
+
+I also want to outline my analysis approach, including building a Python script to parse logs and compute metrics like battery consumption, accuracy, and WC range. 
+
+I’ll include success criteria and appendices for log capturing and manual watch installation. There will be subsections for various components, ensuring clarity while keeping the document concise with bullet points. Additionally, I’ll provide structure for `docs/HARDWARE_VALIDATION.md`. 
+
+For tracking battery information, I’ll suggest enabling battery monitoring and logging levels at defined intervals, but emphasize that we shouldn’t suggest code changes, just temporary additions to capture the necessary data.
+[2025-11-08T11:05:02] codex
+**Creating execution instructions**
+
+I’ll instruct to "Open 'pawWatch Watch App' scheme and run it on the watch." Additionally, I'll clarify the "WCSession .isReachable semantics." It focuses on immediate messaging and the "phone locked/unlocked" interplay. I must also highlight some assumptions around human execution, like needing access to outdoor areas for 100ft/300ft distances and securely attaching devices to the dog or human. 
+
+Everyone must ensure both watch and phone share the same Apple ID, and they may need to restart their devices. I'll present all this information clearly with section headers and bullet points, including clickable references for documentation.
+[2025-11-08T11:05:02] codex
+**Including file references**
+
+I want to include references to the `TODO.md` for Phase 1 items, specifically providing line paths from line 3 onward. The content shows the Phase 1 section starting near line 3, with "1. Physical Deployment" at line 5. I’ll follow the guidelines to mention specific file paths like `TODO.md:3` for "Phase 1."
+
+Additionally, I can cite `TROUBLESHOOTING.md:4` for the Xcode bug, `CURRENT_STATE.md:13` for the watch build, and logging lines from `Sources/WatchLocationProvider/WatchLocationProvider.swift` around line 238. This should give a clear overview without overwhelming details.
+[2025-11-08T11:05:02] codex
+**Reviewing logging details**
+
+I didn't check the line numbers precisely, but from our previous snippet, it looks like "Activating WCSession" is at line 238 in the `Sources/WatchLocationProvider/WatchLocationProvider.swift` file. However, it seems "private func configureWatchConnectivity()" starts around line 235. I should keep that general reference in mind. Also, for logging, I’ll mention filtering for "[WatchLocationProvider]."
+
+Next, I need to provide a "Data schema" for the battery log, which includes elements like time in seconds since start, watch battery fraction, battery state, GPS fix count, interactive sends, context sends, queued file transfers, WC reachable status, activation state, and screen-on time.
+[2025-11-08T11:05:02] codex
+**Proposing a hardware validation plan**
+
+I’m thinking of proposing a plan for Phase 1 Hardware Validation. For the watch, I'll track parameters like timestamp, sequence, latitude, longitude, and battery fraction. On the phone, I'll capture timestamp, event, and distance. 
+
+I also want to outline my analysis approach, including building a Python script to parse logs and compute metrics like battery consumption, accuracy, and WC range. 
+
+I’ll include success criteria and appendices for log capturing and manual watch installation. There will be subsections for various components, ensuring clarity while keeping the document concise with bullet points. Additionally, I’ll provide structure for `docs/HARDWARE_VALIDATION.md`. 
+
+For tracking battery information, I’ll suggest enabling battery monitoring and logging levels at defined intervals, but emphasize that we shouldn’t suggest code changes, just temporary additions to capture the necessary data.
+[2025-11-08T11:05:03] exec bash -lc 'rg -n "battery|Battery" -S' in /Users/zackjordan/code/pawWatch-app
+[2025-11-08T11:05:03] bash -lc 'rg -n "battery|Battery" -S' succeeded in 160ms:
+FOR_CODE.md:19:   - Battery optimization tasks (WKExtendedRuntimeSession, motion-aware throttling) – start with simulator proof-of-concept if possible.
+LocationFix.swift:22:/// - Device metadata (battery, source platform)
+LocationFix.swift:77:    /// Battery level as fraction (0.0-1.0, where 1.0 = 100%)
+LocationFix.swift:78:    public let batteryFraction: Double
+LocationFix.swift:96:        batteryFraction: Double,
+LocationFix.swift:108:        self.batteryFraction = batteryFraction
+LocationFix.swift:126:        case batteryFraction = "battery_pct"
+LocationFix.swift:151:        self.batteryFraction = try container.decode(Double.self, forKey: .batteryFraction)
+LocationFix.swift:172:        try container.encode(batteryFraction, forKey: .batteryFraction)
+documentation_archive/docs/INTEGRATION_SUMMARY.md:35:- Battery level indicator with icons
+documentation_archive/docs/INTEGRATION_SUMMARY.md:215:- [ ] Battery level shows accurate percentage
+documentation_archive/docs/INTEGRATION_SUMMARY.md:331:2. Measure battery impact during extended tracking
+documentation_archive/docs/INTEGRATION_SUMMARY.md:361:- Check battery level (iOS may restrict background GPS)
+documentation_archive/docs/INTEGRATION_SUMMARY.md:372:- **UI Features:** 11 (coordinates, accuracy, speed, altitude, battery, etc.)
+documentation_archive/docs/DEVELOPMENT.md:34:- ✅ Proven battery optimization
+documentation_archive/docs/DEVELOPMENT.md:48:- ✅ Battery monitoring
+documentation_archive/docs/DEVELOPMENT.md:93:   - Display current GPS fix, battery level
+documentation_archive/docs/DEVELOPMENT.md:106:   - Battery monitoring
+documentation_archive/docs/DEVELOPMENT.md:135:   - Quick stats: Last seen, battery level, activity today
+documentation_archive/docs/DEVELOPMENT.md:241:   - Low battery warnings (Watch <20%)
+[2025-11-08T11:05:03] tokens used: 50,300
+
+[2025-11-08T11:05:10] thinking
+
+**Analyzing battery monitoring in code**
+
+I’m looking at the LocationFix, which has a batteryFraction field ranging from 0.0 to 1.0—good! In the WatchLocationProvider.swift file, it seems battery monitoring is being enabled. The battery fraction is computed correctly, which means we can rely on location fixes to capture battery data from the iPhone. I wonder if the code has a specific export function. I think we could propose using OSLog to log each fix in JSON, but there’s no existing OSLog currently. Maybe we can instruct to save the log in Console and parse the data?
+**Proposing logging improvements**
+
+I see that the watch prints a message about updating the application context, but it doesn’t provide fix details. A better approach might be to add additional prints around the "encode to JSON" step for summaries. However, since we’re in read-only mode, I can’t suggest code changes. The user mentioned "tooling/logging steps," so maybe I can propose logging necessary fields under `[WatchLocationProvider] fix:` or creating a CSV log file for the camera. But right now, I can't implement it. I could note that we'd need human execution for minor logging changes or rely on raw messages and manual notes, though that could be error-prone.
+**Outlining test plan for hardware validation**
+
+The test plan suggests adding minimal instrumentation to print "LocationFix as JSON" on the iPhone side, which would require a minor code change. I also want to propose a logging method that doesn’t involve code changes—approximately logging battery drops and connectivity events. For accurate data, testers would likely need to record information through the UI and manual notes. I can suggest a "hidden debug toggle" to write JSON lines to a file. Additionally, I’ll propose a doc structure for "HARDWARE_VALIDATION.md" and include tests for separation distances like 10ft, 50ft, 100ft, and 300ft, with phone states and reconnection times.
+**Proposing measurement method**
+
+I’m thinking about a measurement method where we could set up an audible beep or haptic feedback when a fix is delivered, though it’s not necessary. I’ll also suggest using a stopwatch to record times for reconnection, relying on timestamps in the logs. For the tooling steps, before the run, we'll instruct to start logging from the watch and phone using Console.app, filtering by the subsystem.
+
+After the run, we could use a script to parse the logs. I want to include a sample "jq" command to find battery location, but it may not be in JSON format—so we should propose adding "structured logs." We'll also suggest exporting "locationHistory" from the iPhone test, highlighting that it might require code or manual steps. Finally, I’ll summarize a doc structure for "HARDWARE_VALIDATION.md."
+**Structuring documentation for validation**
+
+I’m thinking about how to structure the documentation, starting with section headings like "**Scope & Criteria**," as the guidelines suggest that section headers begin with "**." I’ll include headings for **Constraints**, **Devices & Builds**, **Instrumentation**, and **Test Cases**. Under "Test Cases," I could create sub-lists for (A) Battery Baseline, (B) GPS Accuracy Study, and (C) WatchConnectivity Range, or simply keep them numbered.
+
+Next, I’ll cover **Data Schema**, **Analysis Steps**, **Deliverables**, and **Assumptions**, plus reference the "docs/HARDWARE_VALIDATION.md." I’ll also remember to include file references and gather exact line numbers, notably for battery monitoring at `pawWatch Watch App/WatchLocationProvider.swift:124`. I'll open that file to confirm the line number for accuracy.
+[2025-11-08T11:05:35] codex
+**Proposing logging improvements**
+
+I see that the watch prints a message about updating the application context, but it doesn’t provide fix details. A better approach might be to add additional prints around the "encode to JSON" step for summaries. However, since we’re in read-only mode, I can’t suggest code changes. The user mentioned "tooling/logging steps," so maybe I can propose logging necessary fields under `[WatchLocationProvider] fix:` or creating a CSV log file for the camera. But right now, I can't implement it. I could note that we'd need human execution for minor logging changes or rely on raw messages and manual notes, though that could be error-prone.
+[2025-11-08T11:05:35] codex
+**Outlining test plan for hardware validation**
+
+The test plan suggests adding minimal instrumentation to print "LocationFix as JSON" on the iPhone side, which would require a minor code change. I also want to propose a logging method that doesn’t involve code changes—approximately logging battery drops and connectivity events. For accurate data, testers would likely need to record information through the UI and manual notes. I can suggest a "hidden debug toggle" to write JSON lines to a file. Additionally, I’ll propose a doc structure for "HARDWARE_VALIDATION.md" and include tests for separation distances like 10ft, 50ft, 100ft, and 300ft, with phone states and reconnection times.
+[2025-11-08T11:05:35] codex
+**Proposing measurement method**
+
+I’m thinking about a measurement method where we could set up an audible beep or haptic feedback when a fix is delivered, though it’s not necessary. I’ll also suggest using a stopwatch to record times for reconnection, relying on timestamps in the logs. For the tooling steps, before the run, we'll instruct to start logging from the watch and phone using Console.app, filtering by the subsystem.
+
+After the run, we could use a script to parse the logs. I want to include a sample "jq" command to find battery location, but it may not be in JSON format—so we should propose adding "structured logs." We'll also suggest exporting "locationHistory" from the iPhone test, highlighting that it might require code or manual steps. Finally, I’ll summarize a doc structure for "HARDWARE_VALIDATION.md."
+[2025-11-08T11:05:35] codex
+**Structuring documentation for validation**
+
+I’m thinking about how to structure the documentation, starting with section headings like "**Scope & Criteria**," as the guidelines suggest that section headers begin with "**." I’ll include headings for **Constraints**, **Devices & Builds**, **Instrumentation**, and **Test Cases**. Under "Test Cases," I could create sub-lists for (A) Battery Baseline, (B) GPS Accuracy Study, and (C) WatchConnectivity Range, or simply keep them numbered.
+
+Next, I’ll cover **Data Schema**, **Analysis Steps**, **Deliverables**, and **Assumptions**, plus reference the "docs/HARDWARE_VALIDATION.md." I’ll also remember to include file references and gather exact line numbers, notably for battery monitoring at `pawWatch Watch App/WatchLocationProvider.swift:124`. I'll open that file to confirm the line number for accuracy.
+[2025-11-08T11:05:36] exec bash -lc "nl -ba 'pawWatch Watch App/WatchLocationProvider.swift' | sed -n '110,140p'" in /Users/zackjordan/code/pawWatch-app
+[2025-11-08T11:05:36] bash -lc "nl -ba 'pawWatch Watch App/WatchLocationProvider.swift' | sed -n '110,140p'" succeeded in 167ms:
+   110	    private let fileTransfersEnabled = false
+   111	    
+   112	    /// Tracks active file transfers to retry on failure and clean up temp files
+   113	    private var activeFileTransfers: [WCSessionFileTransfer: (url: URL, fix: LocationFix)] = [:]
+   114	    
+   115	    /// Most recent fix, used to satisfy manual refresh requests from the phone.
+   116	    private var latestFix: LocationFix?
+   117	    
+   118	    // MARK: - Initialization
+   119	    
+   120	    public override init() {
+   121	        super.init()
+   122	        locationManager.delegate = self
+   123	        encoder.outputFormatting = [.withoutEscapingSlashes]
+   124	        WKInterfaceDevice.current().isBatteryMonitoringEnabled = true
+   125	    }
+   126	    
+   127	    // MARK: - Public Methods
+   128	    
+   129	    /// Starts a HealthKit workout session and begins streaming GPS locations.
+[2025-11-08T11:05:36] tokens used: 55,626
+[2025-11-08T11:05:39] exec bash -lc "nl -ba Sources/Shared/Models/LocationFix.swift | sed -n '70,100p'" in /Users/zackjordan/code/pawWatch-app
+[2025-11-08T11:05:39] bash -lc "nl -ba Sources/Shared/Models/LocationFix.swift | sed -n '70,100p'" succeeded in 162ms:
+    70	    /// Course over ground in degrees (0-360, 0 = true north)
+    71	    public let courseDegrees: Double
+    72	    
+    73	    /// Magnetic heading in degrees (compass direction device is pointing, nil if unavailable)
+    74	    /// Note: Apple Watch doesn't have compass hardware, so this is nil for watchOS source
+    75	    public let headingDegrees: Double?
+    76	    
+    77	    /// Battery level as fraction (0.0-1.0, where 1.0 = 100%)
+    78	    public let batteryFraction: Double
+    79	    
+    80	    /// Monotonic sequence number for ordering and deduplication
+    81	    /// Generated from milliseconds since reference date modulo Int.max
+    82	    public let sequence: Int
+    83	    
+    84	    // MARK: - Initialization
+    85	    
+    86	    public init(
+    87	        timestamp: Date,
+    88	        source: Source,
+    89	        coordinate: Coordinate,
+[2025-11-08T11:05:39] tokens used: 56,245
+[2025-11-08T11:05:43] exec bash -lc "nl -ba Sources/WatchLocationProvider/WatchLocationProvider.swift | sed -n '400,432p'" in /Users/zackjordan/code/pawWatch-app
+[2025-11-08T11:05:43] bash -lc "nl -ba Sources/WatchLocationProvider/WatchLocationProvider.swift | sed -n '400,432p'" succeeded in 156ms:
+   400	    ///   - locations: Array of new location updates (uses last/most recent)
+   401	    public func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+   402	        guard let latest = locations.last else { return }
+   403	        
+   404	        let device = WKInterfaceDevice.current()
+   405	        
+   406	        // Convert CLLocation to LocationFix with Watch-specific metadata
+   407	        let fix = LocationFix(
+   408	            timestamp: latest.timestamp,
+   409	            source: .watchOS,
+   410	            coordinate: .init(
+   411	                latitude: latest.coordinate.latitude,
+   412	                longitude: latest.coordinate.longitude
+   413	            ),
+   414	            altitudeMeters: latest.verticalAccuracy >= 0 ? latest.altitude : nil,
+   415	            horizontalAccuracyMeters: latest.horizontalAccuracy,
+   416	            verticalAccuracyMeters: max(latest.verticalAccuracy, 0),
+   417	            speedMetersPerSecond: max(latest.speed, 0),
+   418	            courseDegrees: latest.course >= 0 ? latest.course : 0,
+   419	            headingDegrees: nil,  // Apple Watch doesn't have compass hardware
+[2025-11-08T11:05:43] tokens used: 56,840
+[2025-11-08T11:05:46] exec bash -lc "nl -ba pawWatchPackage/Sources/pawWatchFeature/PetLocationManager.swift | sed -n '280,310p'" in /Users/zackjordan/code/pawWatch-app
+[2025-11-08T11:05:46] bash -lc "nl -ba pawWatchPackage/Sources/pawWatchFeature/PetLocationManager.swift | sed -n '280,310p'" succeeded in 178ms:
+   280	    nonisolated public func sessionDidDeactivate(_ session: WCSession) {
+   281	        // Capture session reference before Task to avoid data race
+   282	        let sessionToReactivate = session
+   283	
+   284	        Task { @MainActor in
+   285	            self.isWatchConnected = false
+   286	        }
+   287	
+   288	        // Reactivate for new Apple Watch pairing (can be called on background thread)
+   289	        sessionToReactivate.activate()
+   290	    }
+   291	
+   292	    /// Watch reachability changed.
+   293	    nonisolated public func sessionReachabilityDidChange(_ session: WCSession) {
+   294	        // Capture reachability status before Task to avoid data race
+   295	        let isReachable = session.isReachable
+   296	
+   297	        Task { @MainActor in
+   298	            self.isWatchReachable = isReachable
+   299	        }
+[2025-11-08T11:05:46] tokens used: 57,580
+[2025-11-08T11:05:52] codex
+
+Below is a practical Phase 1 hardware validation plan tailored to pawWatch. It maps 1:1 to TODO Phase 1 and calls out constraints, data to collect, logging/tooling, and a ready-to-adopt docs skeleton for docs/HARDWARE_VALIDATION.md.
+
+References
+- TODO.md:3
+- TODO.md:5
+- TODO.md:8
+- TODO.md:12
+- TODO.md:14
+- TODO.md:17
+- TODO.md:18
+- TROUBLESHOOTING.md:4
+- CURRENT_STATE.md:13
+- Sources/WatchLocationProvider/WatchLocationProvider.swift:89
+- Sources/WatchLocationProvider/WatchLocationProvider.swift:404
+- Sources/WatchLocationProvider/WatchLocationProvider.swift:420
+- pawWatch Watch App/WatchLocationProvider.swift:124
+- pawWatchPackage/Sources/pawWatchFeature/PetLocationManager.swift:293
+
+Assumptions Requiring Human Execution
+- Physical devices: 1 Apple Watch (GPS or GPS+Cellular), 1 paired iPhone; both signed into the same Apple ID.
+- Outdoors test space with open field, urban street, light woods; safe, walkable distances for 10–300 ft.
+- Xcode 26.1 installed despite the watch install bug; ability to run the watch target directly.
+- Testers available to walk routes, separate devices, and time reconnection; optionally two people for range tests.
+- Manual steps to save logs from Console and optionally annotate runs with conditions (weather, obstructions).
+- Optional: A “ground truth” device (e.g., dual‑frequency iPhone 14+ in hand or a known-good GPS watch like Garmin) for accuracy comparisons.
+
+Constraints To Respect
+- Xcode 26.1 bug (MIInstallerErrorDomain 143): Do not rely on “Embed Watch Content.” Install by running the watch target directly. See TROUBLESHOOTING.md:4 and CURRENT_STATE.md:13.
+- WCSession semantics: `.isReachable` only reflects “interactive” foreground path; it drops when phone is locked/backgrounded. Application context is throttled to ~2 Hz via `contextPushInterval = 0.5` (Sources/WatchLocationProvider/WatchLocationProvider.swift:89). Range tests must evaluate both locked and unlocked phone states (TODO.md:12).
+- Battery capture path: `WKInterfaceDevice.current().isBatteryMonitoringEnabled = true` is enabled (pawWatch Watch App/WatchLocationProvider.swift:124). Each `LocationFix` includes `batteryFraction` (Sources/WatchLocationProvider/WatchLocationProvider.swift:420, Sources/Shared/Models/LocationFix.swift:77).
+- GPS source path: Watch uses ~1 Hz GPS under `HKWorkoutSession` and relays via interactive, application context, and file transfer (Sources/WatchLocationProvider/WatchLocationProvider.swift:404). Expect lower interactive throughput when phone is locked; rely on context/file transfer for guaranteed delivery.
+
+Scope and Success Criteria (Phase 1)
+- Battery baseline: 1-hour continuous outdoor tracking; extrapolate hours to 0%. Success: ≥3 hours runtime (TODO.md:18).
+- GPS accuracy study: Open field, urban, woods; compute median and p90 horizontal error. Success: ±20 m typical (median) (TODO.md:18).
+- WatchConnectivity range: Measure loss/reconnect and behavior at 10/50/100/300 ft with iPhone locked vs. unlocked; record reconnection time. Success: Stable connection at ≥50 ft plus predictable reconnection (TODO.md:12, TODO.md:18).
+
+Devices and Builds
+- Record for every run:
+  - Watch model, watchOS version, iPhone model, iOS version.
+  - App version/build and git SHA shown in UI or commit note (CURRENT_STATE.md:8).
+  - Test environment: open field / urban / woods; weather; time of day.
+
+Instrumentation and Logging
+- Built-in logging to rely on:
+  - Watch side prints include activation, reachability, send path (interactive/context/file) and file-transfer results. Filter “[WatchLocationProvider]” in Console (e.g., “Session state … reachable: …”, “Updated application context …”, “Interactive send failed…”, “File transfer completed…”).
+  - Phone side updates `isWatchReachable` on reachability change (pawWatchPackage/Sources/pawWatchFeature/PetLocationManager.swift:293).
+- Data to capture for each `LocationFix` (prefer JSON lines if you add a one-line print on the phone when a fix arrives):
+  - timestamp, seq, lat, lon, horizontalAccuracyMeters, speed, course, batteryFraction, arrivalPath (msg/context/file), wcReachable (bool), wcActivationState.
+- How to collect:
+  - Use macOS Console.app; add two devices in sidebar (iPhone, Watch). Create filters:
+    - “WatchLocationProvider” and “PetLocationManager” for both devices.
+    - Save as .logarchive after each run (TROUBLESHOOTING.md:24).
+  - Optional: Quick metrics log on iPhone by adding a temporary one-line print of decoded `LocationFix` as JSON (assumption: minor code change).
+- Sanity counters to jot down per run:
+  - Total fixes received, % via interactive vs context vs file transfer, total reachability toggles, min/median/p90 horizontalAccuracy.
+
+Test Cases and Procedures
+1) Physical Deployment and Activation
+- Goal: Confirm WCSession hits `.activated` with `reachable == true` (TODO.md:5).
+- Steps:
+  - Install iPhone app (run on device). Install watch app by running the “pawWatch Watch App” target directly (CURRENT_STATE.md:13).
+  - Open watch app, start tracking screen (HKWorkout active). Confirm phone UI shows connected and receiving fixes.
+  - Log first 2–3 minutes, verify Console shows “[WatchLocationProvider] WCSession activation completed…” on watch and reachability true on phone.
+
+2) Battery Baseline (1-hour)
+- Goal: Measure watch drain and extrapolate runtime (TODO.md:8).
+- Setup:
+  - Start at 95–100% battery; record initial `batteryFraction`. Keep tracking screen active (Water Lock / Digital Crown) to avoid display sleep (TROUBLESHOOTING.md:20).
+- Procedure:
+  - Continuous 60-minute outdoor session at normal walking pace.
+  - Keep iPhone with tester and unlocked for first 30 min, then locked for remaining 30 min (to observe interactive vs background behavior).
+  - Save logs at end; note start and end battery, total fixes, average horizontalAccuracy, environment notes.
+- Data and KPIs:
+  - Battery drop over 60 min → extrapolated hours = 60 / (drop%).
+  - Fixes/min, median accuracy; % interactive vs context/file.
+  - Acceptance: extrapolated ≥3 h (TODO.md:18).
+
+3) GPS Accuracy Study (three environments)
+- Goal: Compare tracked trail vs. ground truth; compute median/p90 error (TODO.md:10).
+- Ground truth options (choose one consistently across runs):
+  - iPhone 14+ dual-frequency with a high-quality running app in foreground; or a calibrated Garmin running watch. Keep that device close to the path centerline.
+- Procedure (repeat for open field, urban, woods; 10–15 min each):
+  - Start both recordings at a marked point; walk a simple out-and-back or rectangle loop. Avoid stopping excessively.
+  - Keep iPhone unlocked for half the time, then locked. Maintain watch tracking screen active.
+- Data and KPIs:
+  - Spatially align tracks by timestamp, compute per-fix haversine error to nearest ground-truth point.
+  - Report median and p90 error per environment; annotate outliers with obstacles (trees, canyons).
+  - Acceptance: typical (median) ≤20 m (TODO.md:18).
+
+4) WatchConnectivity Range and Reconnection
+- Goal: Validate connectivity at 10/50/100/300 ft and reconnection time after loss (TODO.md:12).
+- Setup:
+  - Place iPhone stationary on a table; tester walks away wearing the watch.
+  - Run twice per distance: iPhone unlocked vs locked.
+- Procedure per distance:
+  - Start at 0 ft, ensure reachability true; walk to the distance marker; wait 30–60 s; note if `isReachable` flips and delivery path degrades to context/file.
+  - Return to 0 ft; measure time from regaining Bluetooth/Wi‑Fi proximity to first interactive delivery (or reachability true).
+- Data and KPIs:
+  - For each distance/state: reachable true/false, fixes received per minute, proportion of interactive vs context/file, reconnection time on return.
+  - Acceptance: stable connection at ≥50 ft; reconnection <10 s on return when iPhone is unlocked; note behavior when locked.
+
+Data Schema (for CSV or JSONL)
+- run_id, test_case, environment, phone_locked (bool), distance_ft (int or null), watch_model, watchOS, iphone_model, iOS, app_version, git_sha
+- t_iso, seq, lat, lon, hAcc_m, speed_mps, course_deg, battery_frac, wc_activation_state, wc_reachable, arrival_path (interactive|context|file)
+- derived: error_m (vs ground truth), delta_battery_pct, fixes_per_min
+- notes: free-text per run.
+
+Analysis Steps (offline)
+- Battery:
+  - Compute drop%/hr, extrapolated runtime, CI bounds across replicates; line plot of battery over time.
+- Accuracy:
+  - Snap to ground-truth by time; histogram and CDF of error; median, p90 per environment; map overlay for visual QA.
+- Connectivity:
+  - Time-series of reachability; mark send path transitions; reconnection time distribution per distance and lock state; table of pass/fail vs criteria.
+
+Tooling and Logging Steps (operator checklist)
+- Before each run:
+  - Xcode build both targets, then run watch target (CURRENT_STATE.md:13).
+  - Open Console; create filters “Watch” and “Phone” with string “[WatchLocationProvider]” and “PetLocationManager”; hit “Start streaming”.
+  - Confirm `WCSession` activated and receiving fixes (first messages appear on phone).
+- During runs:
+  - Use a stopwatch to mark phase changes (lock/unlock phone, distance reached).
+  - Keep the tracking UI active on the watch (TROUBLESHOOTING.md:20).
+- After runs:
+  - Save .logarchive from Console for both devices; name by run_id.
+  - Append a short notes file (conditions, anomalies, exact route).
+
+Deliverables (docs/HARDWARE_VALIDATION.md)
+- Executive summary: battery hrs, median/p90 accuracy per environment, range/reconnect results, GO/NO‑GO call (TODO.md:17–18).
+- Methods: devices, builds, routes, environment, constraints (Xcode bug, WC semantics).
+- Results with plots/tables; links to .logarchive and analysis notebook/scripts.
+- Discussion: anomalies, mitigations, next-step recommendations (e.g., Phase 2 levers).
+
+Proposed docs/HARDWARE_VALIDATION.md Structure
+- Title and Objective
+  - Scope, success criteria (battery ≥3h; accuracy ±20 m typical; stable at ≥50 ft).
+- Devices and Builds
+  - Watch/iPhone models, OS versions, app version, git SHA.
+- Constraints and Setup
+  - Xcode 26.1 install workaround; WCSession semantics; display/Water Lock guidance.
+- Instrumentation and Data
+  - Logging filters, fields captured, file naming; optional code-level JSON prints.
+- Test Procedures
+  - Physical deployment and activation checklist.
+  - Battery baseline (1 hr) procedure.
+  - GPS accuracy (open field, urban, woods) procedure.
+  - Connectivity range/reconnect procedure.
+- Results
+  - Battery charts and extrapolation.
+  - Accuracy CDF/histograms and environment tables.
+  - Range/reconnect tables (locked vs unlocked).
+- Discussion
+  - Observations, edge cases, risks, mitigations.
+- Decision
+  - GO/NO‑GO with rationale and deltas needed for GO.
+- Appendices
+  - Step-by-step: installing watch app via run target (TROUBLESHOOTING.md:4).
+  - Console logging how-to, filters used.
+  - Data schema; analysis commands/notebook references.
+
+Realistic Timeline (can be done in 1–2 working days)
+- Day 1 AM: Setup + Physical Deployment validation; 1-hour Battery run (open field).
+- Day 1 PM: GPS Accuracy (open field + urban); initial analysis.
+- Day 2 AM: GPS Accuracy (woods); Range/Reconnection matrix.
+- Day 2 PM: Aggregate results, write summary, GO/NO‑GO.
+
+Notes and Tips
+- Keep iPhone unlocked for interactive-path stress; lock to validate fallback behavior. Expect fewer “[Interactive]” logs when locked; delivery should continue via context/file.
+- For accuracy, don’t mix ground-truth devices across runs; choose one and keep it consistent.
+- Screen/brightness/haptics can affect battery; keep consistent settings across battery runs.
+- If you see `WCErrorCodeDeliveryFailed`, capture timestamps and correlate with reachability flips.
+
+Would you like me to draft the initial docs/HARDWARE_VALIDATION.md with the above skeleton and checklists, or add a minimal JSON print on the iPhone side so each received `LocationFix` is logged for analysis?
+[2025-11-08T11:06:28] tokens used: 61,208

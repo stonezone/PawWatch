@@ -17,7 +17,8 @@ This plan translates the Phase 1 checklist from [`TODO.md`](../TODO.md) into e
 | Batteries | Start each run ≥95 % battery on both devices; bring chargers / battery packs so you can reset between scenarios. |
 
 ### 1.2 Field Utilities
-- **Log capture**: `scripts/collect_logs.sh --duration 10 --out logs/wc-range.jsonl` wraps `log stream` with the pawWatch predicate so every scenario has a JSONL trace.
+- **Log capture CLI**: `scripts/collect_logs.sh --duration 10 --out logs/wc-range.jsonl` wraps `log stream` with the pawWatch predicate so every scenario has a JSONL trace.
+- **In-app export**: Settings ▸ Session Summary ▸ “Export CSV” shares the current session’s raw fixes (timestamp/lat/lon/accuracy/preset) without leaving the app.
 - **GPX comparison**: `python3 scripts/compare_gpx.py baseline.gpx test.gpx --epsilon-sec 3 --csv logs/errors.csv` produces the stats + per-point sheet used in §3.
 
 ### 1.1 Device Prep Checklist

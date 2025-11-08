@@ -418,7 +418,8 @@ extension WatchLocationProvider: CLLocationManagerDelegate {
             courseDegrees: latest.course >= 0 ? latest.course : 0,
             headingDegrees: nil,  // Apple Watch doesn't have compass hardware
             batteryFraction: device.batteryLevel >= 0 ? Double(device.batteryLevel) : 0,
-            sequence: Int(Int64(Date().timeIntervalSinceReferenceDate * 1000) % Int64(Int.max))
+            sequence: Int(Int64(Date().timeIntervalSinceReferenceDate * 1000) % Int64(Int.max)),
+            trackingPreset: batteryOptimizationsEnabled ? currentPreset.rawValue : nil
         )
         
         publishFix(fix)

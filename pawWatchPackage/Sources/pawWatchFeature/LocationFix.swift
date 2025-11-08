@@ -80,6 +80,9 @@ public struct LocationFix: Codable, Equatable, Sendable {
     /// Monotonic sequence number for ordering and deduplication
     /// Generated from milliseconds since reference date modulo Int.max
     public let sequence: Int
+
+    /// Optional name of the tracking preset used when this fix was captured.
+    public let trackingPreset: String?
     
     // MARK: - Initialization
     
@@ -94,7 +97,8 @@ public struct LocationFix: Codable, Equatable, Sendable {
         courseDegrees: Double,
         headingDegrees: Double?,
         batteryFraction: Double,
-        sequence: Int
+        sequence: Int,
+        trackingPreset: String? = nil
     ) {
         self.timestamp = timestamp
         self.source = source
@@ -107,6 +111,7 @@ public struct LocationFix: Codable, Equatable, Sendable {
         self.headingDegrees = headingDegrees
         self.batteryFraction = batteryFraction
         self.sequence = sequence
+        self.trackingPreset = trackingPreset
     }
     
     // MARK: - Codable Implementation
@@ -125,6 +130,7 @@ public struct LocationFix: Codable, Equatable, Sendable {
         case headingDegrees = "heading_deg"
         case batteryFraction = "battery_pct"
         case sequence = "seq"
+        case trackingPreset = "preset"
     }
     
     /// Custom decoder to convert Unix milliseconds to Date.
@@ -150,6 +156,7 @@ public struct LocationFix: Codable, Equatable, Sendable {
         self.headingDegrees = try container.decodeIfPresent(Double.self, forKey: .headingDegrees)
         self.batteryFraction = try container.decode(Double.self, forKey: .batteryFraction)
         self.sequence = try container.decode(Int.self, forKey: .sequence)
+        self.trackingPreset = try container.decodeIfPresent(String.self, forKey: .trackingPreset)
     }
     
     /// Custom encoder to convert Date to Unix milliseconds.
@@ -171,5 +178,6 @@ public struct LocationFix: Codable, Equatable, Sendable {
         try container.encodeIfPresent(headingDegrees, forKey: .headingDegrees)
         try container.encode(batteryFraction, forKey: .batteryFraction)
         try container.encode(sequence, forKey: .sequence)
+        try container.encodeIfPresent(trackingPreset, forKey: .trackingPreset)
     }
 }

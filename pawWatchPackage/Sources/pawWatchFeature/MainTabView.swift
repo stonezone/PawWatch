@@ -227,6 +227,38 @@ struct SettingsView: View {
                 }
             }
 
+            Section("Session Summary") {
+                let summary = locationManager.sessionSummary
+                SettingRow(title: "Fixes", value: "\(summary.fixCount)")
+                SettingRow(title: "Avg Interval", value: formatSeconds(summary.averageIntervalSec))
+                SettingRow(title: "Median Accuracy", value: formatMeters(summary.medianAccuracy))
+                SettingRow(title: "P90 Accuracy", value: formatMeters(summary.p90Accuracy))
+                SettingRow(title: "Max Accuracy", value: formatMeters(summary.maxAccuracy))
+                SettingRow(title: "Reachability Flips", value: "\(summary.reachabilityChanges)")
+                if summary.durationSec > 0 {
+                    SettingRow(title: "Duration", value: formatDuration(summary.durationSec))
+                }
+                if !summary.presetCounts.isEmpty {
+                    ForEach(summary.presetCounts.sorted(by: { $0.key < $1.key }), id: \.key) { preset, count in
+                        SettingRow(title: "Preset \(preset.capitalized)", value: "\(count)")
+                    }
+                }
+
+                if let exportURL = locationManager.sessionShareURL() {
+                    ShareLink(item: exportURL) {
+                        Label("Export CSV", systemImage: "square.and.arrow.up")
+                    }
+                } else {
+                    Text("No samples captured yet.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Button("Reset Session Stats", role: .destructive) {
+                    locationManager.resetSessionStats()
+                }
+            }
+
             Section("About") {
                 SettingRow(title: "Version", value: appVersion)
                 SettingRow(title: "Build Date", value: buildDate)
@@ -249,6 +281,23 @@ struct SettingsView: View {
             Spacer()
             Text(value).foregroundStyle(.secondary)
         }
+    }
+
+    private func formatSeconds(_ value: Double) -> String {
+        guard value > 0 else { return "-" }
+        return String(format: "%.1f s", value)
+    }
+
+    private func formatMeters(_ value: Double) -> String {
+        guard value > 0 else { return "-" }
+        return String(format: "%.1f m", value)
+    }
+
+    private func formatDuration(_ value: Double) -> String {
+        guard value > 0 else { return "-" }
+        let minutes = Int(value / 60)
+        let seconds = Int(value.truncatingRemainder(dividingBy: 60))
+        return "\(minutes)m \(seconds)s"
     }
 
     private var appVersion: String {

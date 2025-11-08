@@ -1,0 +1,296 @@
+verify_integration.sh:2:# WatchLocationProvider Integration Verification Script
+verify_integration.sh:5:echo "🔍 Verifying WatchLocationProvider Integration..."
+verify_integration.sh:16:THROTTLE=$(grep "contextPushInterval.*=" Sources/WatchLocationProvider/WatchLocationProvider.swift | grep -o "[0-9.]*" | head -1)
+verify_integration.sh:35:if grep -q "class WatchLocationManager.*WatchLocationProviderDelegate" "pawWatch Watch App/ContentView.swift"; then
+pawWatch.xcodeproj/project.pbxproj:12:		WATCHAPP002WatchLocProv /* WatchLocationProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65B60F212EBD77CE00499A74 /* WatchLocationProvider.swift */; };
+pawWatch.xcodeproj/project.pbxproj:16:		65B60F222EBD77CE00499A74 /* WatchLocationProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65B60F212EBD77CE00499A74 /* WatchLocationProvider.swift */; };
+pawWatch.xcodeproj/project.pbxproj:78:		65B60F212EBD77CE00499A74 /* WatchLocationProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchLocationProvider.swift; sourceTree = "<group>"; };6AAB458652C595976E7FA680 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+pawWatch.xcodeproj/project.pbxproj:120:				65B60F212EBD77CE00499A74 /* WatchLocationProvider.swift */,
+pawWatch.xcodeproj/project.pbxproj:265:				WATCHAPP002WatchLocProv /* WatchLocationProvider.swift in Sources */,
+TROUBLESHOOTING.md:10:| `WCSession counterpart app not installed` | Launch the watch app manually once; ensure both devices are on the same Wi‑Fi/Bluetooth and logged into the same Apple ID. |
+TROUBLESHOOTING.md:24:- WatchConnectivity state changes now print as `[WatchLocationProvider] Reachability changed → …`.
+pawWatch.xcodeproj/project.pbxproj.backup:12:		65B60F222EBD77CE00499A74 /* WatchLocationProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65B60F212EBD77CE00499A74 /* WatchLocationProvider.swift */; };
+pawWatch.xcodeproj/project.pbxproj.backup:21:		E05B7BB227D5E6E500B2769C /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31CF20CA899DE2D203ABA5E0 /* ContentView.swift */; };E05B7BB527D5E6E500B2769C /* WatchLocationProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65B60F212EBD77CE00499A74 /* WatchLocationProvider.swift */; };
+pawWatch.xcodeproj/project.pbxproj.backup:96:		65B60F212EBD77CE00499A74 /* WatchLocationProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchLocationProvider.swift; sourceTree = "<group>"; };6AAB458652C595976E7FA680 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+pawWatch.xcodeproj/project.pbxproj.backup:156:				65B60F212EBD77CE00499A74 /* WatchLocationProvider.swift */,
+pawWatch.xcodeproj/project.pbxproj.backup:334:				E05B7BB527D5E6E500B2769C /* WatchLocationProvider.swift in Sources */,
+CURRENT_STATE.md:8:| Connectivity | WCSession throttled, file transfers disabled, application-context updates every 0.5 s |
+CURRENT_STATE.md:13:2. **Watch build**: run `pawWatch Watch App` directly to the watch. Do *not* rely on Embed Watch Content (Xcode 26.1 error 143). Keep the phone app running/foregrounded for fastest WCSession delivery.
+CURRENT_STATE.md:23:2. Add motion-aware polling + WKExtendedRuntimeSession to extend battery.
+Sources/WatchLocationProvider/WatchLocationProvider.swift:2://  WatchLocationProvider.swift
+Sources/WatchLocationProvider/WatchLocationProvider.swift:29:public protocol WatchLocationProviderDelegate: AnyObject, Sendable {
+Sources/WatchLocationProvider/WatchLocationProvider.swift:60:public final class WatchLocationProvider: NSObject, Sendable {
+Sources/WatchLocationProvider/WatchLocationProvider.swift:64:    public weak var delegate: (any WatchLocationProviderDelegate)?
+Sources/WatchLocationProvider/WatchLocationProvider.swift:70:    private var workoutSession: HKWorkoutSession?
+Sources/WatchLocationProvider/WatchLocationProvider.swift:72:    private var wcSession: WCSession { WCSession.default }
+Sources/WatchLocationProvider/WatchLocationProvider.swift:97:    private var activeFileTransfers: [WCSessionFileTransfer: (url: URL, fix: LocationFix)] = [:]
+Sources/WatchLocationProvider/WatchLocationProvider.swift:205:            let session = try HKWorkoutSession(healthStore: workoutStore, configuration: configuration)
+Sources/WatchLocationProvider/WatchLocationProvider.swift:237:        if WCSession.isSupported() {
+Sources/WatchLocationProvider/WatchLocationProvider.swift:238:            print("[WatchLocationProvider] Activating WCSession")
+Sources/WatchLocationProvider/WatchLocationProvider.swift:242:            print("[WatchLocationProvider] WCSession not supported")
+Sources/WatchLocationProvider/WatchLocationProvider.swift:268:        print("[WatchLocationProvider] Session state: \(wcSession.activationState.rawValue), reachable: \(wcSession.isReachable)")
+Sources/WatchLocationProvider/WatchLocationProvider.swift:271:            print("[WatchLocationProvider] Session not activated")
+Sources/WatchLocationProvider/WatchLocationProvider.swift:282:                print("[WatchLocationProvider] Sending interactive message (\(data.count) bytes)")
+Sources/WatchLocationProvider/WatchLocationProvider.swift:284:                wcSession.sendMessageData(data, replyHandler: nil) { [weak self] error in
+Sources/WatchLocationProvider/WatchLocationProvider.swift:285:                    print("[WatchLocationProvider] Interactive send failed: \(error.localizedDescription), falling back to file transfer")
+Sources/WatchLocationProvider/WatchLocationProvider.swift:290:                print("[WatchLocationProvider] Encode error: \(error.localizedDescription)")
+Sources/WatchLocationProvider/WatchLocationProvider.swift:298:            print("[WatchLocationProvider] Not reachable, using file transfer")
+Sources/WatchLocationProvider/WatchLocationProvider.swift:348:            print("[WatchLocationProvider] Updated application context with latest fix")
+Sources/WatchLocationProvider/WatchLocationProvider.swift:355:            print("[WatchLocationProvider] Failed to update context: \(error.localizedDescription)")
+Sources/WatchLocationProvider/WatchLocationProvider.swift:380:            print("[WatchLocationProvider] Queued file transfer")
+Sources/WatchLocationProvider/WatchLocationProvider.swift:391:extension WatchLocationProvider: CLLocationManagerDelegate {
+Sources/WatchLocationProvider/WatchLocationProvider.swift:439:// MARK: - WCSessionDelegate
+Sources/WatchLocationProvider/WatchLocationProvider.swift:441:extension WatchLocationProvider: WCSessionDelegate {
+Sources/WatchLocationProvider/WatchLocationProvider.swift:450:        _ session: WCSession,
+Sources/WatchLocationProvider/WatchLocationProvider.swift:451:        activationDidCompleteWith activationState: WCSessionActivationState,
+Sources/WatchLocationProvider/WatchLocationProvider.swift:454:        print("[WatchLocationProvider] WCSession activation completed with state: \(activationState.rawValue), error: \(error?.localizedDescription ?? "none")")
+Sources/WatchLocationProvider/WatchLocationProvider.swift:467:    public func sessionReachabilityDidChange(_ session: WCSession) {
+Sources/WatchLocationProvider/WatchLocationProvider.swift:476:    public func session(_ session: WCSession, didReceiveMessageData messageData: Data) {
+Sources/WatchLocationProvider/WatchLocationProvider.swift:485:    public func session(_ session: WCSession, didReceive file: WCSessionFile) {
+Sources/WatchLocationProvider/WatchLocationProvider.swift:499:        _ session: WCSession,
+Sources/WatchLocationProvider/WatchLocationProvider.swift:500:        didFinish fileTransfer: WCSessionFileTransfer,
+Sources/WatchLocationProvider/WatchLocationProvider.swift:509:            print("[WatchLocationProvider] File transfer failed: \(error.localizedDescription). Retrying…")
+Sources/WatchLocationProvider/WatchLocationProvider.swift:512:            print("[WatchLocationProvider] File transfer completed successfully")
+Sources/WatchLocationProvider/WatchLocationProvider.swift:517:// MARK: - HKWorkoutSessionDelegate
+Sources/WatchLocationProvider/WatchLocationProvider.swift:519:extension WatchLocationProvider: HKWorkoutSessionDelegate {
+Sources/WatchLocationProvider/WatchLocationProvider.swift:531:        _ workoutSession: HKWorkoutSession,
+Sources/WatchLocationProvider/WatchLocationProvider.swift:532:        didChangeTo toState: HKWorkoutSessionState,
+Sources/WatchLocationProvider/WatchLocationProvider.swift:533:        from fromState: HKWorkoutSessionState,
+Sources/WatchLocationProvider/WatchLocationProvider.swift:560:    public func workoutSession(_ workoutSession: HKWorkoutSession, didFailWithError error: Error) {
+Sources/WatchLocationProvider/WatchLocationProvider.swift:569:extension WatchLocationProvider: HKLiveWorkoutBuilderDelegate {
+Sources/WatchLocationProvider/WatchLocationProvider.swift:597:public protocol WatchLocationProviderDelegate: AnyObject, Sendable {
+Sources/WatchLocationProvider/WatchLocationProvider.swift:603:/// WatchLocationProvider is only functional on watchOS.
+Sources/WatchLocationProvider/WatchLocationProvider.swift:605:public final class WatchLocationProvider: Sendable {
+Sources/WatchLocationProvider/WatchLocationProvider.swift:606:    public weak var delegate: (any WatchLocationProviderDelegate)?
+Sources/WatchLocationProvider/WatchLocationProvider.swift:611:        assertionFailure("WatchLocationProvider is only available on watchOS")
+pawWatch Watch App/ContentView.swift:6://           with integrated WatchLocationProvider for GPS tracking and relay.
+pawWatch Watch App/ContentView.swift:8://  Updated: 2025-11-05 - Integrated WatchLocationProvider
+pawWatch Watch App/ContentView.swift:19:/// Manages GPS tracking using WatchLocationProvider and relays location data to iPhone.
+pawWatch Watch App/ContentView.swift:22:/// - Interface with WatchLocationProvider for GPS capture
+pawWatch Watch App/ContentView.swift:32:final class WatchLocationManager: WatchLocationProviderDelegate {
+pawWatch Watch App/ContentView.swift:37:    private let locationProvider = WatchLocationProvider()
+pawWatch Watch App/ContentView.swift:80:    /// Starts GPS tracking using WatchLocationProvider.
+pawWatch Watch App/ContentView.swift:136:    // MARK: - WatchLocationProviderDelegate
+pawWatch Watch App/ContentView.swift:203:    /// Updates connection status display based on WCSession state.
+pawWatch Watch App/ContentView.swift:204:    /// Only checks status after session has been activated by WatchLocationProvider.
+pawWatch Watch App/ContentView.swift:206:        guard WCSession.isSupported() else {
+pawWatch Watch App/ContentView.swift:212:        let session = WCSession.default
+documentation_archive/docs/QUICK_START.md:40:- `Sources/WatchLocationProvider/WatchLocationProvider.swift`
+documentation_archive/docs/WATCH_INTEGRATION_STATUS.md:60:│   └── WatchLocationProvider/
+documentation_archive/docs/WATCH_INTEGRATION_STATUS.md:84:- WatchLocationProvider from Sources/ can be integrated into the package
+documentation_archive/docs/INTEGRATION_SUMMARY.md:1:# WatchLocationProvider Integration Summary
+documentation_archive/docs/INTEGRATION_SUMMARY.md:4:Successfully integrated WatchLocationProvider into the pawWatch Watch App to enable GPS tracking with triple-path WatchConnectivity relay to iPhone.
+documentation_archive/docs/INTEGRATION_SUMMARY.md:8:**GPS Throttle:** 0.5s (verified in WatchLocationProvider.swift line 89)
+documentation_archive/docs/INTEGRATION_SUMMARY.md:18:- Created `WatchLocationManager` class conforming to `WatchLocationProviderDelegate`
+documentation_archive/docs/INTEGRATION_SUMMARY.md:22:- Manages WatchLocationProvider lifecycle (start/stop tracking)
+documentation_archive/docs/INTEGRATION_SUMMARY.md:66:- WatchLocationProvider handles all background transitions automatically
+documentation_archive/docs/INTEGRATION_SUMMARY.md:77:3. WatchLocationProvider initiates:
+documentation_archive/docs/INTEGRATION_SUMMARY.md:84:1. CoreLocation delivers GPS update to WatchLocationProvider
+documentation_archive/docs/INTEGRATION_SUMMARY.md:85:2. WatchLocationProvider converts `CLLocation` to `LocationFix` struct
+documentation_archive/docs/INTEGRATION_SUMMARY.md:96:3. WatchLocationProvider cleanup:
+documentation_archive/docs/INTEGRATION_SUMMARY.md:131:- WatchLocationManager monitors `WCSession` state
+documentation_archive/docs/INTEGRATION_SUMMARY.md:302:grep -n "contextPushInterval" /Users/zackjordan/code/pawWatch-app/Sources/WatchLocationProvider/WatchLocationProvider.swift
+documentation_archive/docs/INTEGRATION_SUMMARY.md:350:- Check Console logs for WCSession errors
+documentation_archive/docs/MIGRATION_SUMMARY.md:1:# WatchLocationProvider Migration Summary
+documentation_archive/docs/MIGRATION_SUMMARY.md:13:### 1. WatchLocationProvider Module
+documentation_archive/docs/MIGRATION_SUMMARY.md:14:**Location:** `/Users/zackjordan/code/pawWatch-app/Sources/WatchLocationProvider/`
+documentation_archive/docs/MIGRATION_SUMMARY.md:16:#### WatchLocationProvider.swift
+documentation_archive/docs/MIGRATION_SUMMARY.md:19:- **Source:** Adapted from gps-relay-framework/Sources/WatchLocationProvider/WatchLocationProvider.swift
+documentation_archive/docs/MIGRATION_SUMMARY.md:28:- **Reason:** Required dependency for WatchLocationProvider
+documentation_archive/docs/MIGRATION_SUMMARY.md:36:   - `WatchLocationProviderDelegate` marked as `@MainActor`
+documentation_archive/docs/MIGRATION_SUMMARY.md:40:   - `WatchLocationProvider` conforms to `Sendable`
+documentation_archive/docs/MIGRATION_SUMMARY.md:41:   - `WatchLocationProviderDelegate` conforms to `Sendable`
+documentation_archive/docs/MIGRATION_SUMMARY.md:50:   - `(any WatchLocationProviderDelegate)?` for protocol types
+documentation_archive/docs/MIGRATION_SUMMARY.md:203:├── WatchLocationProvider/
+documentation_archive/docs/MIGRATION_SUMMARY.md:204:│   └── WatchLocationProvider.swift (618 lines)
+documentation_archive/docs/MIGRATION_SUMMARY.md:285:import WatchLocationProvider
+documentation_archive/docs/MIGRATION_SUMMARY.md:288:class LocationManager: WatchLocationProviderDelegate {
+documentation_archive/docs/MIGRATION_SUMMARY.md:289:    private let provider = WatchLocationProvider()
+documentation_archive/docs/MIGRATION_SUMMARY.md:329:   import WatchLocationProvider
+documentation_archive/docs/MIGRATION_SUMMARY.md:332:2. **Implement WatchLocationProviderDelegate:**
+documentation_archive/docs/MIGRATION_SUMMARY.md:342:   - Set up WCSession delegate on iPhone side
+documentation_archive/docs/MIGRATION_SUMMARY.md:367:### WatchLocationProvider.swift
+documentation_archive/docs/MIGRATION_SUMMARY.md:402:All tasks successfully completed. The WatchLocationProvider module is ready for integration into pawWatch with full Swift 6.2 compliance and preserved GPS throttle configuration.
+pawWatch Watch App/pawWatchApp.swift:6://           Manages app state transitions and coordinates with WatchLocationProvider.
+pawWatch Watch App/pawWatchApp.swift:46:    /// - No explicit handling needed - WatchLocationProvider manages it all
+pawWatch Watch App/pawWatchApp.swift:74:            // WatchLocationProvider handles all background transitions automatically
+documentation_archive/docs/DEVELOPMENT.md:45:- ✅ WatchLocationProvider (Watch GPS capture)
+documentation_archive/docs/DEVELOPMENT.md:66:   - Keep `WatchLocationProvider` (minimal changes)
+documentation_archive/docs/DEVELOPMENT.md:80:- ✅ WatchLocationProvider integrated
+documentation_archive/docs/DEVELOPMENT.md:91:   - Integrate WatchLocationProvider (already functional from gps-relay-framework)
+documentation_archive/docs/DEVELOPMENT.md:414:- ✅ **WatchLocationProvider** (95% reusable)
+documentation_archive/docs/BACKTRACK_TODO.md:103:#### 2.1 Implement WKExtendedRuntimeSession
+documentation_archive/docs/BACKTRACK_TODO.md:104:- [ ] Research `WKExtendedRuntimeSession` API (watchOS extended background runtime)
+documentation_archive/docs/BACKTRACK_TODO.md:105:- [ ] Integrate alongside existing `HKWorkoutSession`
+documentation_archive/docs/BACKTRACK_TODO.md:223:- [ ] Add Swift Testing tests for `WatchLocationProvider`:
+documentation_archive/docs/BACKTRACK_TODO.md:238:#### 4.2 Resolve Duplicate WatchLocationProvider
+documentation_archive/docs/BACKTRACK_TODO.md:239:- [ ] Identify which `WatchLocationProvider.swift` is canonical:
+documentation_archive/docs/BACKTRACK_TODO.md:240:  - Check `pawWatch Watch App/WatchLocationProvider.swift`
+documentation_archive/docs/BACKTRACK_TODO.md:241:  - Check `pawWatchPackage/Sources/pawWatchFeature/WatchLocationProvider.swift`
+documentation_archive/docs/BACKTRACK_TODO.md:268:    GPSTracking/           # WatchLocationProvider, CoreLocation, HealthKit
+documentation_archive/docs/BACKTRACK_TODO.md:357:| Duplicate WatchLocationProvider.swift | Confusion, merge conflicts | Medium | Not blocking functionality, fix in Phase 4 |
+documentation_archive/docs/BACKTRACK_TODO.md:402:| Battery life insufficient (<3hrs) | Medium | Critical | Implement WKExtendedRuntimeSession, smart polling, battery saver mode |
+documentation_archive/docs/BACKTRACK_TODO.md:473:1. **Battery Life**: Will WKExtendedRuntimeSession provide sufficient improvement?
+pawWatchPackage/Sources/pawWatchFeature/WatchLocationProvider.swift:2://  WatchLocationProvider.swift
+pawWatchPackage/Sources/pawWatchFeature/WatchLocationProvider.swift:29:public protocol WatchLocationProviderDelegate: AnyObject, Sendable {
+pawWatchPackage/Sources/pawWatchFeature/WatchLocationProvider.swift:60:public final class WatchLocationProvider: NSObject, Sendable {
+pawWatchPackage/Sources/pawWatchFeature/WatchLocationProvider.swift:64:    public weak var delegate: (any WatchLocationProviderDelegate)?
+pawWatchPackage/Sources/pawWatchFeature/WatchLocationProvider.swift:70:    private var workoutSession: HKWorkoutSession?
+pawWatchPackage/Sources/pawWatchFeature/WatchLocationProvider.swift:72:    private var wcSession: WCSession { WCSession.default }
+pawWatchPackage/Sources/pawWatchFeature/WatchLocationProvider.swift:210:            let session = try HKWorkoutSession(healthStore: workoutStore, configuration: configuration)
+pawWatchPackage/Sources/pawWatchFeature/WatchLocationProvider.swift:242:        if WCSession.isSupported() {
+pawWatchPackage/Sources/pawWatchFeature/WatchLocationProvider.swift:243:            print("[WatchLocationProvider] Activating WCSession")
+pawWatchPackage/Sources/pawWatchFeature/WatchLocationProvider.swift:247:            print("[WatchLocationProvider] WCSession not supported")
+pawWatchPackage/Sources/pawWatchFeature/WatchLocationProvider.swift:273:        print("[WatchLocationProvider] Session state: \(wcSession.activationState.rawValue), reachable: \(wcSession.isReachable)")
+pawWatchPackage/Sources/pawWatchFeature/WatchLocationProvider.swift:276:            print("[WatchLocationProvider] Session not activated")
+pawWatchPackage/Sources/pawWatchFeature/WatchLocationProvider.swift:287:                print("[WatchLocationProvider] Sending interactive message (\(data.count) bytes)")
+pawWatchPackage/Sources/pawWatchFeature/WatchLocationProvider.swift:289:                wcSession.sendMessageData(data, replyHandler: nil) { [weak self] error in
+pawWatchPackage/Sources/pawWatchFeature/WatchLocationProvider.swift:290:                    print("[WatchLocationProvider] Interactive send failed: \(error.localizedDescription), falling back to file transfer")
+pawWatchPackage/Sources/pawWatchFeature/WatchLocationProvider.swift:295:                print("[WatchLocationProvider] Encode error: \(error.localizedDescription)")
+pawWatchPackage/Sources/pawWatchFeature/WatchLocationProvider.swift:303:            print("[WatchLocationProvider] Not reachable, using file transfer")
+pawWatchPackage/Sources/pawWatchFeature/WatchLocationProvider.swift:353:            print("[WatchLocationProvider] Updated application context with latest fix")
+pawWatchPackage/Sources/pawWatchFeature/WatchLocationProvider.swift:360:            print("[WatchLocationProvider] Failed to update context: \(error.localizedDescription)")
+pawWatchPackage/Sources/pawWatchFeature/WatchLocationProvider.swift:385:            print("[WatchLocationProvider] Queued file transfer")
+pawWatchPackage/Sources/pawWatchFeature/WatchLocationProvider.swift:396:extension WatchLocationProvider: CLLocationManagerDelegate {
+pawWatchPackage/Sources/pawWatchFeature/WatchLocationProvider.swift:445:// MARK: - WCSessionDelegate
+pawWatchPackage/Sources/pawWatchFeature/WatchLocationProvider.swift:447:extension WatchLocationProvider: WCSessionDelegate {
+pawWatchPackage/Sources/pawWatchFeature/WatchLocationProvider.swift:456:        _ session: WCSession,
+pawWatchPackage/Sources/pawWatchFeature/WatchLocationProvider.swift:457:        activationDidCompleteWith activationState: WCSessionActivationState,
+pawWatchPackage/Sources/pawWatchFeature/WatchLocationProvider.swift:460:        print("[WatchLocationProvider] WCSession activation completed with state: \(activationState.rawValue), error: \(error?.localizedDescription ?? "none")")
+pawWatchPackage/Sources/pawWatchFeature/WatchLocationProvider.swift:473:    nonisolated public func sessionReachabilityDidChange(_ session: WCSession) {
+pawWatchPackage/Sources/pawWatchFeature/WatchLocationProvider.swift:482:    nonisolated public func session(_ session: WCSession, didReceiveMessageData messageData: Data) {
+pawWatchPackage/Sources/pawWatchFeature/WatchLocationProvider.swift:491:    nonisolated public func session(_ session: WCSession, didReceive file: WCSessionFile) {
+pawWatchPackage/Sources/pawWatchFeature/WatchLocationProvider.swift:505:        _ session: WCSession,
+pawWatchPackage/Sources/pawWatchFeature/WatchLocationProvider.swift:506:        didFinish fileTransfer: WCSessionFileTransfer,
+pawWatchPackage/Sources/pawWatchFeature/WatchLocationProvider.swift:521:                print("[WatchLocationProvider] File transfer failed: \(error.localizedDescription). Retrying…")
+pawWatchPackage/Sources/pawWatchFeature/WatchLocationProvider.swift:524:                print("[WatchLocationProvider] File transfer completed successfully")
+pawWatchPackage/Sources/pawWatchFeature/WatchLocationProvider.swift:530:// MARK: - HKWorkoutSessionDelegate
+pawWatchPackage/Sources/pawWatchFeature/WatchLocationProvider.swift:532:extension WatchLocationProvider: HKWorkoutSessionDelegate {
+pawWatchPackage/Sources/pawWatchFeature/WatchLocationProvider.swift:544:        _ workoutSession: HKWorkoutSession,
+pawWatchPackage/Sources/pawWatchFeature/WatchLocationProvider.swift:545:        didChangeTo toState: HKWorkoutSessionState,
+pawWatchPackage/Sources/pawWatchFeature/WatchLocationProvider.swift:546:        from fromState: HKWorkoutSessionState,
+pawWatchPackage/Sources/pawWatchFeature/WatchLocationProvider.swift:581:    nonisolated public func workoutSession(_ workoutSession: HKWorkoutSession, didFailWithError error: Error) {
+pawWatchPackage/Sources/pawWatchFeature/WatchLocationProvider.swift:590:extension WatchLocationProvider: HKLiveWorkoutBuilderDelegate {
+pawWatchPackage/Sources/pawWatchFeature/WatchLocationProvider.swift:618:public protocol WatchLocationProviderDelegate: AnyObject, Sendable {
+pawWatchPackage/Sources/pawWatchFeature/WatchLocationProvider.swift:624:/// WatchLocationProvider is only functional on watchOS.
+pawWatchPackage/Sources/pawWatchFeature/WatchLocationProvider.swift:626:public final class WatchLocationProvider: Sendable {
+pawWatchPackage/Sources/pawWatchFeature/WatchLocationProvider.swift:627:    public weak var delegate: (any WatchLocationProviderDelegate)?
+pawWatchPackage/Sources/pawWatchFeature/WatchLocationProvider.swift:632:        assertionFailure("WatchLocationProvider is only available on watchOS")
+documentation_archive/docs/pawWatchPackage/IMPLEMENTATION_SUMMARY.md:23:- `isWatchConnected: Bool` - WCSession activation status
+documentation_archive/docs/pawWatchPackage/IMPLEMENTATION_SUMMARY.md:37:- `WCSessionDelegate` - Handles Watch messages, context, and file transfers
+documentation_archive/docs/pawWatchPackage/IMPLEMENTATION_SUMMARY.md:237:- [ ] Receives LocationFix via `sendMessage()`
+documentation_archive/docs/pawWatchPackage/IMPLEMENTATION_SUMMARY.md:297:   - Implement Watch app side (WCSession message sending)
+pawWatch Watch App/WatchLocationProvider.swift:2://  WatchLocationProvider.swift
+pawWatch Watch App/WatchLocationProvider.swift:30:public protocol WatchLocationProviderDelegate: AnyObject, Sendable {
+pawWatch Watch App/WatchLocationProvider.swift:61:public final class WatchLocationProvider: NSObject, Sendable {
+pawWatch Watch App/WatchLocationProvider.swift:65:    public weak var delegate: (any WatchLocationProviderDelegate)?
+pawWatch Watch App/WatchLocationProvider.swift:71:    private var workoutSession: HKWorkoutSession?
+pawWatch Watch App/WatchLocationProvider.swift:73:    private var wcSession: WCSession { WCSession.default }
+pawWatch Watch App/WatchLocationProvider.swift:97:    /// Minimum interval between interactive sendMessage attempts.
+pawWatch Watch App/WatchLocationProvider.swift:113:    private var activeFileTransfers: [WCSessionFileTransfer: (url: URL, fix: LocationFix)] = [:]
+pawWatch Watch App/WatchLocationProvider.swift:244:            let session = try HKWorkoutSession(healthStore: workoutStore, configuration: configuration)
+pawWatch Watch App/WatchLocationProvider.swift:276:        if WCSession.isSupported() {
+pawWatch Watch App/WatchLocationProvider.swift:277:            print("[WatchLocationProvider] Activating WCSession")
+pawWatch Watch App/WatchLocationProvider.swift:281:            print("[WatchLocationProvider] WCSession not supported")
+pawWatch Watch App/WatchLocationProvider.swift:319:        print("[WatchLocationProvider] Session state: \(wcSession.activationState.rawValue), reachable: \(wcSession.isReachable)")
+pawWatch Watch App/WatchLocationProvider.swift:322:            print("[WatchLocationProvider] Session not activated")
+pawWatch Watch App/WatchLocationProvider.swift:334:                    print("[WatchLocationProvider] Sending interactive message (\(data.count) bytes)")
+pawWatch Watch App/WatchLocationProvider.swift:337:                    wcSession.sendMessage(payload, replyHandler: nil) { [weak self] error in
+pawWatch Watch App/WatchLocationProvider.swift:338:                        print("[WatchLocationProvider] Interactive send failed: \(error.localizedDescription)")
+pawWatch Watch App/WatchLocationProvider.swift:342:                    print("[WatchLocationProvider] Encode error: \(error.localizedDescription)")
+pawWatch Watch App/WatchLocationProvider.swift:349:                print("[WatchLocationProvider] Reachable but skipping interactive send (debounced)")
+pawWatch Watch App/WatchLocationProvider.swift:352:            print("[WatchLocationProvider] Not reachable, using file transfer")
+pawWatch Watch App/WatchLocationProvider.swift:357:    /// Determines if an interactive `sendMessage` should be attempted.
+pawWatch Watch App/WatchLocationProvider.swift:393:            print("[WatchLocationProvider] File transfers disabled; relying on context/interactive paths")
+pawWatch Watch App/WatchLocationProvider.swift:428:            print("[WatchLocationProvider] Updated application context with latest fix")
+pawWatch Watch App/WatchLocationProvider.swift:435:            print("[WatchLocationProvider] Failed to update context: \(error.localizedDescription)")
+pawWatch Watch App/WatchLocationProvider.swift:460:            print("[WatchLocationProvider] Queued file transfer")
+pawWatch Watch App/WatchLocationProvider.swift:471:extension WatchLocationProvider: CLLocationManagerDelegate {
+pawWatch Watch App/WatchLocationProvider.swift:524:// MARK: - WCSessionDelegate
+pawWatch Watch App/WatchLocationProvider.swift:526:extension WatchLocationProvider: WCSessionDelegate {
+pawWatch Watch App/WatchLocationProvider.swift:535:        _ session: WCSession,
+pawWatch Watch App/WatchLocationProvider.swift:536:        activationDidCompleteWith activationState: WCSessionActivationState,
+pawWatch Watch App/WatchLocationProvider.swift:540:            print("[WatchLocationProvider] WCSession activation completed with state: \(activationState.rawValue), error: \(error?.localizedDescription ?? "none")")
+pawWatch Watch App/WatchLocationProvider.swift:551:    nonisolated public func sessionReachabilityDidChange(_ session: WCSession) {
+pawWatch Watch App/WatchLocationProvider.swift:552:        print("[WatchLocationProvider] Reachability changed → reachable: \(session.isReachable)")
+pawWatch Watch App/WatchLocationProvider.swift:557:        _ session: WCSession,
+pawWatch Watch App/WatchLocationProvider.swift:581:    nonisolated public func session(_ session: WCSession, didReceiveMessageData messageData: Data) {}
+pawWatch Watch App/WatchLocationProvider.swift:588:    nonisolated public func session(_ session: WCSession, didReceive file: WCSessionFile) {}
+pawWatch Watch App/WatchLocationProvider.swift:600:        _ session: WCSession,
+pawWatch Watch App/WatchLocationProvider.swift:601:        didFinish fileTransfer: WCSessionFileTransfer,
+pawWatch Watch App/WatchLocationProvider.swift:614:                print("[WatchLocationProvider] File transfer failed: \(error.localizedDescription). Retrying…")
+pawWatch Watch App/WatchLocationProvider.swift:617:                print("[WatchLocationProvider] File transfer completed successfully")
+pawWatch Watch App/WatchLocationProvider.swift:623:// MARK: - HKWorkoutSessionDelegate
+pawWatch Watch App/WatchLocationProvider.swift:625:extension WatchLocationProvider: HKWorkoutSessionDelegate {
+pawWatch Watch App/WatchLocationProvider.swift:637:        _ workoutSession: HKWorkoutSession,
+pawWatch Watch App/WatchLocationProvider.swift:638:        didChangeTo toState: HKWorkoutSessionState,
+pawWatch Watch App/WatchLocationProvider.swift:639:        from fromState: HKWorkoutSessionState,
+pawWatch Watch App/WatchLocationProvider.swift:670:    nonisolated public func workoutSession(_ workoutSession: HKWorkoutSession, didFailWithError error: Error) {
+pawWatch Watch App/WatchLocationProvider.swift:679:extension WatchLocationProvider: HKLiveWorkoutBuilderDelegate {
+pawWatch Watch App/WatchLocationProvider.swift:707:public protocol WatchLocationProviderDelegate: AnyObject, Sendable {
+pawWatch Watch App/WatchLocationProvider.swift:713:/// WatchLocationProvider is only functional on watchOS.
+pawWatch Watch App/WatchLocationProvider.swift:715:public final class WatchLocationProvider: Sendable {
+pawWatch Watch App/WatchLocationProvider.swift:716:    public weak var delegate: (any WatchLocationProviderDelegate)?
+pawWatch Watch App/WatchLocationProvider.swift:721:        assertionFailure("WatchLocationProvider is only available on watchOS")
+TODO.md:5:   - [ ] Install the iOS app + watch app on physical devices and confirm WCSession reaches `.activated` with `reachable == true`.
+TODO.md:21:1. **WKExtendedRuntimeSession**
+TODO.md:22:   - [ ] Prototype running `WKExtendedRuntimeSession` alongside `HKWorkoutSession` and compare runtime.
+TODO.md:38:   - [ ] Debounce `session.sendMessage` (only fire when reachable and accuracy improves or N seconds elapsed).
+documentation_archive/docs/TODO.archive.md:11:   - Evaluate adding a `WKExtendedRuntimeSession` (alongside the existing `HKWorkoutSession`) so the watch app keeps running even when the user lowers their wrist.
+documentation_archive/docs/TODO.archive.md:25:   - Verify WCSession immediately reports counterpart installed and GPS data flows without manual steps.
+documentation_archive/docs/WATCH_TARGET_COMPLETE_GUIDE.md:16:  - Ready for WatchLocationProvider integration
+documentation_archive/docs/WATCH_TARGET_COMPLETE_GUIDE.md:23:  - TODO markers for WatchLocationProvider integration
+documentation_archive/docs/WATCH_TARGET_COMPLETE_GUIDE.md:145:#### 7. Link WatchLocationProvider and Shared Sources
+documentation_archive/docs/WATCH_TARGET_COMPLETE_GUIDE.md:147:1. In Project Navigator, locate `Sources/WatchLocationProvider/`
+documentation_archive/docs/WATCH_TARGET_COMPLETE_GUIDE.md:148:2. Select `WatchLocationProvider.swift`
+documentation_archive/docs/WATCH_TARGET_COMPLETE_GUIDE.md:165:#### 9. Update ContentView.swift to Use WatchLocationProvider
+documentation_archive/docs/WATCH_TARGET_COMPLETE_GUIDE.md:174:    // Initialize WatchLocationProvider
+documentation_archive/docs/WATCH_TARGET_COMPLETE_GUIDE.md:175:    let provider = WatchLocationProvider()
+documentation_archive/docs/WATCH_TARGET_COMPLETE_GUIDE.md:183:Implement `WatchLocationProviderDelegate`:
+documentation_archive/docs/WATCH_TARGET_COMPLETE_GUIDE.md:185:extension ContentView: WatchLocationProviderDelegate {
+documentation_archive/docs/WATCH_TARGET_COMPLETE_GUIDE.md:227:- [ ] `WatchLocationProvider.swift` is in target membership
+documentation_archive/docs/WATCH_TARGET_COMPLETE_GUIDE.md:235:### Build Error: "No such module 'WatchLocationProvider'"
+documentation_archive/docs/WATCH_TARGET_COMPLETE_GUIDE.md:236:**Solution**: Check Target Membership for `WatchLocationProvider.swift`
+documentation_archive/docs/WATCH_TARGET_COMPLETE_GUIDE.md:265:   - Add WatchLocationProvider initialization
+documentation_archive/docs/WATCH_TARGET_COMPLETE_GUIDE.md:275:   - Add WCSession management
+documentation_archive/docs/WATCH_TARGET_COMPLETE_GUIDE.md:295:- Shared Code: `Sources/WatchLocationProvider/`, `Sources/Shared/`
+pawWatchPackage/Sources/pawWatchFeature/PetLocationManager.swift:29:/// - Establish and maintain WCSession connection with paired Apple Watch
+pawWatchPackage/Sources/pawWatchFeature/PetLocationManager.swift:59:    /// Whether WCSession is reachable for immediate message delivery
+pawWatchPackage/Sources/pawWatchFeature/PetLocationManager.swift:81:    private let session: WCSession
+pawWatchPackage/Sources/pawWatchFeature/PetLocationManager.swift:88:    /// Automatically activates WCSession if supported.
+pawWatchPackage/Sources/pawWatchFeature/PetLocationManager.swift:91:        self.session = WCSession.default
+pawWatchPackage/Sources/pawWatchFeature/PetLocationManager.swift:99:        if WCSession.isSupported() {
+pawWatchPackage/Sources/pawWatchFeature/PetLocationManager.swift:160:        session.sendMessage(
+pawWatchPackage/Sources/pawWatchFeature/PetLocationManager.swift:246:// MARK: - WCSessionDelegate
+pawWatchPackage/Sources/pawWatchFeature/PetLocationManager.swift:249:extension PetLocationManager: WCSessionDelegate {
+pawWatchPackage/Sources/pawWatchFeature/PetLocationManager.swift:251:    /// WCSession activation completed.
+pawWatchPackage/Sources/pawWatchFeature/PetLocationManager.swift:253:        _ session: WCSession,
+pawWatchPackage/Sources/pawWatchFeature/PetLocationManager.swift:254:        activationDidCompleteWith activationState: WCSessionActivationState,
+pawWatchPackage/Sources/pawWatchFeature/PetLocationManager.swift:272:    /// WCSession became inactive (iOS only).
+pawWatchPackage/Sources/pawWatchFeature/PetLocationManager.swift:273:    nonisolated public func sessionDidBecomeInactive(_ session: WCSession) {
+pawWatchPackage/Sources/pawWatchFeature/PetLocationManager.swift:279:    /// WCSession deactivated (iOS only).
+pawWatchPackage/Sources/pawWatchFeature/PetLocationManager.swift:280:    nonisolated public func sessionDidDeactivate(_ session: WCSession) {
+pawWatchPackage/Sources/pawWatchFeature/PetLocationManager.swift:293:    nonisolated public func sessionReachabilityDidChange(_ session: WCSession) {
+pawWatchPackage/Sources/pawWatchFeature/PetLocationManager.swift:304:        _ session: WCSession,
+pawWatchPackage/Sources/pawWatchFeature/PetLocationManager.swift:318:        _ session: WCSession,
+pawWatchPackage/Sources/pawWatchFeature/PetLocationManager.swift:319:        didReceiveApplicationContext applicationContext: [String: Any]
+pawWatchPackage/Sources/pawWatchFeature/PetLocationManager.swift:321:        guard let data = applicationContext["latestFix"] as? Data else { return }
+pawWatchPackage/Sources/pawWatchFeature/PetLocationManager.swift:330:        _ session: WCSession,
+pawWatchPackage/Sources/pawWatchFeature/PetLocationManager.swift:342:        _ session: WCSession,
+pawWatchPackage/Sources/pawWatchFeature/PetLocationManager.swift:343:        didReceive file: WCSessionFile
+documentation_archive/docs/WATCH_TARGET_SUMMARY.md:28:     - Ready for WatchLocationProvider integration
+documentation_archive/docs/WATCH_TARGET_SUMMARY.md:142:- ✅ Delegate pattern ready for WatchLocationProvider
+documentation_archive/docs/WATCH_TARGET_SUMMARY.md:151:1. **WatchLocationProvider**
+documentation_archive/docs/WATCH_TARGET_SUMMARY.md:153:   /Users/zackjordan/code/pawWatch-app/Sources/WatchLocationProvider/
+documentation_archive/docs/WATCH_TARGET_SUMMARY.md:154:   └── WatchLocationProvider.swift  (618 lines)
+documentation_archive/docs/WATCH_TARGET_SUMMARY.md:203:   - Add `Sources/WatchLocationProvider/WatchLocationProvider.swift` to target
+documentation_archive/docs/WATCH_TARGET_SUMMARY.md:227:- [ ] WatchLocationProvider compiles with target
+documentation_archive/docs/WATCH_TARGET_SUMMARY.md:263:- [ ] WatchLocationProvider initializes
+README.md:22:- **Watch-powered telemetry** – `WatchLocationProvider` keeps an HKWorkout alive, requests best accuracy GPS, and relays data via context, interactive messages, and file transfers.
+README.md:47:1. **Watch** – `WatchLocationProvider` starts a workout session, configures `CLLocationManager` for 1 Hz updates, and encodes each `LocationFix`.
+README.md:113:| `WatchLocationProvider` | watchOS-only manager that starts HKWorkout sessions and pushes fixes upstream. |
+README.md:118:- Lives in `pawWatch Watch App/` and imports `pawWatchFeature` to access `WatchLocationProvider`, models, and shared UI.
+documentation_archive/docs/CLAUDE_PLAN.md:28: - Sources/WatchLocationProvider/ - 0.5s throttle GPS (CRITICAL)
+documentation_archive/docs/PAWATCH_GUIDELINES.md:85:     - `sendMessageData()` when reachable (immediate)
+documentation_archive/docs/PAWATCH_GUIDELINES.md:196:1. **`Sources/WatchLocationProvider/`** (95% reusable)
+documentation_archive/docs/PAWATCH_GUIDELINES.md:387:- ✅ `WatchLocationProvider.swift` - 0.5s throttle GPS

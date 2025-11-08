@@ -76,10 +76,12 @@ public final class PetLocationManager: NSObject, ObservableObject {
     /// Current iPhone location authorization status
     public private(set) var locationAuthorizationStatus: CLAuthorizationStatus = CLLocationManager.authorizationStatus()
 
-    #if canImport(HealthKit)
+#if canImport(HealthKit)
     public private(set) var workoutAuthorizationStatus: HKAuthorizationStatus = .notDetermined
     public private(set) var heartRateAuthorizationStatus: HKAuthorizationStatus = .notDetermined
-    #endif
+#endif
+
+    public private(set) var sessionSummary = SessionSummary()
 
     // MARK: - Constants
 
@@ -93,10 +95,15 @@ public final class PetLocationManager: NSObject, ObservableObject {
     private let locationManager: CLLocationManager
     private let logger = Logger(subsystem: "com.stonezone.pawwatch", category: "PetLocationManager")
     private let signposter = OSSignposter(subsystem: "com.stonezone.pawwatch", category: "PetLocationManager")
+    private let sessionSignposter = OSSignposter(subsystem: "com.stonezone.pawwatch", category: "SessionExport")
     #if canImport(HealthKit)
     private let healthStore = HKHealthStore()
     private let heartRateType = HKObjectType.quantityType(forIdentifier: .heartRate)
     #endif
+    @ObservationIgnored private var sessionSamples: [SessionSample] = []
+    @ObservationIgnored private var sessionStartDate: Date?
+    @ObservationIgnored private var sessionReachabilityFlipCount: Int = 0
+    private let maxSessionSamples = 10_000
 
     // MARK: - Initialization
 
@@ -288,13 +295,54 @@ public final class PetLocationManager: NSObject, ObservableObject {
             }
         }
     }
-    #else
+#else
     public var workoutPermissionDescription: String { "Unavailable" }
     public var heartPermissionDescription: String { "Unavailable" }
     public var needsHealthPermissionAction: Bool { false }
     public var canRequestHealthAuthorization: Bool { false }
     public func requestHealthAuthorization() {}
-    #endif
+#endif
+
+    /// Clears current session statistics.
+    public func resetSessionStats() {
+        sessionSamples.removeAll()
+        sessionStartDate = nil
+        sessionReachabilityFlipCount = 0
+        sessionSummary = SessionSummary()
+    }
+
+    /// Writes the current session to a temporary CSV and returns its URL for sharing.
+    public func sessionShareURL() -> URL? {
+        guard !sessionSamples.isEmpty else { return nil }
+        let id = sessionSignposter.beginInterval("SessionCSVPrepare")
+        defer { sessionSignposter.endInterval("SessionCSVPrepare", id) }
+
+        var rows: [String] = ["timestamp,latitude,longitude,h_accuracy_m,preset"]
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+
+        for sample in sessionSamples {
+            let timestamp = formatter.string(from: sample.timestamp)
+            let preset = sample.preset ?? ""
+            rows.append([timestamp, String(sample.lat), String(sample.lon), String(format: "%.2f", sample.accuracy), preset].joined(separator: ","))
+        }
+
+        guard let data = rows.joined(separator: "\n").data(using: .utf8) else {
+            logger.error("Failed to encode session CSV")
+            return nil
+        }
+
+        let filename = "pawwatch-session-\(Int(Date().timeIntervalSince1970)).csv"
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
+        do {
+            try data.write(to: url, options: .atomic)
+        logger.log("Prepared session CSV rows=\(self.sessionSamples.count)")
+            return url
+        } catch {
+            logger.error("Failed to write session CSV: \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
+    }
 
     // MARK: - Private Helpers
 
@@ -314,6 +362,8 @@ public final class PetLocationManager: NSObject, ObservableObject {
         if locationHistory.count > maxHistoryCount {
             locationHistory = Array(locationHistory.prefix(maxHistoryCount))
         }
+
+        appendSessionSample(locationFix)
     }
 
     /// Decode a LocationFix from raw Data produced by the watch.
@@ -391,6 +441,8 @@ extension PetLocationManager: WCSessionDelegate {
         Task { @MainActor in
             self.isWatchReachable = isReachable
             self.logger.log("Reachability changed: \(isReachable, privacy: .public)")
+            self.sessionReachabilityFlipCount += 1
+            self.recomputeSessionSummary()
         }
     }
 
@@ -503,4 +555,98 @@ extension PetLocationManager: CLLocationManagerDelegate {
         }
     }
 }
+
+// MARK: - Session Metrics Helpers
+
+extension PetLocationManager {
+    private struct SessionSample {
+        let timestamp: Date
+        let lat: Double
+        let lon: Double
+        let accuracy: Double
+        let preset: String?
+    }
+
+    public struct SessionSummary: Sendable {
+        public var fixCount: Int = 0
+        public var averageIntervalSec: Double = 0
+        public var medianAccuracy: Double = 0
+        public var p90Accuracy: Double = 0
+        public var maxAccuracy: Double = 0
+        public var reachabilityChanges: Int = 0
+        public var presetCounts: [String: Int] = [:]
+        public var durationSec: Double = 0
+    }
+
+    private func appendSessionSample(_ fix: LocationFix) {
+        if sessionStartDate == nil {
+            sessionStartDate = fix.timestamp
+        }
+        let sample = SessionSample(
+            timestamp: fix.timestamp,
+            lat: fix.coordinate.latitude,
+            lon: fix.coordinate.longitude,
+            accuracy: fix.horizontalAccuracyMeters,
+            preset: fix.trackingPreset
+        )
+        sessionSamples.append(sample)
+        if sessionSamples.count > maxSessionSamples {
+            sessionSamples.removeFirst(sessionSamples.count - maxSessionSamples)
+        }
+        recomputeSessionSummary()
+    }
+
+    private func recomputeSessionSummary() {
+        let count = sessionSamples.count
+        guard count > 0 else {
+            sessionSummary = SessionSummary(reachabilityChanges: sessionReachabilityFlipCount)
+            return
+        }
+
+        let timestamps = sessionSamples.map { $0.timestamp }
+        let start = sessionStartDate ?? timestamps.first!
+        let duration = max(0, timestamps.last!.timeIntervalSince(start))
+        let intervals = zip(timestamps.dropFirst(), timestamps).map { $0.0.timeIntervalSince($0.1) }
+        let avgInterval = intervals.isEmpty ? 0 : intervals.reduce(0, +) / Double(intervals.count)
+
+        let accuracies = sessionSamples.map { $0.accuracy }.sorted()
+        let medianAcc = median(of: accuracies)
+        let p90Acc = percentile(of: accuracies, percent: 90)
+        let maxAcc = accuracies.last ?? 0
+
+        var histogram: [String: Int] = [:]
+        for preset in sessionSamples.compactMap({ $0.preset }) {
+            histogram[preset, default: 0] += 1
+        }
+
+        sessionSummary = SessionSummary(
+            fixCount: count,
+            averageIntervalSec: avgInterval,
+            medianAccuracy: medianAcc,
+            p90Accuracy: p90Acc,
+            maxAccuracy: maxAcc,
+            reachabilityChanges: sessionReachabilityFlipCount,
+            presetCounts: histogram,
+            durationSec: duration
+        )
+    }
+
+    private func median(of values: [Double]) -> Double {
+        guard !values.isEmpty else { return 0 }
+        let mid = values.count / 2
+        if values.count % 2 == 1 {
+            return values[mid]
+        }
+        return 0.5 * (values[mid - 1] + values[mid])
+    }
+
+    private func percentile(of values: [Double], percent: Double) -> Double {
+        guard !values.isEmpty else { return 0 }
+        if percent <= 0 { return values.first! }
+        if percent >= 100 { return values.last! }
+        let rank = Int(ceil(percent / 100 * Double(values.count))) - 1
+        return values[max(0, min(values.count - 1, rank))]
+    }
+}
+
 #endif
