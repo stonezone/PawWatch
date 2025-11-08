@@ -142,20 +142,23 @@ public final class WatchLocationProvider: NSObject, Sendable {
     /// - Active file transfers
     public func stop() {
         locationManager.stopUpdatingLocation()
-        
+
         // Only end workout if it's actually running
         if workoutSession?.state == .running {
             workoutSession?.end()
         }
-        
-        workoutBuilder?.endCollection(withEnd: Date()) { [weak self] _, error in
+
+        // Capture builder before entering Sendable closure to avoid @MainActor isolation issues
+        let builder = workoutBuilder
+
+        builder?.endCollection(withEnd: Date()) { _, error in
             if let error {
                 Task { @MainActor [weak self] in
                     guard let self else { return }
                     self.delegate?.didFail(error)
                 }
             }
-            self?.workoutBuilder?.finishWorkout { [weak self] _, finishError in
+            builder?.finishWorkout { _, finishError in
                 if let finishError {
                     Task { @MainActor [weak self] in
                         guard let self else { return }
@@ -164,7 +167,7 @@ public final class WatchLocationProvider: NSObject, Sendable {
                 }
             }
         }
-        
+
         workoutSession = nil
         workoutBuilder = nil
         lastContextSequence = nil
@@ -547,7 +550,10 @@ extension WatchLocationProvider: HKWorkoutSessionDelegate {
 
         Task { @MainActor [weak self] in
             guard let self else { return }
-            self.workoutBuilder?.endCollection(withEnd: date) { [weak self] _, error in
+            // Capture builder before entering Sendable closure to avoid @MainActor isolation issues
+            let builder = self.workoutBuilder
+
+            builder?.endCollection(withEnd: date) { _, error in
                 if let error {
                     Task { @MainActor [weak self] in
                         guard let self else { return }
@@ -555,7 +561,7 @@ extension WatchLocationProvider: HKWorkoutSessionDelegate {
                     }
                 }
 
-                self?.workoutBuilder?.finishWorkout { [weak self] _, finishError in
+                builder?.finishWorkout { _, finishError in
                     if let finishError {
                         Task { @MainActor [weak self] in
                             guard let self else { return }
