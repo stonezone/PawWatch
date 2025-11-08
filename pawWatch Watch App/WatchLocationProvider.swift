@@ -234,7 +234,7 @@ public final class WatchLocationProvider: NSObject, Sendable {
     
     /// Tracks last sequence number sent via application context to prevent duplicates
     private var lastContextSequence: Int?
-    
+
     /// Timestamp of last application context push for throttling
     private var lastContextPushDate: Date?
     
@@ -269,12 +269,22 @@ public final class WatchLocationProvider: NSObject, Sendable {
     
     /// Tracks active file transfers to retry on failure and clean up temp files
     private var activeFileTransfers: [WCSessionFileTransfer: (url: URL, fix: LocationFix)] = [:]
-    
+
     /// Most recent fix, used to satisfy manual refresh requests from the phone.
     private var latestFix: LocationFix?
     private var batteryOptimizationsEnabled = true
     private var currentPreset: TrackingPreset = .aggressive
     private var isWorkoutRunning = false
+    private var latestBatteryLevel: Double = 1.0
+
+    // MARK: - Adaptive throttling state
+
+    private var lastKnownLocation: CLLocation?
+    private var lastMovementTime: Date = .distantPast
+    private let stationaryThresholdMeters: CLLocationDistance = 5.0
+    private let stationaryTimeThreshold: TimeInterval = 30
+    private var lastTransmittedFixDate: Date = .distantPast
+    private var lastThrottleAccuracy: Double = .infinity
     
     // MARK: - Initialization
     
@@ -686,6 +696,50 @@ public final class WatchLocationProvider: NSObject, Sendable {
             }
         }
     }
+
+    // MARK: - Adaptive throttling helpers
+
+    private func isDeviceStationary(_ location: CLLocation) -> Bool {
+        guard let lastLocation = lastKnownLocation else { return false }
+
+        let distance = location.distance(from: lastLocation)
+        if distance < stationaryThresholdMeters {
+            let timeSinceMovement = Date().timeIntervalSince(lastMovementTime)
+            return timeSinceMovement > stationaryTimeThreshold
+        } else {
+            lastMovementTime = Date()
+            return false
+        }
+    }
+
+    private func shouldThrottleUpdate(location: CLLocation, isStationary: Bool, batteryLevel: Double) -> Bool {
+        let now = Date()
+        let timeSinceLast = now.timeIntervalSince(lastTransmittedFixDate)
+
+        let throttleInterval: TimeInterval
+        if batteryLevel <= 0.10 {
+            throttleInterval = 5.0
+        } else if batteryLevel <= 0.20 {
+            throttleInterval = isStationary ? 2.0 : 1.0
+        } else {
+            throttleInterval = contextPushInterval
+        }
+
+        let accuracyChange = abs(location.horizontalAccuracy - lastThrottleAccuracy)
+        if accuracyChange > contextAccuracyDelta {
+            lastTransmittedFixDate = now
+            lastThrottleAccuracy = location.horizontalAccuracy
+            return false
+        }
+
+        if timeSinceLast < throttleInterval {
+            return true
+        }
+
+        lastTransmittedFixDate = now
+        lastThrottleAccuracy = location.horizontalAccuracy
+        return false
+    }
 }
 
 // MARK: - CLLocationManagerDelegate
@@ -708,6 +762,17 @@ extension WatchLocationProvider: CLLocationManagerDelegate {
             else { return }
             
             let device = WKInterfaceDevice.current()
+            let batteryLevel = device.batteryLevel >= 0 ? Double(device.batteryLevel) : latestBatteryLevel
+            latestBatteryLevel = batteryLevel
+
+            if batteryOptimizationsEnabled {
+                let stationary = isDeviceStationary(latest)
+                if shouldThrottleUpdate(location: latest, isStationary: stationary, batteryLevel: batteryLevel) {
+                    logger.debug("Throttling fix (stationary=\(stationary), battery=\(Int(batteryLevel * 100)))")
+                    return
+                }
+                lastKnownLocation = latest
+            }
             
             // Convert CLLocation to LocationFix with Watch-specific metadata
             let fix = LocationFix(
@@ -723,7 +788,7 @@ extension WatchLocationProvider: CLLocationManagerDelegate {
                 speedMetersPerSecond: max(latest.speed, 0),
                 courseDegrees: latest.course >= 0 ? latest.course : 0,
                 headingDegrees: nil,  // Apple Watch doesn't have compass hardware
-                batteryFraction: device.batteryLevel >= 0 ? Double(device.batteryLevel) : 0,
+                batteryFraction: batteryLevel,
                 sequence: Int(Int64(Date().timeIntervalSinceReferenceDate * 1000) % Int64(Int.max)),
                 trackingPreset: batteryOptimizationsEnabled ? currentPreset.rawValue : nil
             )

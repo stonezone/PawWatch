@@ -59,6 +59,8 @@ Once those pass, proceed to Phase 0.
 
 ## Phase 0: Pre-Validation Battery Optimizations
 
+_Progress 2025-11-08_: Adaptive motion detection + battery-aware throttling now live in `WatchLocationProvider`. Remaining tasks (compact JSON keys, performance logging, triple-path polish) are still open before Phase 1 runs.
+
 **Timeline:** 3-5 days
 **Goal:** Maximize battery life with minimal code changes before Phase 1 field testing
 **Location:** Watch app (`pawWatch Watch App/WatchLocationProvider.swift`)
