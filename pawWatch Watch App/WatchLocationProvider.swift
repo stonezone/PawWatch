@@ -228,6 +228,9 @@ public final class WatchLocationProvider: NSObject, Sendable {
     private let signposter = OSSignposter(subsystem: "com.stonezone.pawwatch", category: "WatchLocationProvider")
     private var trackingIntervalState: OSSignpostIntervalState?
     private let runtimeCoordinator = ExtendedRuntimeCoordinator()
+    private let supportsExtendedRuntime: Bool = {
+        ProcessInfo.processInfo.environment["PAWWATCH_ENABLE_EXTENDED_RUNTIME"] == "1"
+    }()
     
     /// Tracks last sequence number sent via application context to prevent duplicates
     private var lastContextSequence: Int?
@@ -280,7 +283,10 @@ public final class WatchLocationProvider: NSObject, Sendable {
         locationManager.delegate = self
         encoder.outputFormatting = [.withoutEscapingSlashes]
         WKInterfaceDevice.current().isBatteryMonitoringEnabled = true
-        runtimeCoordinator.isEnabled = batteryOptimizationsEnabled
+        runtimeCoordinator.isEnabled = supportsExtendedRuntime && batteryOptimizationsEnabled
+        if !supportsExtendedRuntime {
+            logger.log("Extended runtime disabled (entitlement unavailable)")
+        }
     }
     
     // MARK: - Public Methods
@@ -303,7 +309,9 @@ public final class WatchLocationProvider: NSObject, Sendable {
         locationManager.startUpdatingLocation()
 
         isWorkoutRunning = true
-        runtimeCoordinator.updateTrackingState(isRunning: true)
+        if supportsExtendedRuntime {
+            runtimeCoordinator.updateTrackingState(isRunning: true)
+        }
 
         trackingIntervalState = signposter.beginInterval("TrackingSession")
         logger.log("Workout tracking started with optimizations=\(self.batteryOptimizationsEnabled, privacy: .public)")
@@ -312,14 +320,16 @@ public final class WatchLocationProvider: NSObject, Sendable {
     /// Enables or disables the extended runtime + adaptive throttling stack.
     public func setBatteryOptimizationsEnabled(_ enabled: Bool) {
         batteryOptimizationsEnabled = enabled
-        runtimeCoordinator.isEnabled = enabled
+        runtimeCoordinator.isEnabled = supportsExtendedRuntime && enabled
 
         if enabled {
-            if isWorkoutRunning {
+            if supportsExtendedRuntime, isWorkoutRunning {
                 runtimeCoordinator.updateTrackingState(isRunning: true)
             }
         } else {
-            runtimeCoordinator.updateTrackingState(isRunning: false)
+            if supportsExtendedRuntime {
+                runtimeCoordinator.updateTrackingState(isRunning: false)
+            }
             applyPreset(.aggressive)
         }
     }
@@ -375,7 +385,9 @@ public final class WatchLocationProvider: NSObject, Sendable {
             signposter.endInterval("TrackingSession", state)
         }
         trackingIntervalState = nil
-        runtimeCoordinator.updateTrackingState(isRunning: false)
+        if supportsExtendedRuntime {
+            runtimeCoordinator.updateTrackingState(isRunning: false)
+        }
         isWorkoutRunning = false
         logger.log("Workout tracking stopped")
     }

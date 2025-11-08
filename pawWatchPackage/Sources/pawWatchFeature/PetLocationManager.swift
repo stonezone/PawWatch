@@ -234,9 +234,32 @@ public final class PetLocationManager: NSObject, ObservableObject {
     #if canImport(HealthKit)
     private func refreshHealthAuthorizationState() {
         guard HKHealthStore.isHealthDataAvailable() else { return }
-        workoutAuthorizationStatus = healthStore.authorizationStatus(for: HKObjectType.workoutType())
+
+        // Workout (WRITE permission - can check directly)
+        let workoutType = HKObjectType.workoutType()
+        if #available(iOS 18.0, *) {
+            workoutAuthorizationStatus = healthStore.authorizationStatus(for: workoutType)
+            logger.info("Workout status: \(String(describing: self.workoutAuthorizationStatus))")
+        }
+
+        // Heart Rate (READ permission - test by attempting to read)
         if let heartRateType {
-            heartRateAuthorizationStatus = healthStore.authorizationStatus(for: heartRateType)
+            Task {
+                let query = HKSampleQuery(sampleType: heartRateType, predicate: nil, limit: 1, sortDescriptors: nil) { _, samples, error in
+                    Task { @MainActor in
+                        if error == nil, samples != nil {
+                            // Successfully queried = authorized
+                            self.heartRateAuthorizationStatus = .sharingAuthorized
+                            self.logger.info("Heart Rate: Authorized (verified by query)")
+                        } else {
+                            // Query failed = not authorized
+                            self.heartRateAuthorizationStatus = .notDetermined
+                            self.logger.info("Heart Rate: Not authorized (query failed: \(error?.localizedDescription ?? "unknown"))")
+                        }
+                    }
+                }
+                healthStore.execute(query)
+            }
         }
     }
 
@@ -279,9 +302,13 @@ public final class PetLocationManager: NSObject, ObservableObject {
         var readTypes: Set<HKObjectType> = []
         if let heartRateType {
             readTypes.insert(heartRateType)
+            logger.info("Requesting Heart Rate authorization")
+        } else {
+            logger.error("Heart rate type is nil!")
         }
 
         let shareTypes: Set<HKSampleType> = [HKObjectType.workoutType()]
+        logger.info("Requesting authorization for \(readTypes.count) read types and \(shareTypes.count) share types")
 
         healthStore.requestAuthorization(toShare: shareTypes, read: readTypes) { success, error in
             Task { @MainActor in

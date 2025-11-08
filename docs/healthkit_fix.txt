@@ -1,0 +1,68 @@
+
+  The Problem
+
+  Heart Rate authorization was showing as "Denied" in the pawWatch app even though:
+  - The user had manually enabled both Workout and Heart Rate permissions in iOS Settings → Privacy & Security → Health → pawWatch
+  - The app had proper HealthKit entitlements in pawWatch.entitlements
+  - The authorization request prompt appeared and the user approved both permissions
+  - Multiple reinstalls, reboots, and cache clears didn't resolve it
+
+  Root Cause
+
+  Two issues were identified:
+
+  1. Missing Entitlement: The com.apple.developer.healthkit.access key was missing from Config/pawWatch.entitlements (it was present in the Watch app but not the iOS app)
+  2. Wrong API for READ Permissions: The code was using healthStore.authorizationStatus(for:) to check Heart Rate authorization status. This API has two critical problems:
+    - It's deprecated since iOS 14 and returns incorrect values on iOS 26
+    - More importantly: For READ permissions like Heart Rate, iOS intentionally hides the authorization status for privacy reasons - the API will never reveal if the user actually granted access
+
+  The Fix
+
+  1. Added Missing Entitlement
+
+  Updated Config/pawWatch.entitlements:
+  <dict>
+      <!-- HealthKit Capability -->
+      <key>com.apple.developer.healthkit</key>
+      <true/>
+
+      <!-- HealthKit Clinical Records Access (required for some health data types) -->
+      <key>com.apple.developer.healthkit.access</key>
+      <array/>
+  </dict>
+
+  2. Changed Authorization Checking Logic
+
+  In PetLocationManager.swift, modified refreshHealthAuthorizationState() to use different approaches for WRITE vs READ permissions:
+
+  For Workout (WRITE permission): Can use the standard API
+  workoutAuthorizationStatus = healthStore.authorizationStatus(for: workoutType)
+
+  For Heart Rate (READ permission): Must test by actually attempting to read data
+  let query = HKSampleQuery(sampleType: heartRateType, predicate: nil, limit: 1, sortDescriptors: nil) { _, samples, error in
+      Task { @MainActor in
+          if error == nil, samples != nil {
+              // Successfully queried = authorized
+              self.heartRateAuthorizationStatus = .sharingAuthorized
+          } else {
+              // Query failed = not authorized
+              self.heartRateAuthorizationStatus = .notDetermined
+          }
+      }
+  }
+  healthStore.execute(query)
+
+  3. Clean Installation
+
+  - Cleared all DerivedData caches: rm -rf ~/Library/Developer/Xcode/DerivedData/*
+  - User deleted the app and rebooted iPhone to clear iOS entitlement cache
+  - Fresh build and install with the corrected code
+
+  Key Insight
+
+  HealthKit Privacy Model: Apple intentionally prevents apps from checking the authorization status of READ permissions (like Heart Rate, Steps, Sleep, etc.). This prevents apps from detecting if a user
+  denied access and potentially harassing them about it. The only way to verify READ authorization is to actually attempt to read the data - if the query succeeds, you have access; if it fails, you don't.
+
+  Result
+
+  Heart Rate authorization now shows as "Authorized" and properly detects when the user has granted access. ✅
