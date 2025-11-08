@@ -6,6 +6,22 @@
 
 ---
 
+## Versioning (1.0.x stream)
+
+- Run `./scripts/bump_version.py` before committing a new change. It increments `Config/version.json` and keeps the Xcode project in sync so both apps share the same semantic version and build number.
+- Install the enforcement hook once with `./scripts/install-git-hooks.sh`; the hook blocks commits that forget to stage the version file.
+- See `docs/VERSIONING.md` for the full workflow and advanced options (minor/major bumps, bypass flags, etc.).
+
+---
+
+## Form Factors & Orientation
+
+- iPhone-only build for now (`TARGETED_DEVICE_FAMILY = 1`). iPad layouts are out-of-scope until we nail the watch → phone pipeline.
+- The iOS app is locked to `UIInterfaceOrientationPortrait`. It keeps the dashboard/map layout predictable during this test phase; we can revisit landscape once we design a wider layout.
+- watchOS target is unchanged; it keeps the existing workout-driven background execution model.
+
+---
+
 ## 🎯 Development Strategy
 
 ### Why Fork gps-relay-framework?

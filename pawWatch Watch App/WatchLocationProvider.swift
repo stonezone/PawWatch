@@ -189,13 +189,23 @@ public final class WatchLocationProvider: NSObject, Sendable {
     
     /// Requests HealthKit and location permissions if not already granted.
     private func requestAuthorizationsIfNeeded() {
-        // Request HealthKit read access for heart rate (optional data)
+        // Request HealthKit permissions for workout sessions and heart rate.
         var readTypes: Set<HKObjectType> = []
         if let heartRate = HKObjectType.quantityType(forIdentifier: .heartRate) {
             readTypes.insert(heartRate)
         }
-        workoutStore.requestAuthorization(toShare: [], read: readTypes) { _, _ in }
-        
+
+        var shareTypes: Set<HKSampleType> = []
+        shareTypes.insert(HKObjectType.workoutType())
+
+        workoutStore.requestAuthorization(toShare: shareTypes, read: readTypes) { success, error in
+            if let error, success == false {
+                Task { @MainActor [weak self] in
+                    self?.delegate?.didFail(error)
+                }
+            }
+        }
+
         // Request location permission for GPS during workout
         locationManager.requestWhenInUseAuthorization()
     }

@@ -7,6 +7,9 @@
    - Add troubleshooting steps for MIInstallerErrorDomain 143.
 2. **Create TROUBLESHOOTING.md** summarizing verification workflow (check project.pbxproj, Info.plists, bundle structure) and common error codes.
 3. **Add project comment in `pawWatch.xcodeproj/project.pbxproj`** above the disabled "Embed Watch Content" phase explaining it is intentionally off until Apple ships the fix.
+4. **Watch runtime focus**
+   - Evaluate adding a `WKExtendedRuntimeSession` (alongside the existing `HKWorkoutSession`) so the watch app keeps running even when the user lowers their wrist.
+   - Document the Digital Crown water-lock UX vs. simply relying on workout background execution; ensure HealthKit authorization errors are surfaced to the user when denied.
 
 ## Medium Term
 4. **Automation**: write a small script (or build phase) that inspects the built watch bundle to ensure it contains only the WK stub + PlugIns/ folder (detects future regressions once we re-enable embedding).

@@ -14,6 +14,7 @@
 #if os(iOS)
 import SwiftUI
 import MapKit
+import UIKit
 
 /// MapKit view showing pet location with trail and owner position.
 ///
@@ -116,13 +117,13 @@ public struct PetMapView: View {
             let rect = MKMapRect(
                 coordinates: [petCoord, ownerCoord]
             )
-            cameraPosition = .rect(rect.insetBy(dx: -1000, dy: -1000))
+            cameraPosition = .rect(rect.insetBy(dx: -250, dy: -250))
         } else {
             // Show just pet with reasonable zoom
             cameraPosition = .region(
                 MKCoordinateRegion(
                     center: petCoord,
-                    span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+                    span: MKCoordinateSpan(latitudeDelta: 0.002, longitudeDelta: 0.002)
                 )
             )
         }
@@ -138,15 +139,26 @@ struct PetMarkerView: View {
             // Liquid Glass background
             Circle()
                 .fill(.red.gradient)
-                .frame(width: 44, height: 44)
+                .frame(width: 48, height: 48)
                 .shadow(color: .red.opacity(0.4), radius: 8, x: 0, y: 4)
 
-            // Paw icon
-            Image(systemName: "pawprint.fill")
-                .font(.system(size: 20, weight: .bold))
-                .foregroundStyle(.white)
+            if let badge = pawBadge {
+                Image(uiImage: badge)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 32, height: 32)
+                    .clipShape(Circle())
+            } else {
+                Image(systemName: "pawprint.fill")
+                    .font(.system(size: 22, weight: .bold))
+                    .foregroundStyle(.white)
+            }
         }
         .animation(.spring(response: 0.3, dampingFraction: 0.7), value: UUID()) // Liquid bounce
+    }
+
+    private var pawBadge: UIImage? {
+        UIImage(named: "AppIcon") ?? UIImage(named: "AppIcon60x60@2x")
     }
 }
 

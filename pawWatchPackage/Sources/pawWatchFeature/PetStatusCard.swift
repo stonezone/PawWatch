@@ -31,6 +31,7 @@ public struct PetStatusCard: View {
 
     /// Location manager providing pet GPS data
     let locationManager: PetLocationManager
+    let useMetricUnits: Bool
 
     // MARK: - State
 
@@ -80,7 +81,8 @@ public struct PetStatusCard: View {
                     accuracy: location.horizontalAccuracyMeters,
                     battery: location.batteryFraction,
                     secondsSinceUpdate: locationManager.secondsSinceLastUpdate,
-                    distanceFromOwner: locationManager.distanceFromOwner
+                    distanceFromOwner: locationManager.distanceFromOwner,
+                    useMetricUnits: useMetricUnits
                 )
             }
 
@@ -198,6 +200,7 @@ struct MetadataGrid: View {
     let battery: Double
     let secondsSinceUpdate: TimeInterval?
     let distanceFromOwner: Double?
+    let useMetricUnits: Bool
 
     var body: some View {
         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
@@ -205,7 +208,7 @@ struct MetadataGrid: View {
             MetadataItem(
                 icon: "scope",
                 title: "Accuracy",
-                value: String(format: "%.1f m", accuracy),
+                value: MeasurementDisplay.accuracy(accuracy, useMetric: useMetricUnits),
                 color: accuracyColor
             )
 
@@ -267,12 +270,7 @@ struct MetadataGrid: View {
     /// Distance text (e.g., "15.2 m", "1.2 km", "Unknown")
     private var distanceText: String {
         guard let distance = distanceFromOwner else { return "Unknown" }
-
-        if distance < 1000 {
-            return String(format: "%.1f m", distance)
-        } else {
-            return String(format: "%.2f km", distance / 1000)
-        }
+        return MeasurementDisplay.distance(distance, useMetric: useMetricUnits)
     }
 }
 
