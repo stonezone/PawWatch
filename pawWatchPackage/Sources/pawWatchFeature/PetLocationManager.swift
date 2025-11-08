@@ -16,6 +16,7 @@ import Foundation
 import CoreLocation
 import Observation
 import OSLog
+import Combine
 #if canImport(HealthKit)
 import HealthKit
 #endif
@@ -47,7 +48,7 @@ import WatchConnectivity
 /// ```
 @MainActor
 @Observable
-public final class PetLocationManager: NSObject {
+public final class PetLocationManager: NSObject, ObservableObject {
 
     // MARK: - Published State
 

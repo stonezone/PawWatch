@@ -72,7 +72,7 @@ private final class ExtendedRuntimeCoordinator: NSObject, WKExtendedRuntimeSessi
     private let signposter = OSSignposter(subsystem: "com.stonezone.pawwatch", category: "ExtendedRuntime")
     private var session: WKExtendedRuntimeSession?
     private var restartTask: Task<Void, Never>?
-    private var trackingID: OSSignpostID?
+    private var intervalState: OSSignpostIntervalState?
 
     var isEnabled: Bool = false {
         didSet {
@@ -94,16 +94,13 @@ private final class ExtendedRuntimeCoordinator: NSObject, WKExtendedRuntimeSessi
     }
 
     func beginIfNeeded(reason: StaticString) {
-        guard isEnabled, WKExtendedRuntimeSession.isSupported(), shouldGuardTracking else { return }
-        guard session == nil else { return }
+        guard isEnabled, shouldGuardTracking, session == nil else { return }
 
         let newSession = WKExtendedRuntimeSession()
         newSession.delegate = self
         session = newSession
 
-        let id = signposter.makeSignpostID()
-        trackingID = id
-        signposter.beginInterval("ExtendedRuntime", id: id, "reason=%{public}@", String(describing: reason))
+        intervalState = signposter.beginInterval("ExtendedRuntime")
         logger.log("Starting extended runtime session (reason: \(String(describing: reason)))")
         newSession.start()
     }
@@ -111,33 +108,67 @@ private final class ExtendedRuntimeCoordinator: NSObject, WKExtendedRuntimeSessi
     func stop() {
         restartTask?.cancel()
         restartTask = nil
-        trackingID.map { signposter.endInterval("ExtendedRuntime", id: $0) }
-        trackingID = nil
+        if let state = intervalState {
+            signposter.endInterval("ExtendedRuntime", state)
+        }
+        intervalState = nil
         session?.invalidate()
         session = nil
     }
 
-    nonisolated func extendedRuntimeSessionDidInvalidate(_ extendedRuntimeSession: WKExtendedRuntimeSession) {
+    nonisolated func extendedRuntimeSessionDidStart(_ extendedRuntimeSession: WKExtendedRuntimeSession) {
         Task { @MainActor in
-            self.logger.log("Extended runtime session invalidated")
-            self.trackingID.map { self.signposter.emitEvent("Invalidated", id: $0) }
-            self.session = nil
-
-            guard self.isEnabled, self.shouldGuardTracking else { return }
-
-            self.restartTask?.cancel()
-            self.restartTask = Task { [weak self] in
-                try? await Task.sleep(for: .seconds(5))
-                guard let self else { return }
-                self.beginIfNeeded(reason: "RearmAfterInvalidation")
-            }
+            self.logger.log("Extended runtime session started")
+            self.signposter.emitEvent("ExtendedRuntimeDidStart")
         }
     }
 
     nonisolated func extendedRuntimeSessionWillExpire(_ extendedRuntimeSession: WKExtendedRuntimeSession) {
         Task { @MainActor in
             self.logger.log("Extended runtime session nearing expiration")
-            self.trackingID.map { self.signposter.emitEvent("WillExpire", id: $0) }
+            self.signposter.emitEvent("ExtendedRuntimeWillExpire")
+        }
+    }
+
+    nonisolated func extendedRuntimeSession(_ extendedRuntimeSession: WKExtendedRuntimeSession, didInvalidateWith reason: WKExtendedRuntimeSessionInvalidationReason, error: (any Error)?) {
+        Task { @MainActor in
+            self.handleInvalidation(reason: reason, error: error)
+        }
+    }
+
+    nonisolated func extendedRuntimeSessionDidInvalidate(_ extendedRuntimeSession: WKExtendedRuntimeSession) {
+        Task { @MainActor in
+            self.handleInvalidation(reason: nil, error: nil)
+        }
+    }
+
+    @MainActor
+    private func handleInvalidation(reason: WKExtendedRuntimeSessionInvalidationReason?, error: (any Error)?) {
+        if let reason {
+            logger.log("Extended runtime invalidated (reason: \(reason.rawValue))")
+        } else {
+            logger.log("Extended runtime session invalidated")
+        }
+
+        if let error {
+            logger.error("Extended runtime error: \(error.localizedDescription)")
+        }
+
+        if let state = intervalState {
+            signposter.endInterval("ExtendedRuntime", state)
+        }
+        intervalState = nil
+        session = nil
+
+        guard isEnabled, shouldGuardTracking else { return }
+
+        restartTask?.cancel()
+        restartTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(5))
+            guard let self else { return }
+            await MainActor.run {
+                self.beginIfNeeded(reason: "RearmAfterInvalidation")
+            }
         }
     }
 }
@@ -195,7 +226,7 @@ public final class WatchLocationProvider: NSObject, Sendable {
     private let fileManager = FileManager.default
     private let logger = Logger(subsystem: "com.stonezone.pawwatch", category: "WatchLocationProvider")
     private let signposter = OSSignposter(subsystem: "com.stonezone.pawwatch", category: "WatchLocationProvider")
-    private var trackingIntervalID: OSSignpostID?
+    private var trackingIntervalState: OSSignpostIntervalState?
     private let runtimeCoordinator = ExtendedRuntimeCoordinator()
     
     /// Tracks last sequence number sent via application context to prevent duplicates
@@ -274,9 +305,7 @@ public final class WatchLocationProvider: NSObject, Sendable {
         isWorkoutRunning = true
         runtimeCoordinator.updateTrackingState(isRunning: true)
 
-        let id = signposter.makeSignpostID()
-        trackingIntervalID = id
-        signposter.beginInterval("TrackingSession", id: id)
+        trackingIntervalState = signposter.beginInterval("TrackingSession")
         logger.log("Workout tracking started with optimizations=\(self.batteryOptimizationsEnabled, privacy: .public)")
     }
 
@@ -342,10 +371,10 @@ public final class WatchLocationProvider: NSObject, Sendable {
             session.end()
         }
 
-        if let id = trackingIntervalID {
-            signposter.endInterval("TrackingSession", id: id)
+        if let state = trackingIntervalState {
+            signposter.endInterval("TrackingSession", state)
         }
-        trackingIntervalID = nil
+        trackingIntervalState = nil
         runtimeCoordinator.updateTrackingState(isRunning: false)
         isWorkoutRunning = false
         logger.log("Workout tracking stopped")
@@ -455,9 +484,7 @@ public final class WatchLocationProvider: NSObject, Sendable {
         if batteryOptimizationsEnabled {
             updateAdaptiveTuning(with: fix)
         }
-        if let id = trackingIntervalID {
-            signposter.emitEvent("FixPublished", id: id)
-        }
+        signposter.emitEvent("FixPublished")
         logger.debug("Publishing fix seq=\(fix.sequence) accuracy=\(fix.horizontalAccuracyMeters, privacy: .public)")
         transmitFix(fix, includeContext: true, notifyDelegate: true)
     }
@@ -539,9 +566,7 @@ public final class WatchLocationProvider: NSObject, Sendable {
         locationManager.distanceFilter = preset.distanceFilter
 
         logger.log("Applied preset=\(preset.rawValue, privacy: .public)")
-        if let id = trackingIntervalID {
-            signposter.emitEvent("PresetChange", id: id, "preset=%{public}@", preset.rawValue)
-        }
+        signposter.emitEvent("PresetChange")
     }
 
     /// Determines if an interactive `sendMessage` should be attempted.
@@ -737,17 +762,11 @@ extension WatchLocationProvider: WCSessionDelegate {
         print("[WatchLocationProvider] Reachability changed → reachable: \(session.isReachable)")
     }
     
-    /// Handles incoming message dictionaries from the phone (e.g., manual refresh requests).
-    nonisolated public func session(
-        _ session: WCSession,
-        didReceiveMessage message: [String: Any],
-        replyHandler: (([String: Any]) -> Void)? = nil
-    ) {
+    nonisolated private func handleIncomingMessage(_ message: [String: Any]) -> [String: Any] {
         guard let action = message["action"] as? String else {
-            replyHandler?(["status": "ignored"])
-            return
+            return ["status": "ignored"]
         }
-        
+
         switch action {
         case "requestLocation":
             Task { @MainActor in
@@ -757,9 +776,25 @@ extension WatchLocationProvider: WCSessionDelegate {
                     self.locationManager.requestLocation()
                 }
             }
+            return ["status": "refreshing"]
         default:
-            break
+            return ["status": "unknown-action"]
         }
+    }
+
+    /// Handles incoming message dictionaries from the phone (e.g., manual refresh requests).
+    nonisolated public func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
+        _ = handleIncomingMessage(message)
+    }
+
+    /// Handles incoming messages requiring a reply handler.
+    nonisolated public func session(
+        _ session: WCSession,
+        didReceiveMessage message: [String: Any],
+        replyHandler: @escaping ([String: Any]) -> Void
+    ) {
+        let response = handleIncomingMessage(message)
+        replyHandler(response)
     }
     
     /// Handles incoming message data (not currently used).
