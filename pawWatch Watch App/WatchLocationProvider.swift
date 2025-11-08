@@ -93,6 +93,21 @@ public final class WatchLocationProvider: NSObject, Sendable {
     /// immediately push application context regardless of time throttle. This ensures
     /// critical accuracy improvements (e.g., GPS lock acquisition) are delivered promptly.
     private let contextAccuracyDelta: Double = 5.0  // meters
+
+    /// Minimum interval between interactive sendMessage attempts.
+    private let interactiveSendInterval: TimeInterval = 2.0
+
+    /// Required accuracy delta to bypass the interactive throttle (meters).
+    private let interactiveAccuracyDelta: Double = 10.0
+
+    /// Last time we attempted an interactive send.
+    private var lastInteractiveSendDate: Date?
+
+    /// Accuracy value from the last interactive send.
+    private var lastInteractiveAccuracy: Double?
+
+    /// Controls whether file transfers are used as a fallback path.
+    private let fileTransfersEnabled = false
     
     /// Tracks active file transfers to retry on failure and clean up temp files
     private var activeFileTransfers: [WCSessionFileTransfer: (url: URL, fix: LocationFix)] = [:]
@@ -313,26 +328,51 @@ public final class WatchLocationProvider: NSObject, Sendable {
         }
         
         if wcSession.isReachable {
-            do {
-                let data = try encoder.encode(fix)
-                print("[WatchLocationProvider] Sending interactive message (\(data.count) bytes)")
-                
-                let payload: [String: Any] = ["latestFix": data]
-                wcSession.sendMessage(payload, replyHandler: nil) { [weak self] error in
-                    print("[WatchLocationProvider] Interactive send failed: \(error.localizedDescription), falling back to file transfer")
-                    self?.queueBackgroundTransfer(for: fix)
+            if shouldSendInteractive(for: fix) {
+                do {
+                    let data = try encoder.encode(fix)
+                    print("[WatchLocationProvider] Sending interactive message (\(data.count) bytes)")
+
+                    let payload: [String: Any] = ["latestFix": data]
+                    wcSession.sendMessage(payload, replyHandler: nil) { [weak self] error in
+                        print("[WatchLocationProvider] Interactive send failed: \(error.localizedDescription)")
+                        self?.queueBackgroundTransfer(for: fix)
+                    }
+                } catch {
+                    print("[WatchLocationProvider] Encode error: \(error.localizedDescription)")
+                    Task { @MainActor in
+                        delegate?.didFail(error)
+                    }
+                    queueBackgroundTransfer(for: fix)
                 }
-            } catch {
-                print("[WatchLocationProvider] Encode error: \(error.localizedDescription)")
-                Task { @MainActor in
-                    delegate?.didFail(error)
-                }
-                queueBackgroundTransfer(for: fix)
+            } else {
+                print("[WatchLocationProvider] Reachable but skipping interactive send (debounced)")
             }
         } else {
             print("[WatchLocationProvider] Not reachable, using file transfer")
             queueBackgroundTransfer(for: fix)
         }
+    }
+
+    /// Determines if an interactive `sendMessage` should be attempted.
+    private func shouldSendInteractive(for fix: LocationFix) -> Bool {
+        let now = Date()
+
+        if let lastAccuracy = lastInteractiveAccuracy,
+           abs(lastAccuracy - fix.horizontalAccuracyMeters) >= interactiveAccuracyDelta {
+            lastInteractiveSendDate = now
+            lastInteractiveAccuracy = fix.horizontalAccuracyMeters
+            return true
+        }
+
+        if let lastSend = lastInteractiveSendDate,
+           now.timeIntervalSince(lastSend) < interactiveSendInterval {
+            return false
+        }
+
+        lastInteractiveSendDate = now
+        lastInteractiveAccuracy = fix.horizontalAccuracyMeters
+        return true
     }
     
     /// Updates WatchConnectivity application context with latest location fix.
@@ -348,6 +388,11 @@ public final class WatchLocationProvider: NSObject, Sendable {
     /// - Parameter fix: The location fix to send via application context
     private func updateApplicationContextWithFix(_ fix: LocationFix) {
         guard wcSession.activationState == .activated else { return }
+
+        guard fileTransfersEnabled else {
+            print("[WatchLocationProvider] File transfers disabled; relying on context/interactive paths")
+            return
+        }
         
         let now = Date()
         
@@ -501,10 +546,11 @@ extension WatchLocationProvider: WCSessionDelegate {
     }
     
     /// Handles changes in phone reachability status.
-    /// Intentionally left blank - reachability is checked during send.
     ///
     /// - Parameter session: The WatchConnectivity session
-    nonisolated public func sessionReachabilityDidChange(_ session: WCSession) {}
+    nonisolated public func sessionReachabilityDidChange(_ session: WCSession) {
+        print("[WatchLocationProvider] Reachability changed → reachable: \(session.isReachable)")
+    }
     
     /// Handles incoming message dictionaries from the phone (e.g., manual refresh requests).
     nonisolated public func session(

@@ -177,6 +177,7 @@ struct HistoryView: View {
 // MARK: - Settings
 
 struct SettingsView: View {
+    @EnvironmentObject private var locationManager: PetLocationManager
     @AppStorage("notificationsEnabled") private var notificationsEnabled = true
     @Binding private var useMetricUnits: Bool
 
@@ -194,9 +195,35 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
+            Section("Permissions") {
+                SettingRow(title: "iPhone Location", value: locationManager.locationPermissionDescription)
+                if locationManager.needsLocationPermissionAction {
+                    Button("Open Settings") { locationManager.openLocationSettings() }
+                        .font(.caption)
+                }
+
+                SettingRow(
+                    title: "Watch Status",
+                    value: locationManager.isWatchConnected ? (locationManager.isWatchReachable ? "Connected" : "Paired") : "Disconnected"
+                )
+
+                Button("Request Fresh Location") {
+                    locationManager.requestUpdate()
+                }
+                .disabled(!locationManager.isWatchReachable)
+            }
+
             Section("About") {
                 SettingRow(title: "Version", value: appVersion)
                 SettingRow(title: "Build Date", value: buildDate)
+            }
+
+            if let error = locationManager.errorMessage {
+                Section("Alerts") {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
         }
         .navigationTitle("Settings")

@@ -15,6 +15,9 @@
 import Foundation
 import CoreLocation
 import Observation
+#if canImport(UIKit)
+import UIKit
+#endif
 
 #if canImport(WatchConnectivity)
 import WatchConnectivity
@@ -64,6 +67,9 @@ public final class PetLocationManager: NSObject {
 
     /// Error message for connection issues (nil if no error)
     public private(set) var errorMessage: String?
+
+    /// Current iPhone location authorization status
+    public private(set) var locationAuthorizationStatus: CLAuthorizationStatus = CLLocationManager.authorizationStatus()
 
     // MARK: - Constants
 
@@ -163,6 +169,41 @@ public final class PetLocationManager: NSObject {
         #else
         errorMessage = "WatchConnectivity not available"
         #endif
+    }
+
+    /// Request iPhone location permission again.
+    public func requestLocationPermission() {
+        locationManager.requestWhenInUseAuthorization()
+    }
+
+    /// Opens system Settings for manual permission adjustment.
+    public func openLocationSettings() {
+        #if canImport(UIKit)
+        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+        UIApplication.shared.open(url)
+        #endif
+    }
+
+    /// Human readable description of the current location permission.
+    public var locationPermissionDescription: String {
+        switch locationAuthorizationStatus {
+        case .authorizedAlways: return "Always"
+        case .authorizedWhenInUse: return "When In Use"
+        case .denied: return "Denied"
+        case .restricted: return "Restricted"
+        case .notDetermined: return "Not Determined"
+        @unknown default: return "Unknown"
+        }
+    }
+
+    /// Whether the app needs the user to take action on location permission.
+    public var needsLocationPermissionAction: Bool {
+        switch locationAuthorizationStatus {
+        case .denied, .restricted:
+            return true
+        default:
+            return false
+        }
     }
 
     // MARK: - Private Helpers
@@ -340,6 +381,7 @@ extension PetLocationManager: CLLocationManagerDelegate {
         let status = manager.authorizationStatus
 
         Task { @MainActor in
+            self.locationAuthorizationStatus = status
             switch status {
             case .authorizedWhenInUse, .authorizedAlways:
                 self.locationManager.startUpdatingLocation()

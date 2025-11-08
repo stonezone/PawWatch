@@ -124,6 +124,15 @@ final class WatchLocationManager: WatchLocationProviderDelegate {
         firstFixTime = nil
     }
 
+    /// Convenience helper to restart the workout/session flow.
+    func restartTracking() {
+        stopTracking()
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(300))
+            startTracking()
+        }
+    }
+
     // MARK: - WatchLocationProviderDelegate
 
     /// Called when a new GPS location fix is produced.
@@ -291,6 +300,12 @@ struct ContentView: View {
                             .multilineTextAlignment(.center)
                             .frame(maxWidth: .infinity)
                             .padding(.horizontal)
+
+                        Button("Restart Workout") {
+                            locationManager.restartTracking()
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(.orange)
                     }
 
                     // MARK: - GPS Details (when tracking)
