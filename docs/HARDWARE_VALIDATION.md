@@ -16,6 +16,10 @@ This plan translates the Phase 1 checklist from [`TODO.md`](../TODO.md) into e
 | Environment | Outdoor test areas that cover (a) open field, (b) urban canyon, (c) wooded trail. Measure approximate loop distance ahead of time. |
 | Batteries | Start each run ≥95 % battery on both devices; bring chargers / battery packs so you can reset between scenarios. |
 
+### 1.2 Field Utilities
+- **Log capture**: `scripts/collect_logs.sh --duration 10 --out logs/wc-range.jsonl` wraps `log stream` with the pawWatch predicate so every scenario has a JSONL trace.
+- **GPX comparison**: `python3 scripts/compare_gpx.py baseline.gpx test.gpx --epsilon-sec 3 --csv logs/errors.csv` produces the stats + per-point sheet used in §3.
+
 ### 1.1 Device Prep Checklist
 1. Build `pawWatch` (iPhone) → real device; leave app in foreground.
 2. Build `pawWatch Watch App` directly to the watch (Xcode → Product ▸ Run) to bypass Xcode 26.1 embed bug.
@@ -55,7 +59,7 @@ This plan translates the Phase 1 checklist from [`TODO.md`](../TODO.md) into e
    1. Start simultaneous recordings: pawWatch on the watch + baseline tracker.
    2. Walk the course at steady pace, pausing for 10 s at each waypoint so we can match timestamps.
    3. After finishing, export pawWatch trail (`pawWatch` iOS → share GPX/log) and baseline GPX.
-   4. Use `scripts/compare_gpx.py` (todo) or a GIS tool to compute point-by-point deltas; log median / p90 horizontal error.
+   4. Run `python3 scripts/compare_gpx.py baseline.gpx test.gpx --epsilon-sec 3 --csv logs/<terrain>.csv` to compute deltas and populate the table.
 3. **Data Capture**
 
 | Terrain | Distance (km) | Median Error (m) | P90 Error (m) | Max Error (m) | Notes |
@@ -81,9 +85,9 @@ This plan translates the Phase 1 checklist from [`TODO.md`](../TODO.md) into e
 | D | 300 ft | Locked | Leave phone in car, walk 300 ft. After 5 min return quickly. | Record downtime and reconnection time from `[WatchLocationProvider] Reachability changed` logs. |
 
 3. **Logging Instructions**
-   - Enable `OS_ACTIVITY_MODE=disable` to keep logs clean if necessary.
-   - Annotate each distance + phone state combination in a shared note so we can align with console timestamps.
-   - Record `reachability` flips, `WCErrorCodeDeliveryFailed`, and queued message counts.
+   - Run `scripts/collect_logs.sh --duration 15 --out logs/wc-range.jsonl` for each scenario so we can replay the exact WC timeline.
+   - Optionally set `OS_ACTIVITY_MODE=disable` to keep logs clean.
+   - Annotate each distance + phone state combo so we can align reachability flips, `WCErrorCodeDeliveryFailed`, and queued message counts in postmortems.
 
 4. **Acceptance**: `reachable` must remain true for Scenario A; for Scenarios B–D, reconnection time after re-entering ≤50 ft should be `< 30 s` and application-context updates must continue (no data gaps >2 min). Any violation should be logged with reproducer steps in `TROUBLESHOOTING.md`.
 
@@ -109,9 +113,8 @@ After executing all scenarios:
 - **Battery anomalies**: log ambient temp; cold weather can reduce runtime. Re-run in a controlled indoor loop if numbers look off.
 
 ## 7. Open Questions / Follow-ups
-- Need automation for GPX comparison (`scripts/compare_gpx.py`). Until then, use external GIS tooling (GPXSee, QGIS).
+- Use `scripts/compare_gpx.py` CSV output to seed any additional GIS overlays (GPXSee/QGIS) if deeper visualizations are required.
 - Investigate capturing WC diagnostics via `log collect --syslog` for deeper analysis during long-range tests.
 - Determine whether to block Phase 2 work on any unmet acceptance criteria or allow parallel experimentation (see TODO backlog).
 
 Fill in the result tables as tests complete, then commit this doc alongside log artifacts (if small) or links to shared storage.
-
