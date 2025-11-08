@@ -4,7 +4,11 @@
 <dict>
 	<!-- Base entitlements - add your app's entitlements here -->
 	<!-- AI agents can safely modify this file to add capabilities -->
-	
+
+	<!-- HealthKit access for workout data syncing -->
+	<key>com.apple.developer.healthkit</key>
+	<true/>
+
 	<!-- Example entitlements (commented out by default):
 	
 	<key>com.apple.developer.healthkit</key>

@@ -24,6 +24,12 @@
 	<key>NSLocationAlwaysUsageDescription</key>
 	<string>pawWatch requires always-on location access to maintain accurate distance tracking to your pet.</string>
 
+	<!-- HealthKit Permissions -->
+	<key>NSHealthShareUsageDescription</key>
+	<string>pawWatch uses Health data to display workout summaries from your pet's watch.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>pawWatch writes workout samples so the iPhone can mirror watch activity.</string>
+
 	<!-- App Category -->
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.lifestyle</string>
