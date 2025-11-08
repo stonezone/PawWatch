@@ -57,6 +57,9 @@ final class WatchLocationManager: WatchLocationProviderDelegate {
     /// Tracks number of GPS fixes received (for update frequency calculation)
     private var fixCount: Int = 0
 
+    /// Whether adaptive battery optimizations are enabled.
+    private var batteryOptimizationsEnabled = true
+
     /// Timestamp of first fix (for update frequency calculation)
     private var firstFixTime: Date?
 
@@ -73,6 +76,7 @@ final class WatchLocationManager: WatchLocationProviderDelegate {
     init() {
         // Set ourselves as delegate to receive GPS fixes and errors
         locationProvider.delegate = self
+        locationProvider.setBatteryOptimizationsEnabled(batteryOptimizationsEnabled)
     }
 
     // MARK: - Public Methods
@@ -131,6 +135,12 @@ final class WatchLocationManager: WatchLocationProviderDelegate {
             try? await Task.sleep(for: .milliseconds(300))
             startTracking()
         }
+    }
+
+    /// Updates whether runtime guard + motion throttling should be active.
+    func setBatteryOptimizationsEnabled(_ enabled: Bool) {
+        batteryOptimizationsEnabled = enabled
+        locationProvider.setBatteryOptimizationsEnabled(enabled)
     }
 
     // MARK: - WatchLocationProviderDelegate
@@ -261,6 +271,7 @@ struct ContentView: View {
 
     /// Location manager handling GPS tracking and phone relay
     @State private var locationManager = WatchLocationManager()
+    @AppStorage("watchBatteryOptimizationsEnabled") private var batteryOptimizationsEnabled = true
 
     // MARK: - Body
 
@@ -412,6 +423,13 @@ struct ContentView: View {
                     .buttonStyle(.borderedProminent)
                     .tint(locationManager.isTracking ? .red : .green)
                     .padding(.top, 8)
+
+                    NavigationLink {
+                        WatchSettingsView(optimizationsEnabled: $batteryOptimizationsEnabled)
+                    } label: {
+                        Label("Settings", systemImage: "gearshape")
+                    }
+                    .buttonStyle(.bordered)
                 }
                 .padding(.vertical)
             }
@@ -424,6 +442,12 @@ struct ContentView: View {
                     try? await Task.sleep(for: .seconds(2))
                 }
             }
+        }
+        .onAppear {
+            locationManager.setBatteryOptimizationsEnabled(batteryOptimizationsEnabled)
+        }
+        .onChange(of: batteryOptimizationsEnabled) { _, newValue in
+            locationManager.setBatteryOptimizationsEnabled(newValue)
         }
     }
 
@@ -510,4 +534,22 @@ struct ContentView: View {
 
 #Preview {
     ContentView()
+}
+
+// MARK: - Settings View
+
+private struct WatchSettingsView: View {
+    @Binding var optimizationsEnabled: Bool
+
+    var body: some View {
+        Form {
+            Section("Battery") {
+                Toggle("Runtime Guard & Smart Polling", isOn: $optimizationsEnabled)
+                Text("Keeps the workout alive with WKExtendedRuntimeSession and slows GPS when stationary or low battery.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .navigationTitle("Settings")
+    }
 }

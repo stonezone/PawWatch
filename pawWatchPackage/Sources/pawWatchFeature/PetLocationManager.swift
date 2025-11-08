@@ -15,6 +15,10 @@
 import Foundation
 import CoreLocation
 import Observation
+import OSLog
+#if canImport(HealthKit)
+import HealthKit
+#endif
 #if canImport(UIKit)
 import UIKit
 #endif
@@ -71,6 +75,11 @@ public final class PetLocationManager: NSObject {
     /// Current iPhone location authorization status
     public private(set) var locationAuthorizationStatus: CLAuthorizationStatus = CLLocationManager.authorizationStatus()
 
+    #if canImport(HealthKit)
+    public private(set) var workoutAuthorizationStatus: HKAuthorizationStatus = .notDetermined
+    public private(set) var heartRateAuthorizationStatus: HKAuthorizationStatus = .notDetermined
+    #endif
+
     // MARK: - Constants
 
     private let maxHistoryCount = 100 // Trail history limit
@@ -81,6 +90,12 @@ public final class PetLocationManager: NSObject {
     private let session: WCSession
     #endif
     private let locationManager: CLLocationManager
+    private let logger = Logger(subsystem: "com.stonezone.pawwatch", category: "PetLocationManager")
+    private let signposter = OSSignposter(subsystem: "com.stonezone.pawwatch", category: "PetLocationManager")
+    #if canImport(HealthKit)
+    private let healthStore = HKHealthStore()
+    private let heartRateType = HKObjectType.quantityType(forIdentifier: .heartRate)
+    #endif
 
     // MARK: - Initialization
 
@@ -111,6 +126,8 @@ public final class PetLocationManager: NSObject {
         locationManager.desiredAccuracy = kCLLocationAccuracyBest
         locationManager.requestWhenInUseAuthorization()
         locationManager.startUpdatingLocation()
+
+        refreshHealthAuthorizationState()
     }
 
     // MARK: - Public API
@@ -206,6 +223,78 @@ public final class PetLocationManager: NSObject {
         }
     }
 
+    #if canImport(HealthKit)
+    private func refreshHealthAuthorizationState() {
+        guard HKHealthStore.isHealthDataAvailable() else { return }
+        workoutAuthorizationStatus = healthStore.authorizationStatus(for: HKObjectType.workoutType())
+        if let heartRateType {
+            heartRateAuthorizationStatus = healthStore.authorizationStatus(for: heartRateType)
+        }
+    }
+
+    private func describeHealthStatus(_ status: HKAuthorizationStatus) -> String {
+        switch status {
+        case .sharingAuthorized:
+            return "Authorized"
+        case .sharingDenied:
+            return "Denied"
+        case .notDetermined:
+            return "Not Determined"
+        @unknown default:
+            return "Unknown"
+        }
+    }
+    #else
+    private func refreshHealthAuthorizationState() {}
+    #endif
+
+    #if canImport(HealthKit)
+    public var workoutPermissionDescription: String {
+        describeHealthStatus(workoutAuthorizationStatus)
+    }
+
+    public var heartPermissionDescription: String {
+        describeHealthStatus(heartRateAuthorizationStatus)
+    }
+
+    public var needsHealthPermissionAction: Bool {
+        workoutAuthorizationStatus == .sharingDenied || heartRateAuthorizationStatus == .sharingDenied
+    }
+
+    public var canRequestHealthAuthorization: Bool {
+        HKHealthStore.isHealthDataAvailable()
+    }
+
+    public func requestHealthAuthorization() {
+        guard HKHealthStore.isHealthDataAvailable() else { return }
+
+        var readTypes: Set<HKObjectType> = []
+        if let heartRateType {
+            readTypes.insert(heartRateType)
+        }
+
+        let shareTypes: Set<HKSampleType> = [HKObjectType.workoutType()]
+
+        healthStore.requestAuthorization(toShare: shareTypes, read: readTypes) { success, error in
+            Task { @MainActor in
+                if let error {
+                    self.errorMessage = "Health authorization failed: \(error.localizedDescription)"
+                    self.logger.error("Health authorization failed: \(error.localizedDescription, privacy: .public)")
+                } else if !success {
+                    self.logger.error("Health authorization request cancelled")
+                }
+                self.refreshHealthAuthorizationState()
+            }
+        }
+    }
+    #else
+    public var workoutPermissionDescription: String { "Unavailable" }
+    public var heartPermissionDescription: String { "Unavailable" }
+    public var needsHealthPermissionAction: Bool { false }
+    public var canRequestHealthAuthorization: Bool { false }
+    public func requestHealthAuthorization() {}
+    #endif
+
     // MARK: - Private Helpers
 
     /// Process incoming LocationFix and update state.
@@ -214,6 +303,8 @@ public final class PetLocationManager: NSObject {
         latestLocation = locationFix
         lastUpdateTime = Date()
         errorMessage = nil
+        logger.debug("Received fix accuracy=\(locationFix.horizontalAccuracyMeters, privacy: .public)")
+        signposter.emitEvent("FixReceived")
 
         // Add to history (newest first)
         locationHistory.insert(locationFix, at: 0)
@@ -260,11 +351,13 @@ extension PetLocationManager: WCSessionDelegate {
         Task { @MainActor in
             if let error = error {
                 self.errorMessage = "Watch connection failed: \(error.localizedDescription)"
+                self.logger.error("WCSession activation error: \(error.localizedDescription, privacy: .public)")
                 self.isWatchConnected = false
             } else {
                 self.isWatchConnected = (activationState == .activated)
                 self.isWatchReachable = isReachable
                 self.errorMessage = nil
+                self.logger.log("WCSession activated (reachable=\(isReachable, privacy: .public))")
             }
         }
     }
@@ -296,6 +389,7 @@ extension PetLocationManager: WCSessionDelegate {
 
         Task { @MainActor in
             self.isWatchReachable = isReachable
+            self.logger.log("Reachability changed: \(isReachable, privacy: .public)")
         }
     }
 

@@ -213,6 +213,20 @@ struct SettingsView: View {
                 .disabled(!locationManager.isWatchReachable)
             }
 
+            Section("HealthKit") {
+                SettingRow(title: "Workout Access", value: locationManager.workoutPermissionDescription)
+                SettingRow(title: "Heart Rate", value: locationManager.heartPermissionDescription)
+                Button("Request Health Access") {
+                    locationManager.requestHealthAuthorization()
+                }
+                .disabled(!locationManager.canRequestHealthAuthorization)
+                if locationManager.needsHealthPermissionAction {
+                    Text("Grant Health permissions to keep background tracking alive.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
             Section("About") {
                 SettingRow(title: "Version", value: appVersion)
                 SettingRow(title: "Build Date", value: buildDate)

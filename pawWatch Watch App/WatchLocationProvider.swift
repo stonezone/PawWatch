@@ -21,6 +21,126 @@ import pawWatchFeature
 @preconcurrency import HealthKit
 @preconcurrency import WatchConnectivity
 @preconcurrency import WatchKit
+import OSLog
+
+// MARK: - Adaptive Tracking Preset
+
+private enum TrackingPreset: String {
+    case aggressive
+    case balanced
+    case saver
+
+    var desiredAccuracy: CLLocationAccuracy {
+        switch self {
+        case .aggressive:
+            return kCLLocationAccuracyBest
+        case .balanced:
+            return 15.0
+        case .saver:
+            return 50.0
+        }
+    }
+
+    var distanceFilter: CLLocationDistance {
+        switch self {
+        case .aggressive:
+            return kCLDistanceFilterNone
+        case .balanced:
+            return 25.0
+        case .saver:
+            return 75.0
+        }
+    }
+
+    var activityType: CLActivityType {
+        switch self {
+        case .aggressive:
+            return .other
+        case .balanced:
+            return .fitness
+        case .saver:
+            return .other
+        }
+    }
+}
+
+// MARK: - Extended Runtime Coordinator
+
+@MainActor
+private final class ExtendedRuntimeCoordinator: NSObject, WKExtendedRuntimeSessionDelegate {
+    private let logger = Logger(subsystem: "com.stonezone.pawwatch", category: "ExtendedRuntime")
+    private let signposter = OSSignposter(subsystem: "com.stonezone.pawwatch", category: "ExtendedRuntime")
+    private var session: WKExtendedRuntimeSession?
+    private var restartTask: Task<Void, Never>?
+    private var trackingID: OSSignpostID?
+
+    var isEnabled: Bool = false {
+        didSet {
+            if !isEnabled {
+                stop()
+            }
+        }
+    }
+
+    private var shouldGuardTracking = false
+
+    func updateTrackingState(isRunning: Bool) {
+        shouldGuardTracking = isRunning
+        if isRunning {
+            beginIfNeeded(reason: "TrackingActive")
+        } else {
+            stop()
+        }
+    }
+
+    func beginIfNeeded(reason: StaticString) {
+        guard isEnabled, WKExtendedRuntimeSession.isSupported(), shouldGuardTracking else { return }
+        guard session == nil else { return }
+
+        let newSession = WKExtendedRuntimeSession()
+        newSession.delegate = self
+        session = newSession
+
+        let id = signposter.makeSignpostID()
+        trackingID = id
+        signposter.beginInterval("ExtendedRuntime", id: id, "reason=%{public}@", String(describing: reason))
+        logger.log("Starting extended runtime session (reason: \(String(describing: reason)))")
+        newSession.start()
+    }
+
+    func stop() {
+        restartTask?.cancel()
+        restartTask = nil
+        trackingID.map { signposter.endInterval("ExtendedRuntime", id: $0) }
+        trackingID = nil
+        session?.invalidate()
+        session = nil
+    }
+
+    nonisolated func extendedRuntimeSessionDidInvalidate(_ extendedRuntimeSession: WKExtendedRuntimeSession) {
+        Task { @MainActor in
+            self.logger.log("Extended runtime session invalidated")
+            self.trackingID.map { self.signposter.emitEvent("Invalidated", id: $0) }
+            self.session = nil
+
+            guard self.isEnabled, self.shouldGuardTracking else { return }
+
+            self.restartTask?.cancel()
+            self.restartTask = Task { [weak self] in
+                try? await Task.sleep(for: .seconds(5))
+                guard let self else { return }
+                self.beginIfNeeded(reason: "RearmAfterInvalidation")
+            }
+        }
+    }
+
+    nonisolated func extendedRuntimeSessionWillExpire(_ extendedRuntimeSession: WKExtendedRuntimeSession) {
+        Task { @MainActor in
+            self.logger.log("Extended runtime session nearing expiration")
+            self.trackingID.map { self.signposter.emitEvent("WillExpire", id: $0) }
+        }
+    }
+}
 
 // MARK: - Delegate Protocol
 
@@ -73,6 +193,10 @@ public final class WatchLocationProvider: NSObject, Sendable {
     private var wcSession: WCSession { WCSession.default }
     private let encoder = JSONEncoder()
     private let fileManager = FileManager.default
+    private let logger = Logger(subsystem: "com.stonezone.pawwatch", category: "WatchLocationProvider")
+    private let signposter = OSSignposter(subsystem: "com.stonezone.pawwatch", category: "WatchLocationProvider")
+    private var trackingIntervalID: OSSignpostID?
+    private let runtimeCoordinator = ExtendedRuntimeCoordinator()
     
     /// Tracks last sequence number sent via application context to prevent duplicates
     private var lastContextSequence: Int?
@@ -114,6 +238,9 @@ public final class WatchLocationProvider: NSObject, Sendable {
     
     /// Most recent fix, used to satisfy manual refresh requests from the phone.
     private var latestFix: LocationFix?
+    private var batteryOptimizationsEnabled = true
+    private var currentPreset: TrackingPreset = .aggressive
+    private var isWorkoutRunning = false
     
     // MARK: - Initialization
     
@@ -122,6 +249,7 @@ public final class WatchLocationProvider: NSObject, Sendable {
         locationManager.delegate = self
         encoder.outputFormatting = [.withoutEscapingSlashes]
         WKInterfaceDevice.current().isBatteryMonitoringEnabled = true
+        runtimeCoordinator.isEnabled = batteryOptimizationsEnabled
     }
     
     // MARK: - Public Methods
@@ -139,17 +267,32 @@ public final class WatchLocationProvider: NSObject, Sendable {
         requestAuthorizationsIfNeeded()
         startWorkoutSession(activity: activity)
         configureWatchConnectivity()
-        
-        // Configure CLLocationManager for maximum update frequency
-        // - activityType .other: Provides most frequent updates (no activity-based throttling)
-        // - desiredAccuracy Best: Requests highest precision GPS available
-        // - distanceFilter None: No distance-based throttling (get all fixes)
-        // Result: ~1Hz native Apple Watch GPS update rate
-        locationManager.activityType = .other
-        locationManager.desiredAccuracy = kCLLocationAccuracyBest
-        locationManager.distanceFilter = kCLDistanceFilterNone
-        
+
+        applyPreset(.aggressive, force: true)
         locationManager.startUpdatingLocation()
+
+        isWorkoutRunning = true
+        runtimeCoordinator.updateTrackingState(isRunning: true)
+
+        let id = signposter.makeSignpostID()
+        trackingIntervalID = id
+        signposter.beginInterval("TrackingSession", id: id)
+        logger.log("Workout tracking started with optimizations=\(self.batteryOptimizationsEnabled, privacy: .public)")
+    }
+
+    /// Enables or disables the extended runtime + adaptive throttling stack.
+    public func setBatteryOptimizationsEnabled(_ enabled: Bool) {
+        batteryOptimizationsEnabled = enabled
+        runtimeCoordinator.isEnabled = enabled
+
+        if enabled {
+            if isWorkoutRunning {
+                runtimeCoordinator.updateTrackingState(isRunning: true)
+            }
+        } else {
+            runtimeCoordinator.updateTrackingState(isRunning: false)
+            applyPreset(.aggressive)
+        }
     }
     
     /// Stops location updates and ends the workout session.
@@ -162,7 +305,7 @@ public final class WatchLocationProvider: NSObject, Sendable {
     /// - Active file transfers
     public func stop() {
         locationManager.stopUpdatingLocation()
-        
+
         // Capture builder and session locally to avoid self reference issues
         let builder = self.workoutBuilder
         let session = self.workoutSession
@@ -198,6 +341,14 @@ public final class WatchLocationProvider: NSObject, Sendable {
         if let session, session.state == .running || session.state == .prepared {
             session.end()
         }
+
+        if let id = trackingIntervalID {
+            signposter.endInterval("TrackingSession", id: id)
+        }
+        trackingIntervalID = nil
+        runtimeCoordinator.updateTrackingState(isRunning: false)
+        isWorkoutRunning = false
+        logger.log("Workout tracking stopped")
     }
     
     // MARK: - Private Methods - Authorization
@@ -301,6 +452,13 @@ public final class WatchLocationProvider: NSObject, Sendable {
     /// - Parameter fix: The location fix to publish
     private func publishFix(_ fix: LocationFix) {
         latestFix = fix
+        if batteryOptimizationsEnabled {
+            updateAdaptiveTuning(with: fix)
+        }
+        if let id = trackingIntervalID {
+            signposter.emitEvent("FixPublished", id: id)
+        }
+        logger.debug("Publishing fix seq=\(fix.sequence) accuracy=\(fix.horizontalAccuracyMeters, privacy: .public)")
         transmitFix(fix, includeContext: true, notifyDelegate: true)
     }
 
@@ -322,7 +480,7 @@ public final class WatchLocationProvider: NSObject, Sendable {
             print("[WatchLocationProvider] Session not activated")
             return
         }
-        
+
         if includeContext {
             updateApplicationContextWithFix(fix)
         }
@@ -351,6 +509,38 @@ public final class WatchLocationProvider: NSObject, Sendable {
         } else {
             print("[WatchLocationProvider] Not reachable, using file transfer")
             queueBackgroundTransfer(for: fix)
+        }
+    }
+
+    private func updateAdaptiveTuning(with fix: LocationFix) {
+        guard batteryOptimizationsEnabled else { return }
+
+        let battery = fix.batteryFraction
+        let speed = fix.speedMetersPerSecond
+
+        let preset: TrackingPreset
+        if battery < 0.2 {
+            preset = .saver
+        } else if speed < 0.5 {
+            preset = .balanced
+        } else {
+            preset = .aggressive
+        }
+
+        applyPreset(preset)
+    }
+
+    private func applyPreset(_ preset: TrackingPreset, force: Bool = false) {
+        guard force || preset != currentPreset else { return }
+
+        currentPreset = preset
+        locationManager.activityType = preset.activityType
+        locationManager.desiredAccuracy = preset.desiredAccuracy
+        locationManager.distanceFilter = preset.distanceFilter
+
+        logger.log("Applied preset=\(preset.rawValue, privacy: .public)")
+        if let id = trackingIntervalID {
+            signposter.emitEvent("PresetChange", id: id, "preset=%{public}@", preset.rawValue)
         }
     }
 
@@ -388,11 +578,6 @@ public final class WatchLocationProvider: NSObject, Sendable {
     /// - Parameter fix: The location fix to send via application context
     private func updateApplicationContextWithFix(_ fix: LocationFix) {
         guard wcSession.activationState == .activated else { return }
-
-        guard fileTransfersEnabled else {
-            print("[WatchLocationProvider] File transfers disabled; relying on context/interactive paths")
-            return
-        }
         
         let now = Date()
         
