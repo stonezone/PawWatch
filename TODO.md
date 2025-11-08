@@ -14,20 +14,25 @@
    - [ ] Test separation scenarios (10ft / 50ft / 100ft / 300ft) with the iPhone locked vs unlocked.
    - [ ] Measure reconnection time after leaving/returning to range.
 5. **Report**
-   - [ ] Create `docs/HARDWARE_VALIDATION.md` with battery, accuracy, and connectivity findings.
+   - [x] Create `docs/HARDWARE_VALIDATION.md` with battery, accuracy, and connectivity findings.
    - [ ] Decide GO / NO-GO for Phase 2 based on success criteria (battery ≥3h, accuracy ±20 m typical, stable connection ≥50 ft).
 
 ## Phase 2 – Battery Optimization (unblocks production)
 1. **WKExtendedRuntimeSession**
-   - [ ] Prototype running `WKExtendedRuntimeSession` alongside `HKWorkoutSession` and compare runtime.
-   - [ ] Handle invalidation callbacks + re-entry to workout.
+   - [x] Prototype running `WKExtendedRuntimeSession` alongside `HKWorkoutSession` and compare runtime.
+   - [x] Handle invalidation callbacks + re-entry to workout.
 2. **Smart Polling**
-   - [ ] Add motion-aware throttling (skip updates when stationary).
-   - [ ] Expose update interval presets (Aggressive 10 s, Balanced 30 s, Saver 120 s).
-   - [ ] Batch fixes locally and send deltas only.
+   - [x] Add motion-aware throttling (skip updates when stationary).
+   - [x] Expose update interval presets (Aggressive 10 s, Balanced 30 s, Saver 120 s).
+   - [x] Batch fixes locally and send deltas only.
 3. **Low Battery UX**
    - [ ] Surface Watch battery state on both devices with alerts at 30 / 20 / 10 %.
    - [ ] Add haptics/notifications on watch when the owner needs to recharge.
+4. **Validation & Tuning**
+   - [ ] Hardware soak: run 60–90 min outdoor sessions per preset (Aggressive/Balanced/Saver) and record battery delta, WC reconnects, OSLog signposts.
+   - [ ] Motion-profile sweeps: stationary, walk, jog to validate automatic preset switching + accuracy jitter.
+   - [ ] ExtendedRuntime resilience: capture invalidation/expiry logs and ensure transparent re-arm.
+   - [ ] Watch toggle QA: flip Runtime Guard switch mid-session to confirm state sync + fallback behavior.
 
 ## Engineering Foundations (current sprint)
 1. **State Management & Versioning**
@@ -39,7 +44,7 @@
    - [ ] Decide if file transfers are needed; otherwise disable or drain them via `session(_:didFinish:error:)` to stop WCFileStorage warnings.
    - [ ] Log reachability state changes so we can correlate `WCErrorCodeDeliveryFailed` with UI state.
 3. **User Feedback & Permissions**
-   - [ ] Surface HealthKit + Location authorization status in Settings with CTA buttons to re-enable permissions.
+   - [x] Surface HealthKit + Location authorization status in Settings with CTA buttons to re-enable permissions.
    - [ ] When `WatchLocationManager` hits `kCLErrorDomain`/HealthKit errors, show banners on both watch + phone and offer a “Restart workout” action.
 4. **Documentation Refresh**
    - [ ] Rebuild `CURRENT_STATE.md` and a troubleshooting guide summarizing the Xcode 26.1 watch-install bug and manual deployment steps.
