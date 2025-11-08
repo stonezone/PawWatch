@@ -27,14 +27,15 @@ import UIKit
 ///
 /// Usage:
 /// ```swift
-/// PetMapView(locationManager: locationManager)
+/// PetMapView()
+///     .environmentObject(PetLocationManager())
 /// ```
 public struct PetMapView: View {
 
     // MARK: - Dependencies
 
     /// Location manager providing pet GPS data
-    let locationManager: PetLocationManager
+    @EnvironmentObject private var locationManager: PetLocationManager
 
     // MARK: - State
 

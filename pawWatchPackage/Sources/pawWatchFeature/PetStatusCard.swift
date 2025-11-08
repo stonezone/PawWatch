@@ -30,16 +30,8 @@ public struct PetStatusCard: View {
     // MARK: - Dependencies
 
     /// Location manager providing pet GPS data
-    let locationManager: PetLocationManager
+    @EnvironmentObject private var locationManager: PetLocationManager
     let useMetricUnits: Bool
-
-    // MARK: - State
-
-    /// Current date for relative time calculation
-    @State private var currentDate = Date()
-
-    /// Timer for updating relative timestamps
-    private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     // MARK: - Body
 
@@ -97,9 +89,6 @@ public struct PetStatusCard: View {
         .shadow(color: .black.opacity(0.1), radius: 20, x: 0, y: 10) // Depth layer
         .padding(.horizontal, 20)
         .animation(.spring(response: 0.3, dampingFraction: 0.7), value: locationManager.latestLocation) // Liquid animation
-        .onReceive(timer) { _ in
-            currentDate = Date() // Trigger view updates for relative time
-        }
     }
 }
 

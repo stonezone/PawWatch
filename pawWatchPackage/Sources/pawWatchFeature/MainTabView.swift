@@ -3,7 +3,7 @@ import SwiftUI
 
 /// Root tab controller for the iOS app.
 public struct MainTabView: View {
-    @State private var locationManager = PetLocationManager()
+    @StateObject private var locationManager = PetLocationManager()
     @AppStorage("useMetricUnits") private var useMetricUnits = true
 
     public init() {}
@@ -11,12 +11,12 @@ public struct MainTabView: View {
     public var body: some View {
         TabView {
             NavigationStack {
-                DashboardView(locationManager: locationManager, useMetricUnits: useMetricUnits)
+                DashboardView(useMetricUnits: useMetricUnits)
             }
             .tabItem { Label("Dashboard", systemImage: "house.fill") }
 
             NavigationStack {
-                HistoryView(locationManager: locationManager, useMetricUnits: useMetricUnits)
+                HistoryView(useMetricUnits: useMetricUnits)
             }
             .tabItem { Label("History", systemImage: "clock.arrow.circlepath") }
 
@@ -25,13 +25,14 @@ public struct MainTabView: View {
             }
             .tabItem { Label("Settings", systemImage: "gearshape.fill") }
         }
+        .environmentObject(locationManager)
     }
 }
 
 // MARK: - Dashboard
 
 struct DashboardView: View {
-    let locationManager: PetLocationManager
+    @EnvironmentObject private var locationManager: PetLocationManager
     let useMetricUnits: Bool
     @State private var isRefreshing = false
 
@@ -46,10 +47,10 @@ struct DashboardView: View {
 
             ScrollView {
                 VStack(spacing: 24) {
-                    PetStatusCard(locationManager: locationManager, useMetricUnits: useMetricUnits)
+                    PetStatusCard(useMetricUnits: useMetricUnits)
                         .padding(.top, 8)
 
-                    PetMapView(locationManager: locationManager)
+                    PetMapView()
                         .frame(height: 400)
                         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
                         .shadow(color: .black.opacity(0.1), radius: 20, x: 0, y: 10)
@@ -128,7 +129,7 @@ private struct HistoryCountView: View {
 // MARK: - History
 
 struct HistoryView: View {
-    let locationManager: PetLocationManager
+    @EnvironmentObject private var locationManager: PetLocationManager
     let useMetricUnits: Bool
 
     var body: some View {
