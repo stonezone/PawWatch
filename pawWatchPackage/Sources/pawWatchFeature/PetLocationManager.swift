@@ -28,6 +28,22 @@ import UIKit
 import WatchConnectivity
 #endif
 
+public enum TrackingMode: String, CaseIterable, Sendable {
+    case auto
+    case emergency
+    case balanced
+    case saver
+
+    public var label: String {
+        switch self {
+        case .auto: return "Auto"
+        case .emergency: return "Emergency"
+        case .balanced: return "Balanced"
+        case .saver: return "Saver"
+        }
+    }
+}
+
 /// Observable manager for pet location data received from Apple Watch.
 ///
 /// Responsibilities:
@@ -72,6 +88,12 @@ public final class PetLocationManager: NSObject, ObservableObject {
 
     /// Error message for connection issues (nil if no error)
     public private(set) var errorMessage: String?
+
+    /// Latest battery fraction reported by the watch (via heartbeat)
+    public private(set) var watchBatteryFraction: Double?
+
+    /// Current tracking mode requested by the user
+    public private(set) var trackingMode: TrackingMode = .auto
 
     /// Current iPhone location authorization status
     public private(set) var locationAuthorizationStatus: CLAuthorizationStatus = CLLocationManager.authorizationStatus()
@@ -174,7 +196,7 @@ public final class PetLocationManager: NSObject, ObservableObject {
     }
 
     /// Request immediate update from Apple Watch (if reachable)
-    public func requestUpdate() {
+    public func requestUpdate(force: Bool = false) {
         #if canImport(WatchConnectivity)
         guard isWatchReachable else {
             errorMessage = "Apple Watch not reachable. Check Bluetooth connection."
@@ -182,8 +204,10 @@ public final class PetLocationManager: NSObject, ObservableObject {
         }
 
         // Send request message to Watch
+        var message: [String: Any] = ["action": "requestLocation"]
+        if force { message["force"] = true }
         session.sendMessage(
-            ["action": "requestLocation"],
+            message,
             replyHandler: nil,
             errorHandler: { error in
                 Task { @MainActor in
@@ -199,6 +223,28 @@ public final class PetLocationManager: NSObject, ObservableObject {
     /// Request iPhone location permission again.
     public func requestLocationPermission() {
         locationManager.requestWhenInUseAuthorization()
+    }
+
+    /// Update the desired tracking mode and inform the watch
+    public func setTrackingMode(_ mode: TrackingMode) {
+        trackingMode = mode
+        #if canImport(WatchConnectivity)
+        guard session.activationState == .activated else { return }
+        let payload: [String: Any] = ["action": "setMode", "mode": mode.rawValue]
+        if session.isReachable {
+            session.sendMessage(payload, replyHandler: nil) { error in
+                Task { @MainActor in
+                    self.errorMessage = "Failed to send mode: \(error.localizedDescription)"
+                }
+            }
+        } else {
+            do {
+                try session.updateApplicationContext(payload)
+            } catch {
+                errorMessage = "Failed to cache mode: \(error.localizedDescription)"
+            }
+        }
+        #endif
     }
 
     /// Opens system Settings for manual permission adjustment.
@@ -379,6 +425,7 @@ public final class PetLocationManager: NSObject, ObservableObject {
         latestLocation = locationFix
         lastUpdateTime = Date()
         errorMessage = nil
+        watchBatteryFraction = locationFix.batteryFraction
         logger.debug("Received fix accuracy=\(locationFix.horizontalAccuracyMeters, privacy: .public)")
         signposter.emitEvent("FixReceived")
 
@@ -492,11 +539,22 @@ extension PetLocationManager: WCSessionDelegate {
         _ session: WCSession,
         didReceiveApplicationContext applicationContext: [String: Any]
     ) {
-        guard let data = applicationContext["latestFix"] as? Data else { return }
-        Task { @MainActor in
-            self.isWatchConnected = true
+        if let battery = applicationContext["batteryOnly"] as? Double {
+            Task { @MainActor in
+                self.watchBatteryFraction = battery
+                if let modeRaw = applicationContext["trackingMode"] as? String,
+                   let mode = TrackingMode(rawValue: modeRaw) {
+                    self.trackingMode = mode
+                }
+            }
         }
-        handleLocationFixData(data)
+
+        if let data = applicationContext["latestFix"] as? Data {
+            Task { @MainActor in
+                self.isWatchConnected = true
+            }
+            handleLocationFixData(data)
+        }
     }
 
     /// Received message data payload (preferred interactive path from the watch).

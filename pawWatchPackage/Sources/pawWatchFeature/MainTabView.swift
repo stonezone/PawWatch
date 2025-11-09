@@ -80,7 +80,7 @@ struct DashboardView: View {
     private func performRefresh() async {
         guard !isRefreshing else { return }
         withAnimation(.spring(response: 0.3)) { isRefreshing = true }
-        locationManager.requestUpdate()
+        locationManager.requestUpdate(force: true)
         try? await Task.sleep(for: .milliseconds(800))
         withAnimation(.spring(response: 0.3)) { isRefreshing = false }
     }
@@ -179,10 +179,19 @@ struct HistoryView: View {
 struct SettingsView: View {
     @EnvironmentObject private var locationManager: PetLocationManager
     @AppStorage("notificationsEnabled") private var notificationsEnabled = true
+    @AppStorage("trackingMode") private var trackingModeRaw = TrackingMode.auto.rawValue
     @Binding private var useMetricUnits: Bool
 
     init(useMetricUnits: Binding<Bool>) {
         self._useMetricUnits = useMetricUnits
+    }
+
+    private var trackingMode: TrackingMode {
+        get { TrackingMode(rawValue: trackingModeRaw) ?? .auto }
+        set {
+            trackingModeRaw = newValue.rawValue
+            locationManager.setTrackingMode(newValue)
+        }
     }
 
     var body: some View {
@@ -193,6 +202,27 @@ struct SettingsView: View {
                 Text(useMetricUnits ? "Kilometers & meters" : "Miles & feet")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            }
+
+            Section("Tracking Mode") {
+                Picker("Mode", selection: Binding(
+                    get: { trackingMode },
+                    set: { trackingMode = $0 }
+                )) {
+                    ForEach(TrackingMode.allCases, id: \.self) { mode in
+                        Text(mode.label).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+
+                Button("Request Fresh Location") {
+                    locationManager.requestUpdate(force: true)
+                }
+                .disabled(!locationManager.isWatchReachable)
+
+                if let battery = locationManager.watchBatteryFraction {
+                    SettingRow(title: "Watch Battery", value: String(format: "%.0f%%", battery * 100))
+                }
             }
 
             Section("Permissions") {
@@ -206,11 +236,6 @@ struct SettingsView: View {
                     title: "Watch Status",
                     value: locationManager.isWatchConnected ? (locationManager.isWatchReachable ? "Connected" : "Paired") : "Disconnected"
                 )
-
-                Button("Request Fresh Location") {
-                    locationManager.requestUpdate()
-                }
-                .disabled(!locationManager.isWatchReachable)
             }
 
             Section("HealthKit") {
@@ -273,6 +298,9 @@ struct SettingsView: View {
             }
         }
         .navigationTitle("Settings")
+        .task {
+            locationManager.setTrackingMode(trackingMode)
+        }
     }
 
     private func SettingRow(title: String, value: String) -> some View {

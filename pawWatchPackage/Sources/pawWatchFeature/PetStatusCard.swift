@@ -69,9 +69,10 @@ public struct PetStatusCard: View {
 
             // Metadata grid
             if let location = locationManager.latestLocation {
+                let batteryValue = locationManager.watchBatteryFraction ?? location.batteryFraction
                 MetadataGrid(
                     accuracy: location.horizontalAccuracyMeters,
-                    battery: location.batteryFraction,
+                    battery: batteryValue,
                     secondsSinceUpdate: locationManager.secondsSinceLastUpdate,
                     distanceFromOwner: locationManager.distanceFromOwner,
                     useMetricUnits: useMetricUnits

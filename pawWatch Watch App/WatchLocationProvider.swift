@@ -64,6 +64,26 @@ private enum TrackingPreset: String {
     }
 }
 
+private enum TrackingMode: String {
+    case auto
+    case emergency
+    case balanced
+    case saver
+
+    func preset(for automatic: TrackingPreset) -> TrackingPreset {
+        switch self {
+        case .auto:
+            return automatic
+        case .emergency:
+            return .aggressive
+        case .balanced:
+            return .balanced
+        case .saver:
+            return .saver
+        }
+    }
+}
+
 // MARK: - Extended Runtime Coordinator
 
 @MainActor
@@ -265,17 +285,21 @@ public final class WatchLocationProvider: NSObject, Sendable {
     private var lastInteractiveAccuracy: Double?
 
     /// Controls whether file transfers are used as a fallback path.
-    private let fileTransfersEnabled = false
+    private let fileTransfersEnabled = true
     
     /// Tracks active file transfers to retry on failure and clean up temp files
     private var activeFileTransfers: [WCSessionFileTransfer: (url: URL, fix: LocationFix)] = [:]
 
     /// Most recent fix, used to satisfy manual refresh requests from the phone.
+    private let performanceMonitor = PerformanceMonitor.shared
     private var latestFix: LocationFix?
     private var batteryOptimizationsEnabled = true
     private var currentPreset: TrackingPreset = .aggressive
     private var isWorkoutRunning = false
     private var latestBatteryLevel: Double = 1.0
+    private var manualTrackingMode: TrackingMode = .auto
+    private var forceImmediateSend = false
+    private var batteryHeartbeatTask: Task<Void, Never>?
 
     // MARK: - Adaptive throttling state
 
@@ -322,6 +346,7 @@ public final class WatchLocationProvider: NSObject, Sendable {
         if supportsExtendedRuntime {
             runtimeCoordinator.updateTrackingState(isRunning: true)
         }
+        startBatteryHeartbeat()
 
         trackingIntervalState = signposter.beginInterval("TrackingSession")
         logger.log("Workout tracking started with optimizations=\(self.batteryOptimizationsEnabled, privacy: .public)")
@@ -399,6 +424,7 @@ public final class WatchLocationProvider: NSObject, Sendable {
             runtimeCoordinator.updateTrackingState(isRunning: false)
         }
         isWorkoutRunning = false
+        stopBatteryHeartbeat()
         logger.log("Workout tracking stopped")
     }
     
@@ -576,7 +602,8 @@ public final class WatchLocationProvider: NSObject, Sendable {
             preset = .aggressive
         }
 
-        applyPreset(preset)
+        let effective = manualTrackingMode.preset(for: preset)
+        applyPreset(effective)
     }
 
     private func applyPreset(_ preset: TrackingPreset, force: Bool = false) {
@@ -624,7 +651,7 @@ public final class WatchLocationProvider: NSObject, Sendable {
     ///
     /// - Parameter fix: The location fix to send via application context
     private func updateApplicationContextWithFix(_ fix: LocationFix) {
-        guard wcSession.activationState == .activated else { return }
+        guard wcSession.activationState == .activated, fileTransfersEnabled else { return }
         
         let now = Date()
         
@@ -646,14 +673,8 @@ public final class WatchLocationProvider: NSObject, Sendable {
         
         do {
             let data = try encoder.encode(fix)
-            let metadata: [String: Any] = [
-                "seq": fix.sequence,
-                "timestamp": fix.timestamp.timeIntervalSince1970,
-                "accuracy": fix.horizontalAccuracyMeters
-            ]
             let context: [String: Any] = [
-                "latestFix": data,
-                "metadata": metadata
+                "latestFix": data
             ]
             
             try wcSession.updateApplicationContext(context)
@@ -680,7 +701,7 @@ public final class WatchLocationProvider: NSObject, Sendable {
     /// - Parameter fix: The location fix to transfer
     private func queueBackgroundTransfer(for fix: LocationFix) {
         guard wcSession.activationState == .activated else { return }
-        
+
         do {
             let data = try encoder.encode(fix)
             let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -694,6 +715,40 @@ public final class WatchLocationProvider: NSObject, Sendable {
             Task { @MainActor in
                 delegate?.didFail(error)
             }
+        }
+    }
+
+    // MARK: - Heartbeat + manual mode helpers
+
+    private func startBatteryHeartbeat() {
+        batteryHeartbeatTask?.cancel()
+        batteryHeartbeatTask = Task { [weak self] in
+            guard let self else { return }
+            await MainActor.run { self.sendBatteryHeartbeat() }
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(120))
+                await MainActor.run { self.sendBatteryHeartbeat() }
+            }
+        }
+    }
+
+    private func stopBatteryHeartbeat() {
+        batteryHeartbeatTask?.cancel()
+        batteryHeartbeatTask = nil
+    }
+
+    @MainActor
+    private func sendBatteryHeartbeat() {
+        guard wcSession.activationState == .activated else { return }
+        do {
+            try wcSession.updateApplicationContext([
+                "batteryOnly": latestBatteryLevel,
+                "trackingMode": manualTrackingMode.rawValue
+            ])
+            let avg = Int(performanceMonitor.gpsAverage * 1000)
+            logger.log("Heartbeat sent (battery=\(Int(latestBatteryLevel * 100))%, gpsAvg=\(avg)ms, drain=\(String(format: "%.1f", performanceMonitor.batteryDrainPerHour))%/h)")
+        } catch {
+            logger.error("Heartbeat update failed: \(error.localizedDescription)")
         }
     }
 
@@ -713,6 +768,10 @@ public final class WatchLocationProvider: NSObject, Sendable {
     }
 
     private func shouldThrottleUpdate(location: CLLocation, isStationary: Bool, batteryLevel: Double) -> Bool {
+        if forceImmediateSend {
+            forceImmediateSend = false
+            return false
+        }
         let now = Date()
         let timeSinceLast = now.timeIntervalSince(lastTransmittedFixDate)
 
@@ -764,6 +823,7 @@ extension WatchLocationProvider: CLLocationManagerDelegate {
             let device = WKInterfaceDevice.current()
             let batteryLevel = device.batteryLevel >= 0 ? Double(device.batteryLevel) : latestBatteryLevel
             latestBatteryLevel = batteryLevel
+            performanceMonitor.recordBattery(level: batteryLevel)
 
             if batteryOptimizationsEnabled {
                 let stationary = isDeviceStationary(latest)
@@ -792,7 +852,7 @@ extension WatchLocationProvider: CLLocationManagerDelegate {
                 sequence: Int(Int64(Date().timeIntervalSinceReferenceDate * 1000) % Int64(Int.max)),
                 trackingPreset: batteryOptimizationsEnabled ? currentPreset.rawValue : nil
             )
-            
+            performanceMonitor.recordGPSLatency(Date().timeIntervalSince(latest.timestamp))
             self.publishFix(fix)
         }
     }
@@ -848,6 +908,9 @@ extension WatchLocationProvider: WCSessionDelegate {
         switch action {
         case "requestLocation":
             Task { @MainActor in
+                if (message["force"] as? Bool) == true {
+                    self.forceImmediateSend = true
+                }
                 if let fix = self.latestFix {
                     self.transmitFix(fix, includeContext: false, notifyDelegate: false)
                 } else {
@@ -855,6 +918,18 @@ extension WatchLocationProvider: WCSessionDelegate {
                 }
             }
             return ["status": "refreshing"]
+        case "setMode":
+            if let modeRaw = message["mode"] as? String,
+               let newMode = TrackingMode(rawValue: modeRaw) {
+                Task { @MainActor in
+                    self.manualTrackingMode = newMode
+                    self.forceImmediateSend = newMode == .emergency
+                    self.logger.log("Tracking mode set to \(newMode.rawValue)")
+                    self.sendBatteryHeartbeat()
+                }
+                return ["status": "mode-updated"]
+            }
+            return ["status": "mode-invalid"]
         default:
             return ["status": "unknown-action"]
         }
