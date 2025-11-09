@@ -539,21 +539,21 @@ extension PetLocationManager: WCSessionDelegate {
         _ session: WCSession,
         didReceiveApplicationContext applicationContext: [String: Any]
     ) {
-        let contextCopy = applicationContext
+        let battery = applicationContext["batteryOnly"] as? Double
+        let modeRaw = applicationContext["trackingMode"] as? String
+        let latest = applicationContext["latestFix"] as? Data
+
         Task { @MainActor in
-            if let battery = contextCopy["batteryOnly"] as? Double {
-                self.watchBatteryFraction = battery
-            }
-            if let modeRaw = contextCopy["trackingMode"] as? String,
-               let mode = TrackingMode(rawValue: modeRaw) {
+            if let battery { self.watchBatteryFraction = battery }
+            if let modeRaw, let mode = TrackingMode(rawValue: modeRaw) {
                 self.trackingMode = mode
             }
-            if contextCopy["batteryOnly"] != nil || contextCopy["trackingMode"] != nil {
+            if battery != nil || modeRaw != nil {
                 self.isWatchConnected = true
             }
-            if let data = contextCopy["latestFix"] as? Data {
+            if let latest {
                 self.isWatchConnected = true
-                self.handleLocationFixData(data)
+                self.handleLocationFixData(latest)
             }
         }
     }
