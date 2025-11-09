@@ -186,14 +186,6 @@ struct SettingsView: View {
         self._useMetricUnits = useMetricUnits
     }
 
-    private var trackingMode: TrackingMode {
-        get { TrackingMode(rawValue: trackingModeRaw) ?? .auto }
-        set {
-            trackingModeRaw = newValue.rawValue
-            locationManager.setTrackingMode(newValue)
-        }
-    }
-
     var body: some View {
         Form {
             Section("General") {
@@ -206,14 +198,19 @@ struct SettingsView: View {
 
             Section("Tracking Mode") {
                 Picker("Mode", selection: Binding(
-                    get: { trackingMode },
-                    set: { trackingMode = $0 }
+                    get: { TrackingMode(rawValue: trackingModeRaw) ?? .auto },
+                    set: { trackingModeRaw = $0.rawValue }
                 )) {
                     ForEach(TrackingMode.allCases, id: \.self) { mode in
                         Text(mode.label).tag(mode)
                     }
                 }
                 .pickerStyle(.segmented)
+                .onChange(of: trackingModeRaw) { _, newRaw in
+                    if let mode = TrackingMode(rawValue: newRaw) {
+                        locationManager.setTrackingMode(mode)
+                    }
+                }
 
                 Button("Request Fresh Location") {
                     locationManager.requestUpdate(force: true)
