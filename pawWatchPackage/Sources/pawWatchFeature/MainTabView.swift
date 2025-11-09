@@ -295,9 +295,6 @@ struct SettingsView: View {
             }
         }
         .navigationTitle("Settings")
-        .task {
-            locationManager.setTrackingMode(trackingMode)
-        }
     }
 
     private func SettingRow(title: String, value: String) -> some View {
