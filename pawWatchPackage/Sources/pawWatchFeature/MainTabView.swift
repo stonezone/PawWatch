@@ -3,29 +3,103 @@ import SwiftUI
 
 /// Root tab controller for the iOS app.
 public struct MainTabView: View {
+    enum Tab {
+        case dashboard, history, settings
+    }
+    
     @StateObject private var locationManager = PetLocationManager()
     @AppStorage("useMetricUnits") private var useMetricUnits = true
+    @State private var selectedTab: Tab = .dashboard
 
     public init() {}
 
     public var body: some View {
-        TabView {
-            NavigationStack {
-                DashboardView(useMetricUnits: useMetricUnits)
+        ZStack(alignment: .bottom) {
+            TabView(selection: $selectedTab) {
+                NavigationStack {
+                    DashboardView(useMetricUnits: useMetricUnits)
+                }
+                .tag(Tab.dashboard)
+                
+                NavigationStack {
+                    HistoryView(useMetricUnits: useMetricUnits)
+                }
+                .tag(Tab.history)
+                
+                NavigationStack {
+                    SettingsView(useMetricUnits: $useMetricUnits)
+                }
+                .tag(Tab.settings)
             }
-            .tabItem { Label("Dashboard", systemImage: "house.fill") }
-
-            NavigationStack {
-                HistoryView(useMetricUnits: useMetricUnits)
+            .tabViewStyle(.page(indexDisplayMode: .never))
+            .environmentObject(locationManager)
+            .safeAreaInset(edge: .bottom) {
+                Color.clear.frame(height: 65)
             }
-            .tabItem { Label("History", systemImage: "clock.arrow.circlepath") }
-
-            NavigationStack {
-                SettingsView(useMetricUnits: $useMetricUnits)
+            
+            // Custom tab bar
+            HStack(spacing: 0) {
+                TabBarButton(
+                    icon: "house.fill",
+                    title: "Dashboard",
+                    isSelected: selectedTab == .dashboard
+                ) {
+                    withAnimation(.spring(response: 0.3)) {
+                        selectedTab = .dashboard
+                    }
+                }
+                
+                TabBarButton(
+                    icon: "clock.arrow.circlepath",
+                    title: "History",
+                    isSelected: selectedTab == .history
+                ) {
+                    withAnimation(.spring(response: 0.3)) {
+                        selectedTab = .history
+                    }
+                }
+                
+                TabBarButton(
+                    icon: "gearshape.fill",
+                    title: "Settings",
+                    isSelected: selectedTab == .settings
+                ) {
+                    withAnimation(.spring(response: 0.3)) {
+                        selectedTab = .settings
+                    }
+                }
             }
-            .tabItem { Label("Settings", systemImage: "gearshape.fill") }
+            .padding(.horizontal, 8)
+            .padding(.top, 12)
+            .padding(.bottom, 8)
+            .background(.ultraThinMaterial)
         }
-        .environmentObject(locationManager)
+    }
+}
+
+// MARK: - Tab Bar Button
+
+private struct TabBarButton: View {
+    let icon: String
+    let title: String
+    let isSelected: Bool
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.system(size: 20))
+                    .symbolVariant(isSelected ? .fill : .none)
+                
+                Text(title)
+                    .font(.caption2)
+            }
+            .foregroundStyle(isSelected ? .blue : .secondary)
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -66,7 +140,7 @@ struct DashboardView: View {
             .refreshable { await performRefresh() }
         }
         .navigationTitle("pawWatch")
-        .navigationBarTitleDisplayMode(.large)
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 RefreshButton(isRefreshing: $isRefreshing) {
@@ -164,6 +238,7 @@ struct HistoryView: View {
         }
         .listStyle(.plain)
         .navigationTitle("History")
+        .navigationBarTitleDisplayMode(.inline)
     }
 
     private var dateFormatter: DateFormatter {
@@ -295,6 +370,7 @@ struct SettingsView: View {
             }
         }
         .navigationTitle("Settings")
+        .navigationBarTitleDisplayMode(.inline)
     }
 
     private func SettingRow(title: String, value: String) -> some View {

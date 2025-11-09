@@ -266,7 +266,15 @@ public final class WatchLocationProvider: NSObject, Sendable {
     /// at a reasonable rate without overwhelming the WatchConnectivity context mechanism.
     /// Original value: 10.0s - reduced to 0.5s for real-time pet tracking needs.
     private let contextPushInterval: TimeInterval = 0.5
-    
+
+    /// When stationary, send updates less frequently to conserve WatchConnectivity bandwidth
+    /// while still maintaining reliable tracking confirmation.
+    private let stationaryUpdateInterval: TimeInterval = 45.0  // 45 seconds when stationary, normal battery
+
+    /// Maximum time between any location updates, regardless of movement state.
+    /// This ensures the phone always knows tracking is active (heartbeat).
+    private let maxUpdateInterval: TimeInterval = 120.0  // 2 minutes maximum
+
     /// Accuracy bypass threshold: When horizontal accuracy changes by more than 5 meters,
     /// immediately push application context regardless of time throttle. This ensures
     /// critical accuracy improvements (e.g., GPS lock acquisition) are delivered promptly.
@@ -533,7 +541,13 @@ public final class WatchLocationProvider: NSObject, Sendable {
             updateAdaptiveTuning(with: fix)
         }
         signposter.emitEvent("FixPublished")
-        logger.debug("Publishing fix seq=\(fix.sequence) accuracy=\(fix.horizontalAccuracyMeters, privacy: .public)")
+
+        // Log whether this is a stationary heartbeat or movement update
+        let timeSinceLast = Date().timeIntervalSince(lastTransmittedFixDate)
+        let isHeartbeat = timeSinceLast >= stationaryUpdateInterval
+        let updateType = isHeartbeat ? "heartbeat" : "update"
+        logger.debug("Publishing fix seq=\(fix.sequence) accuracy=\(fix.horizontalAccuracyMeters, privacy: .public) [\(updateType)]")
+
         transmitFix(fix, includeContext: true, notifyDelegate: true)
     }
 
@@ -745,8 +759,8 @@ public final class WatchLocationProvider: NSObject, Sendable {
                 "batteryOnly": latestBatteryLevel,
                 "trackingMode": manualTrackingMode.rawValue
             ])
-            let avg = Int(performanceMonitor.gpsAverage * 1000)
-            logger.log("Heartbeat sent (battery=\(Int(latestBatteryLevel * 100))%, gpsAvg=\(avg)ms, drain=\(String(format: "%.1f", performanceMonitor.batteryDrainPerHour))%/h)")
+            let avg = Int(self.performanceMonitor.gpsAverage * 1000)
+            logger.log("Heartbeat sent (battery=\(Int(self.latestBatteryLevel * 100))%, gpsAvg=\(avg)ms, drain=\(String(format: "%.1f", self.performanceMonitor.batteryDrainPerHour))%/h)")
         } catch {
             logger.error("Heartbeat update failed: \(error.localizedDescription)")
         }
@@ -775,20 +789,35 @@ public final class WatchLocationProvider: NSObject, Sendable {
         let now = Date()
         let timeSinceLast = now.timeIntervalSince(lastTransmittedFixDate)
 
-        let throttleInterval: TimeInterval
-        if batteryLevel <= 0.10 {
-            throttleInterval = 5.0
-        } else if batteryLevel <= 0.20 {
-            throttleInterval = isStationary ? 2.0 : 1.0
-        } else {
-            throttleInterval = contextPushInterval
+        // Priority 1: Always send if we've exceeded max heartbeat interval
+        if timeSinceLast >= maxUpdateInterval {
+            lastTransmittedFixDate = now
+            lastThrottleAccuracy = location.horizontalAccuracy
+            return false
         }
 
+        // Priority 2: Send if accuracy significantly improved
         let accuracyChange = abs(location.horizontalAccuracy - lastThrottleAccuracy)
         if accuracyChange > contextAccuracyDelta {
             lastTransmittedFixDate = now
             lastThrottleAccuracy = location.horizontalAccuracy
             return false
+        }
+
+        // Priority 3: Apply throttle interval based on battery and movement state
+        let throttleInterval: TimeInterval
+        if batteryLevel <= 0.10 {
+            // Critical battery: 5 seconds regardless of movement
+            throttleInterval = 5.0
+        } else if batteryLevel <= 0.20 {
+            // Low battery: 3 seconds when moving, 5 seconds when stationary
+            throttleInterval = isStationary ? 5.0 : 3.0
+        } else if isStationary {
+            // Normal battery, stationary: use stationary interval (45s)
+            throttleInterval = stationaryUpdateInterval
+        } else {
+            // Normal battery, moving: high frequency (0.5s)
+            throttleInterval = contextPushInterval
         }
 
         if timeSinceLast < throttleInterval {
@@ -828,7 +857,10 @@ extension WatchLocationProvider: CLLocationManagerDelegate {
             if batteryOptimizationsEnabled {
                 let stationary = isDeviceStationary(latest)
                 if shouldThrottleUpdate(location: latest, isStationary: stationary, batteryLevel: batteryLevel) {
-                    logger.debug("Throttling fix (stationary=\(stationary), battery=\(Int(batteryLevel * 100)))")
+                    let timeSinceLast = Date().timeIntervalSince(lastTransmittedFixDate)
+                    let nextInterval = stationary ? stationaryUpdateInterval : contextPushInterval
+                    let timeUntilNext = max(0, nextInterval - timeSinceLast)
+                    logger.debug("Throttling fix (stationary=\(stationary), battery=\(Int(batteryLevel * 100))%, next in \(Int(timeUntilNext))s)")
                     return
                 }
                 lastKnownLocation = latest
@@ -907,8 +939,9 @@ extension WatchLocationProvider: WCSessionDelegate {
 
         switch action {
         case "requestLocation":
+            let force = (message["force"] as? Bool) == true
             Task { @MainActor in
-                if (message["force"] as? Bool) == true {
+                if force {
                     self.forceImmediateSend = true
                 }
                 if let fix = self.latestFix {
@@ -1015,18 +1048,19 @@ extension WatchLocationProvider: HKWorkoutSessionDelegate {
         Task { @MainActor [weak self] in
             guard let self else { return }
             guard toState == .ended || toState == .stopped else { return }
-            
+
             if let builder = self.workoutBuilder {
-                builder.endCollection(withEnd: date) { [weak delegate = self.delegate] _, error in
+                builder.endCollection(withEnd: date) { [weak self] _, error in
                     if let error {
                         Task { @MainActor in
-                            delegate?.didFail(error)
+                            self?.delegate?.didFail(error)
                         }
+                        return
                     }
-                    builder.finishWorkout { _, finishError in
+                    builder.finishWorkout { [weak self] _, finishError in
                         if let finishError {
                             Task { @MainActor in
-                                delegate?.didFail(finishError)
+                                self?.delegate?.didFail(finishError)
                             }
                         }
                     }

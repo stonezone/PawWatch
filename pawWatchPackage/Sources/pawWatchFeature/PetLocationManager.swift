@@ -96,7 +96,7 @@ public final class PetLocationManager: NSObject, ObservableObject {
     public private(set) var trackingMode: TrackingMode = .auto
 
     /// Current iPhone location authorization status
-    public private(set) var locationAuthorizationStatus: CLAuthorizationStatus = CLLocationManager.authorizationStatus()
+    public private(set) var locationAuthorizationStatus: CLAuthorizationStatus = .notDetermined
 
 #if canImport(HealthKit)
     public private(set) var workoutAuthorizationStatus: HKAuthorizationStatus = .notDetermined
@@ -138,6 +138,9 @@ public final class PetLocationManager: NSObject, ObservableObject {
         self.locationManager = CLLocationManager()
 
         super.init()
+
+        // Set initial authorization status using instance property (iOS 14+)
+        self.locationAuthorizationStatus = locationManager.authorizationStatus
 
         // Setup WatchConnectivity
         #if canImport(WatchConnectivity)
