@@ -50,3 +50,17 @@ final class PerformanceMonitor {
         return sorted[min(sorted.count - 1, Int(Double(sorted.count) * 0.95))]
     }
 }
+
+private extension Array where Element == TimeInterval {
+    var median: TimeInterval {
+        guard !isEmpty else { return 0 }
+        let sorted = self.sorted()
+        return sorted[count / 2]
+    }
+}
+
+private extension Comparable {
+    func clamped(to range: ClosedRange<Self>) -> Self {
+        min(range.upperBound, max(range.lowerBound, self))
+    }
+}
