@@ -1,27 +1,28 @@
 # Handoff — Ready for Claude
 
-- **Timestamp:** 2025-11-11 00:50 HST
-- **Current Version:** 1.0.38
+- **Timestamp:** 2025-11-11 01:15 HST
+- **Current Version:** 1.0.39
 - **Latest Commits:**
-  - (pending) Phase 6 — widget + live activity scaffolding (this change)
+  - (pending) Phase 7 — glass polish + live activity actions (this change)
+  - 280a6f5 — feat: phase 6 widget + live activity
   - 1733e88 — feat: phase 5 watch metrics + smart stack prep
   - 01d658b — chore: phase 4 validation and docs
   - eb48d96 — feat: refresh watch dashboard with glass components (Phase 3)
 
 ## Done
-- Added the watch Smart Stack widget + iOS Live Activity targets (WidgetKit/ActivityKit) that read the shared `PerformanceSnapshot` store and mirror latency/drain/reachability
-- `PerformanceLiveActivityManager` + watch snapshot writer now keep the App Group cache and activity state in sync; `NSSupportsLiveActivities` enabled in the iOS Info.plist
-- Bumped MARKETING_VERSION / Config/version.json to 1.0.38 via repo script; regenerated the project with the new dependencies and confirmed clean `xcodebuild` runs for both `pawWatch` and `pawWatch Watch App`
+- Rebuilt iOS History + Settings tabs with stacked `GlassCard` layouts (better contrast, adaptive spacing) and tightened watch settings with carousel spacing for small faces
+- Added deep-link-driven Live Activity actions (Stop/Open) plus the `pawwatch://` URL scheme so Lock Screen/Dynamic Island surfaces can open the app or end the activity without new entitlements
+- Bumped MARKETING_VERSION / Config/version.json to 1.0.39 via repo script and confirmed raw `xcodebuild` runs still succeed for both `pawWatch` (iOS) and `pawWatch Watch App`
 
 ## Pending
-1. Re-enable App Group entitlements for the iOS widget extension (currently removed to avoid signing issues) so shared snapshots work on device builds
-2. Flesh out the widget/Live Activity visuals (glass gradients, complications, Dynamic Island regions) and add push/background updates so data stays fresh while the phone app is suspended
-3. Phase 7 scope: finish Liquid Glass coverage for Settings/History + watch radial layouts and capture refreshed screenshots/test notes
+1. Re-enable App Group entitlements for the iOS widget extension (Release-only) so shared snapshots work on device/TestFlight builds; follow the new plan before shipping
+2. Wire the stop deep link into the watch tracking flow + consider AppIntent-based actions once App Group signing is stable
+3. Capture refreshed screenshots/test notes covering the Phase 7 glass polish and Dynamic Island actions before kicking off Phase 8
 
 ## Next Owner
-1. Verify provisioning/App Group setup for both extensions before shipping builds and keep `Config/version.json` staged with every commit
-2. Iterate on widget + Live Activity UI/data sources, then capture updated screenshots/tests once visuals settle
-3. Spin up Phase 7 (settings/history/watch radial polish + Live Activity alerts) after the glass widget experience stabilizes
+1. Execute the App Group re-enable checklist (Release entitlements, Dev Portal wiring, CI gating) and keep `Config/version.json` staged with future commits
+2. Extend the stop deep-link to actually stop the watch session + explore push/background updates for Live Activities
+3. Prep Phase 8 (Live Activity alerts + watch radial history) after capturing QA assets for Phase 7
 
 ## Notes
 - documentation_archive/ is tracked; stage TODO updates directly

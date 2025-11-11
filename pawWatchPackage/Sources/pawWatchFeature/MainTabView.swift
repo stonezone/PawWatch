@@ -164,36 +164,45 @@ struct HistoryView: View {
     let useMetricUnits: Bool
 
     var body: some View {
-        List {
-            ForEach(Array(locationManager.locationHistory.enumerated()), id: \.offset) { index, fix in
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Text("Fix #\(locationManager.locationHistory.count - index)")
-                            .font(.subheadline.weight(.semibold))
-                        Spacer()
-                        Text(dateFormatter.string(from: fix.timestamp))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+        ScrollView {
+            VStack(spacing: 16) {
+                ForEach(Array(locationManager.locationHistory.enumerated()), id: \.offset) { index, fix in
+                    GlassCard(cornerRadius: 20, padding: 16) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Text("Fix #\(locationManager.locationHistory.count - index)")
+                                    .font(.subheadline.weight(.semibold))
+                                Spacer()
+                                Text(dateFormatter.string(from: fix.timestamp))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            HStack {
+                                Text(String(format: "Lat: %.5f", fix.coordinate.latitude))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                Spacer()
+                                Text(String(format: "Lon: %.5f", fix.coordinate.longitude))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            HStack {
+                                Text("Accuracy: " + MeasurementDisplay.accuracy(fix.horizontalAccuracyMeters, useMetric: useMetricUnits))
+                                    .font(.caption)
+                                Spacer()
+                                Text(String(format: "Battery: %.0f%%", fix.batteryFraction * 100))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
                     }
-                    HStack {
-                        Text(String(format: "Lat: %.5f", fix.coordinate.latitude))
-                            .font(.caption)
-                        Spacer()
-                        Text(String(format: "Lon: %.5f", fix.coordinate.longitude))
-                            .font(.caption)
-                    }
-                    HStack {
-                        Text("Accuracy: " + MeasurementDisplay.accuracy(fix.horizontalAccuracyMeters, useMetric: useMetricUnits))
-                            .font(.caption)
-                        Spacer()
-                        Text(String(format: "Battery: %.0f%%", fix.batteryFraction * 100))
-                            .font(.caption)
-                    }
+                    .padding(.horizontal, 20)
                 }
-                .padding(.vertical, 4)
+
+                Spacer(minLength: 40)
             }
+            .padding(.top, 8)
         }
-        .listStyle(.plain)
         .navigationTitle("History")
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -219,127 +228,144 @@ struct SettingsView: View {
     }
 
     var body: some View {
-        Form {
-            Section("General") {
-                Toggle("Enable Notifications", isOn: $notificationsEnabled)
-                Toggle("Use Metric Units", isOn: $useMetricUnits)
-                Text(useMetricUnits ? "Kilometers & meters" : "Miles & feet")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Section("Tracking Mode") {
-                Picker("Mode", selection: Binding(
-                    get: { TrackingMode(rawValue: trackingModeRaw) ?? .auto },
-                    set: { trackingModeRaw = $0.rawValue }
-                )) {
-                    ForEach(TrackingMode.allCases, id: \.self) { mode in
-                        Text(mode.label).tag(mode)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .onChange(of: trackingModeRaw) { _, newRaw in
-                    if let mode = TrackingMode(rawValue: newRaw) {
-                        locationManager.setTrackingMode(mode)
-                    }
-                }
-
-                Button("Request Fresh Location") {
-                    locationManager.requestUpdate(force: true)
-                }
-                .disabled(!locationManager.isWatchReachable)
-
-                if let battery = locationManager.watchBatteryFraction {
-                    SettingRow(title: "Watch Battery", value: String(format: "%.0f%%", battery * 100))
-                }
-            }
-
-            Section("Permissions") {
-                SettingRow(title: "iPhone Location", value: locationManager.locationPermissionDescription)
-                if locationManager.needsLocationPermissionAction {
-                    Button("Open Settings") { locationManager.openLocationSettings() }
+        ScrollView {
+            VStack(spacing: 16) {
+                settingsCard(title: "General") {
+                    Toggle("Enable Notifications", isOn: $notificationsEnabled)
+                    Toggle("Use Metric Units", isOn: $useMetricUnits)
+                    Text(useMetricUnits ? "Kilometers & meters" : "Miles & feet")
                         .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
 
-                SettingRow(
-                    title: "Watch Status",
-                    value: locationManager.isWatchConnected ? (locationManager.isWatchReachable ? "Connected" : "Paired") : "Disconnected"
-                )
+                settingsCard(title: "Tracking Mode") {
+                    Picker("Mode", selection: Binding(
+                        get: { TrackingMode(rawValue: trackingModeRaw) ?? .auto },
+                        set: { trackingModeRaw = $0.rawValue }
+                    )) {
+                        ForEach(TrackingMode.allCases, id: \.self) { mode in
+                            Text(mode.label).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .onChange(of: trackingModeRaw) { _, newRaw in
+                        if let mode = TrackingMode(rawValue: newRaw) {
+                            locationManager.setTrackingMode(mode)
+                        }
+                    }
 
-                if locationManager.isWatchConnected {
+                    Button("Request Fresh Location") {
+                        locationManager.requestUpdate(force: true)
+                    }
+                    .disabled(!locationManager.isWatchReachable)
+
+                    if let battery = locationManager.watchBatteryFraction {
+                        SettingRow(title: "Watch Battery", value: String(format: "%.0f%%", battery * 100))
+                    }
+                }
+
+                settingsCard(title: "Permissions") {
+                    SettingRow(title: "iPhone Location", value: locationManager.locationPermissionDescription)
+                    if locationManager.needsLocationPermissionAction {
+                        Button("Open Settings") { locationManager.openLocationSettings() }
+                            .font(.caption)
+                    }
+
                     SettingRow(
-                        title: "Tracker Lock",
-                        value: locationManager.isWatchLocked ? "Locked" : "Unlocked"
+                        title: "Watch Status",
+                        value: locationManager.isWatchConnected ? (locationManager.isWatchReachable ? "Connected" : "Paired") : "Disconnected"
                     )
-                    if locationManager.isWatchLocked {
-                        Text("Unlock on the watch by rotating the Digital Crown.")
-                            .font(.caption2)
+
+                    if locationManager.isWatchConnected {
+                        SettingRow(
+                            title: "Tracker Lock",
+                            value: locationManager.isWatchLocked ? "Locked" : "Unlocked"
+                        )
+                        if locationManager.isWatchLocked {
+                            Text("Unlock on the watch by rotating the Digital Crown.")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
+                settingsCard(title: "HealthKit") {
+                    SettingRow(title: "Workout Access", value: locationManager.workoutPermissionDescription)
+                    SettingRow(title: "Heart Rate", value: locationManager.heartPermissionDescription)
+                    Button("Request Health Access") {
+                        locationManager.requestHealthAuthorization()
+                    }
+                    .disabled(!locationManager.canRequestHealthAuthorization)
+                    if locationManager.needsHealthPermissionAction {
+                        Text("Grant Health permissions to keep background tracking alive.")
+                            .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                 }
-            }
 
-            Section("HealthKit") {
-                SettingRow(title: "Workout Access", value: locationManager.workoutPermissionDescription)
-                SettingRow(title: "Heart Rate", value: locationManager.heartPermissionDescription)
-                Button("Request Health Access") {
-                    locationManager.requestHealthAuthorization()
-                }
-                .disabled(!locationManager.canRequestHealthAuthorization)
-                if locationManager.needsHealthPermissionAction {
-                    Text("Grant Health permissions to keep background tracking alive.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
+                settingsCard(title: "Session Summary") {
+                    let summary = locationManager.sessionSummary
+                    SettingRow(title: "Fixes", value: "\(summary.fixCount)")
+                    SettingRow(title: "Avg Interval", value: formatSeconds(summary.averageIntervalSec))
+                    SettingRow(title: "Median Accuracy", value: formatMeters(summary.medianAccuracy))
+                    SettingRow(title: "P90 Accuracy", value: formatMeters(summary.p90Accuracy))
+                    SettingRow(title: "Max Accuracy", value: formatMeters(summary.maxAccuracy))
+                    SettingRow(title: "Reachability Flips", value: "\(summary.reachabilityChanges)")
+                    if summary.durationSec > 0 {
+                        SettingRow(title: "Duration", value: formatDuration(summary.durationSec))
+                    }
+                    if !summary.presetCounts.isEmpty {
+                        ForEach(summary.presetCounts.sorted(by: { $0.key < $1.key }), id: \.key) { preset, count in
+                            SettingRow(title: "Preset \(preset.capitalized)", value: "\(count)")
+                        }
+                    }
 
-            Section("Session Summary") {
-                let summary = locationManager.sessionSummary
-                SettingRow(title: "Fixes", value: "\(summary.fixCount)")
-                SettingRow(title: "Avg Interval", value: formatSeconds(summary.averageIntervalSec))
-                SettingRow(title: "Median Accuracy", value: formatMeters(summary.medianAccuracy))
-                SettingRow(title: "P90 Accuracy", value: formatMeters(summary.p90Accuracy))
-                SettingRow(title: "Max Accuracy", value: formatMeters(summary.maxAccuracy))
-                SettingRow(title: "Reachability Flips", value: "\(summary.reachabilityChanges)")
-                if summary.durationSec > 0 {
-                    SettingRow(title: "Duration", value: formatDuration(summary.durationSec))
-                }
-                if !summary.presetCounts.isEmpty {
-                    ForEach(summary.presetCounts.sorted(by: { $0.key < $1.key }), id: \.key) { preset, count in
-                        SettingRow(title: "Preset \(preset.capitalized)", value: "\(count)")
+                    if let exportURL = locationManager.sessionShareURL() {
+                        ShareLink(item: exportURL) {
+                            Label("Export CSV", systemImage: "square.and.arrow.up")
+                        }
+                    } else {
+                        Text("No samples captured yet.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Button("Reset Session Stats", role: .destructive) {
+                        locationManager.resetSessionStats()
                     }
                 }
 
-                if let exportURL = locationManager.sessionShareURL() {
-                    ShareLink(item: exportURL) {
-                        Label("Export CSV", systemImage: "square.and.arrow.up")
+                settingsCard(title: "About") {
+                    SettingRow(title: "Version", value: appVersion)
+                    SettingRow(title: "Build Date", value: buildDate)
+                }
+
+                if let error = locationManager.errorMessage {
+                    settingsCard(title: "Alerts") {
+                        Text(error)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
-                } else {
-                    Text("No samples captured yet.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
                 }
 
-                Button("Reset Session Stats", role: .destructive) {
-                    locationManager.resetSessionStats()
-                }
+                Spacer(minLength: 32)
             }
-
-            Section("About") {
-                SettingRow(title: "Version", value: appVersion)
-                SettingRow(title: "Build Date", value: buildDate)
-            }
-
-            if let error = locationManager.errorMessage {
-                Section("Alerts") {
-                    Text(error)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
+            .padding(.top, 8)
         }
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func settingsCard<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
+        GlassCard(cornerRadius: 20, padding: 16) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                content()
+            }
+        }
+        .padding(.horizontal, 20)
     }
 
     private func SettingRow(title: String, value: String) -> some View {

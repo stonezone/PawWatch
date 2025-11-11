@@ -888,7 +888,7 @@ private struct WatchSettingsView: View {
     @Binding var optimizationsEnabled: Bool
 
     var body: some View {
-        Form {
+        List {
             Section("Battery") {
                 Toggle("Runtime Guard & Smart Polling", isOn: $optimizationsEnabled)
                 Text("Keeps the workout alive with WKExtendedRuntimeSession and slows GPS when stationary or low battery.")
@@ -896,6 +896,7 @@ private struct WatchSettingsView: View {
                     .foregroundStyle(.secondary)
             }
         }
+        .listStyle(.carousel)
         .navigationTitle("Settings")
     }
 }

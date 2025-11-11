@@ -2,11 +2,17 @@ import ActivityKit
 import SwiftUI
 import WidgetKit
 
+private enum LiveActivityLinks {
+    static let openApp = URL(string: "pawwatch://open-app")!
+    static let stopTracking = URL(string: "pawwatch://stop-tracking")!
+}
+
 @main
 struct PawLiveActivityWidget: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: PawActivityAttributes.self) { context in
             LiveActivityLockView(state: context.state)
+                .widgetURL(LiveActivityLinks.openApp)
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
@@ -16,7 +22,11 @@ struct PawLiveActivityWidget: Widget {
                     MetricLabel(title: "Drain", value: String(format: "%.1f%%/h", context.state.batteryDrainPerHour))
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    ReachabilityLabel(reachable: context.state.reachable)
+                    HStack(spacing: 12) {
+                        ReachabilityLabel(reachable: context.state.reachable)
+                        Spacer(minLength: 0)
+                        LiveActivityActions()
+                    }
                 }
             } compactLeading: {
                 Text("\(min(999, context.state.latencyMs))")
@@ -47,11 +57,32 @@ private struct LiveActivityLockView: View {
             .font(.subheadline)
 
             Spacer()
+
+            LiveActivityActions()
         }
         .padding(.vertical, 8)
         .padding(.horizontal, 12)
         .activityBackgroundTint(Color(.sRGBLinear, white: 1, opacity: 0.12))
         .activitySystemActionForegroundColor(.primary)
+    }
+}
+
+private struct LiveActivityActions: View {
+    var body: some View {
+        HStack(spacing: 8) {
+            Link(destination: LiveActivityLinks.stopTracking) {
+                Label("Stop", systemImage: "stop.fill")
+            }
+            .tint(.red)
+            .buttonStyle(.borderedProminent)
+            .font(.caption)
+
+            Link(destination: LiveActivityLinks.openApp) {
+                Label("Open", systemImage: "arrow.up.forward.app")
+            }
+            .buttonStyle(.bordered)
+            .font(.caption)
+        }
     }
 }
 
