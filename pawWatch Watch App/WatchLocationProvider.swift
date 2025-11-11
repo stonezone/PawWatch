@@ -206,6 +206,13 @@ public protocol WatchLocationProviderDelegate: AnyObject, Sendable {
     /// Called when an error occurs during location capture or relay.
     /// - Parameter error: The error that occurred
     func didFail(_ error: Error)
+
+    /// Called when the paired iPhone requests the watch to stop tracking.
+    func didReceiveRemoteStop()
+}
+
+public extension WatchLocationProviderDelegate {
+    func didReceiveRemoteStop() {}
 }
 
 // MARK: - Main Provider Class
@@ -987,8 +994,18 @@ extension WatchLocationProvider: WCSessionDelegate {
                 return ["status": "mode-updated"]
             }
             return ["status": "mode-invalid"]
+        case "stop-tracking":
+            scheduleRemoteStop()
+            return ["status": "stop-requested"]
         default:
             return ["status": "unknown-action"]
+        }
+    }
+
+    nonisolated private func scheduleRemoteStop() {
+        Task { @MainActor in
+            self.delegate?.didReceiveRemoteStop()
+            self.stop()
         }
     }
 
@@ -1009,6 +1026,17 @@ extension WatchLocationProvider: WCSessionDelegate {
     
     /// Handles incoming message data (not currently used).
     nonisolated public func session(_ session: WCSession, didReceiveMessageData messageData: Data) {}
+
+    /// Handles updated application contexts when the phone queues commands while unreachable.
+    nonisolated public func session(
+        _ session: WCSession,
+        didReceiveApplicationContext applicationContext: [String : Any]
+    ) {
+        guard let action = applicationContext["action"] as? String else { return }
+        if action == "stop-tracking" {
+            scheduleRemoteStop()
+        }
+    }
     
     /// Handles incoming file transfers from the phone (not used in Watch-to-phone flow).
     ///

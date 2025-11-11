@@ -273,6 +273,14 @@ final class WatchLocationManager: WatchLocationProviderDelegate {
         statusMessage = "Error occurred"
     }
 
+    func didReceiveRemoteStop() {
+        if isTracking {
+            stopTracking()
+        }
+        WKInterfaceDevice.current().play(.success)
+        statusMessage = "Tracking stopped remotely"
+    }
+
     // MARK: - Private Methods
 
     /// Updates connection status display based on WCSession state.

@@ -36,6 +36,9 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
         INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
+      configurations:
+        Release:
+          CODE_SIGN_ENTITLEMENTS: Config/pawWatch.entitlements
 
   pawWatch Watch App:
     type: application
@@ -78,6 +81,9 @@ targets:
         INFOPLIST_FILE: pawWatchWidgetExtension/Info.plist
         APPLICATION_EXTENSION_API_ONLY: YES
         SWIFT_VERSION: "6.2"
+      configurations:
+        Release:
+          CODE_SIGN_ENTITLEMENTS: Config/pawWatchWidgetExtension.entitlements
 
   pawWatchWatchWidget:
     type: app-extension

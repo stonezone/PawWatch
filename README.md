@@ -123,6 +123,8 @@ Add dependencies by editing `pawWatchPackage/Package.swift`. Resources can be in
 ## Configuration & Entitlements
 - `Config/Shared.xcconfig`, `Debug.xcconfig`, `Release.xcconfig`, `Tests.xcconfig` control bundle IDs, deployment targets, compiler flags, and versioning.
 - `Config/pawWatch.entitlements` and `Config/pawWatch_Watch_App.entitlements` declare capabilities (Location, HealthKit, WatchConnectivity). Update them whenever adding HealthKit types, push notifications, etc.
+- `Config/pawWatchWidgetExtension.entitlements` is applied only to Release builds of the widget extension so App Group/push access stays gated until distribution-ready.
+- The iOS app similarly applies `Config/pawWatch.entitlements` only in Release, keeping Debug builds entitlement-free to avoid provisioning churn.
 - To change signing teams or bundle IDs, edit the xcconfigs instead of the project file.
 
 ## Testing
