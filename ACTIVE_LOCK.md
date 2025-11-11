@@ -9,6 +9,7 @@
 - ✅ **Digital Crown lock overlay shipped.** When tracking is active, the user can tap **Lock Tracker** to show a full-screen overlay that ignores taps. Rotating the Digital Crown ~1.75 turns (in either direction) unlocks the UI and plays a success haptic.
 - ✅ **Emergency stop path.** The overlay exposes a destructive button that immediately ends the workout and unlocks the interface.
 - ✅ **Workout session continuity.** The lock mode keeps the existing `HKWorkoutSession` + `HKLiveWorkoutBuilder` running, so GPS + heartbeats continue even if the watch display sleeps.
+- ✅ **Phone status indicator.** The iPhone Settings screen now mirrors the lock state so owners instantly know when controls are disabled remotely.
 - ⚠️ **`WKExtendedRuntimeSession` still disabled.** We continue to run in workout-only mode until Apple approves the entitlement.
 
 ## User Flow (implemented)

@@ -143,6 +143,11 @@ final class WatchLocationManager: WatchLocationProviderDelegate {
         locationProvider.setBatteryOptimizationsEnabled(enabled)
     }
 
+    /// Broadcasts tracker lock state to the paired phone.
+    func updateLockState(_ isLocked: Bool) {
+        locationProvider.setTrackerLocked(isLocked)
+    }
+
     // MARK: - WatchLocationProviderDelegate
 
     /// Called when a new GPS location fix is produced.
@@ -515,6 +520,7 @@ struct ContentView: View {
         crownRotation = 0
         crownRotationAccumulator = 0
         WKInterfaceDevice.current().play(.click)
+        locationManager.updateLockState(true)
     }
 
     private func disengageLock() {
@@ -525,6 +531,7 @@ struct ContentView: View {
         lockEngagedAt = nil
         crownRotation = 0
         crownRotationAccumulator = 0
+        locationManager.updateLockState(false)
     }
 
     // MARK: - Helper Methods

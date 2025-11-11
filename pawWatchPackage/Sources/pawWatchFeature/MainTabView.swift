@@ -308,6 +308,18 @@ struct SettingsView: View {
                     title: "Watch Status",
                     value: locationManager.isWatchConnected ? (locationManager.isWatchReachable ? "Connected" : "Paired") : "Disconnected"
                 )
+
+                if locationManager.isWatchConnected {
+                    SettingRow(
+                        title: "Tracker Lock",
+                        value: locationManager.isWatchLocked ? "Locked" : "Unlocked"
+                    )
+                    if locationManager.isWatchLocked {
+                        Text("Unlock on the watch by rotating the Digital Crown.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
 
             Section("HealthKit") {

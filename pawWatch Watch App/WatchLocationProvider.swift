@@ -308,6 +308,7 @@ public final class WatchLocationProvider: NSObject, Sendable {
     private var manualTrackingMode: TrackingMode = .auto
     private var forceImmediateSend = false
     private var batteryHeartbeatTask: Task<Void, Never>?
+    private var isTrackerLocked = false
 
     // MARK: - Adaptive throttling state
 
@@ -652,6 +653,28 @@ public final class WatchLocationProvider: NSObject, Sendable {
         lastInteractiveAccuracy = fix.horizontalAccuracyMeters
         return true
     }
+
+    // MARK: - Lock state broadcast
+
+    @MainActor
+    func setTrackerLocked(_ locked: Bool) {
+        guard locked != isTrackerLocked else { return }
+        isTrackerLocked = locked
+        broadcastLockState()
+    }
+
+    @MainActor
+    private func broadcastLockState() {
+        guard wcSession.activationState == .activated else { return }
+        do {
+            try wcSession.updateApplicationContext([
+                "lockState": isTrackerLocked
+            ])
+            logger.log("Lock state context sent (locked=\(self.isTrackerLocked))")
+        } catch {
+            logger.error("Failed to send lock state: \(error.localizedDescription)")
+        }
+    }
     
     /// Updates WatchConnectivity application context with latest location fix.
     ///
@@ -757,7 +780,8 @@ public final class WatchLocationProvider: NSObject, Sendable {
         do {
             try wcSession.updateApplicationContext([
                 "batteryOnly": latestBatteryLevel,
-                "trackingMode": manualTrackingMode.rawValue
+                "trackingMode": manualTrackingMode.rawValue,
+                "lockState": isTrackerLocked
             ])
             let avg = Int(self.performanceMonitor.gpsAverage * 1000)
             logger.log("Heartbeat sent (battery=\(Int(self.latestBatteryLevel * 100))%, gpsAvg=\(avg)ms, drain=\(String(format: "%.1f", self.performanceMonitor.batteryDrainPerHour))%/h)")

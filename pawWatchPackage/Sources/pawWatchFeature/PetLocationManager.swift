@@ -92,6 +92,9 @@ public final class PetLocationManager: NSObject, ObservableObject {
     /// Latest battery fraction reported by the watch (via heartbeat)
     public private(set) var watchBatteryFraction: Double?
 
+    /// Whether the watch-side tracker UI is currently locked
+    public private(set) var isWatchLocked: Bool = false
+
     /// Current tracking mode requested by the user
     public private(set) var trackingMode: TrackingMode = .auto
 
@@ -544,6 +547,7 @@ extension PetLocationManager: WCSessionDelegate {
     ) {
         let battery = applicationContext["batteryOnly"] as? Double
         let modeRaw = applicationContext["trackingMode"] as? String
+        let locked = applicationContext["lockState"] as? Bool
         let latest = applicationContext["latestFix"] as? Data
 
         Task { @MainActor in
@@ -551,9 +555,10 @@ extension PetLocationManager: WCSessionDelegate {
             if let modeRaw, let mode = TrackingMode(rawValue: modeRaw) {
                 self.trackingMode = mode
             }
-            if battery != nil || modeRaw != nil {
+            if battery != nil || modeRaw != nil || locked != nil {
                 self.isWatchConnected = true
             }
+            if let locked { self.isWatchLocked = locked }
             if let latest {
                 self.isWatchConnected = true
                 self.handleLocationFixData(latest)
