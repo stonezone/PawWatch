@@ -6,9 +6,13 @@ This document audits the **PawWatch** iOS and watchOS companion apps against App
 
 ### Status Log
 
-**Phase 0 — Baseline (2025-11-10 22:55 HST, v1.0.32)**  
+**Phase 0 — Baseline (2025-11-10 22:55 HST, v1.0.32)**  
 - **Done:** Updated MARKETING_VERSION/CURRENT_PROJECT_VERSION + Config/version.json to 1.0.32, refreshed doc banner(s), committed and pushed main to origin, and kicked off workspace build validation (pending xcpretty install).  
-- **Next:** Start Phase 1 work by adding LiquidGlassComponents.swift (GlassBackground, GlassCard, LiquidGlassTabBar) and importing the required assets so downstream view refactors can consume them.
+- **Next:** Start Phase 1 work by adding LiquidGlassComponents.swift (GlassBackground, GlassCard, LiquidGlassTabBar) and importing the required assets so downstream view refactors can consume them.
+
+**Phase 1 — Components (2025-11-10 23:43 HST, v1.0.33)**  
+- **Done:** Added LiquidGlassComponents.swift (GlassBackground / GlassCard / LiquidGlassTabBar + haptic helpers), copied the Liquid Glass assets into the Swift package Resources folder, and updated Package.swift to process resources; workspace build validated via plain `xcodebuild`.  
+- **Next:** Begin wiring these primitives into MainTabView + Dashboard, then extract reusable cards/grids for Phase 2.
 
 ### Sources
 

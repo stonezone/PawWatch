@@ -67,7 +67,6 @@ __pycache__/
 # =========================================
 logs/
 serena_logs.txt
-documentation_archive/
 docs/_build/
 *.log
 
