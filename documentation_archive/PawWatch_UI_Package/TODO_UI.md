@@ -18,6 +18,10 @@ This document audits the **PawWatch** iOS and watchOS companion apps against App
 - **Done:** Integrated `GlassBackground` across the dashboard, wrapped the status card + map + history pill with `GlassCard`, and replaced the bespoke tab bar with `LiquidGlassTabBar`; rebuilt via plain `xcodebuild`.  
 - **Next:** Continue extracting shared indicator/grid components for forthcoming History/Settings redesigns and prep the watch dashboard work.
 
+**Phase 3 — Watch Dashboard + Platform Hooks (2025-11-11 00:01 HST, v1.0.35)**  
+- **Done:** Added watch-safe glass helpers (background, pills, shimmer) and refreshed the watch dashboard with frosted grouping, connection/battery pills, and loading skeletons; rebuilt via plain `xcodebuild`.  
+- **Next:** Expand watch metrics + Smart Stack hints before moving on to Live Activities / Smart Islands.
+
 ### Sources
 
 Apple’s press releases and design documents describe Liquid Glass as a **translucent material** that combines optical qualities of glass with fluidity and **dynamically adapts** its color based on surrounding content【880600779687368†L347-L367】.  Controls and navigation bars are now crafted from this material; they shrink and expand with scrolling and act as a distinct functional layer above content【880600779687368†L387-L396】.  On watchOS, the Liquid Glass design reflects and refracts content in real time across the Smart Stack, Control Center and in‑app controls, bringing focus to the content on a circular display【744407786597250†L355-L363】.  Apple’s feature list for iOS 26 further emphasises that Liquid Glass toolbars, tabs and context menus **morph fluidly** as users need more tools【205891001093005†L4-L37】.

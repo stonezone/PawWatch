@@ -331,12 +331,13 @@ struct ContentView: View {
 
                     // MARK: - Status Message
 
-                    Text(locationManager.statusMessage)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                        .frame(maxWidth: .infinity)
-                        .padding(.horizontal)
+                    GlassPill {
+                        Text(locationManager.statusMessage)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: .infinity)
+                    }
 
                     // MARK: - Error Message (if present)
 
@@ -435,17 +436,22 @@ struct ContentView: View {
                             .foregroundStyle(.secondary)
                         }
                         .padding(.vertical, 8)
+                    } else {
+                        GlassSkeleton(height: 60)
+                            .padding(.vertical, 8)
                     }
 
                     // MARK: - Connection Status
 
-                    HStack(spacing: 4) {
-                        Image(systemName: locationManager.isPhoneReachable ? "iphone.radiowaves.left.and.right" : "iphone.slash")
-                            .font(.caption2)
-                        Text(locationManager.connectionStatus)
-                            .font(.caption2)
+                    GlassPill {
+                        HStack(spacing: 4) {
+                            Image(systemName: locationManager.isPhoneReachable ? "iphone.radiowaves.left.and.right" : "iphone.slash")
+                                .font(.caption2)
+                            Text(locationManager.connectionStatus)
+                                .font(.caption2)
+                        }
+                        .foregroundStyle(locationManager.isPhoneReachable ? .green : .orange)
                     }
-                    .foregroundStyle(locationManager.isPhoneReachable ? .green : .orange)
                     .padding(.top, 4)
 
                     // MARK: - Tracking Control Button
@@ -489,6 +495,7 @@ struct ContentView: View {
                 }
             }
         }
+        .background(WatchGlassBackground())
     }
 
     // MARK: - Actions
@@ -575,7 +582,7 @@ struct ContentView: View {
     ///
     /// - Parameter batteryLevel: Battery level as fraction (0.0-1.0)
     /// - Returns: SF Symbol name for battery icon
-    private func batteryIcon(for batteryLevel: Double) -> String {
+private func batteryIcon(for batteryLevel: Double) -> String {
         let percentage = batteryLevel * 100
         switch percentage {
         case 75...100:
@@ -588,6 +595,43 @@ struct ContentView: View {
             return "battery.25"
         default:
             return "battery.0"
+        }
+    }
+}
+
+// MARK: - Glass Helpers
+
+private struct WatchGlassBackground: View {
+    var body: some View {
+        AngularGradient(gradient: Gradient(colors: [.blue.opacity(0.4), .purple.opacity(0.3), .black.opacity(0.6)]), center: .center)
+            .ignoresSafeArea()
+            .blur(radius: 35)
+    }
+}
+
+private struct GlassPill<Content: View>: View {
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        content
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(.thinMaterial, in: Capsule())
+    }
+}
+
+private struct GlassSkeleton: View {
+    let height: CGFloat
+    var body: some View {
+        TimelineView(.animation) { context in
+            let phase = context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 1)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(.thinMaterial.opacity(0.5))
+                .overlay(
+                    LinearGradient(colors: [.clear, .white.opacity(0.5), .clear], startPoint: .leading, endPoint: .trailing)
+                        .offset(x: CGFloat(phase) * 60 - 30)
+                )
+                .frame(height: height)
         }
     }
 }
