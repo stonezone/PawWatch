@@ -12,6 +12,7 @@ settings:
     SWIFT_VERSION: "6.2"
     MARKETING_VERSION: "1.0"
     CURRENT_PROJECT_VERSION: "1"
+    DEVELOPMENT_TEAM: 78725QX6PZ
 
 packages:
   pawWatchFeature:
@@ -23,9 +24,12 @@ targets:
     platform: iOS
     deploymentTarget: "18.4"
     sources:
-      - pawWatch
+      - path: pawWatch
+      - path: Sources/LiveActivity
     dependencies:
       - package: pawWatchFeature
+      - target: pawWatchWidgetExtension
+        embed: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.stonezone.pawWatch
@@ -41,6 +45,8 @@ targets:
       - path: pawWatch Watch App
     dependencies:
       - package: pawWatchFeature
+      - target: pawWatchWatchWidget
+        embed: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.stonezone.pawWatch.watchkitapp
@@ -56,3 +62,34 @@ targets:
         WATCHOS_DEPLOYMENT_TARGET: "11.0"
         SUPPORTS_MACCATALYST: NO
         COPY_PHASE_STRIP: NO
+
+  pawWatchWidgetExtension:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "18.4"
+    sources:
+      - path: pawWatchWidgetExtension
+      - path: Sources/LiveActivity
+    dependencies:
+      - package: pawWatchFeature
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.stonezone.pawWatch.widget
+        INFOPLIST_FILE: pawWatchWidgetExtension/Info.plist
+        APPLICATION_EXTENSION_API_ONLY: YES
+        SWIFT_VERSION: "6.2"
+
+  pawWatchWatchWidget:
+    type: app-extension
+    platform: watchOS
+    deploymentTarget: "11.0"
+    sources:
+      - path: pawWatchWatchWidget
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.stonezone.pawWatch.watchkitapp.widget
+        INFOPLIST_FILE: pawWatchWatchWidget/Info.plist
+        APPLICATION_EXTENSION_API_ONLY: YES
+        SWIFT_VERSION: "6.2"
+    dependencies:
+      - package: pawWatchFeature

@@ -1,27 +1,27 @@
 # Handoff — Ready for Claude
 
-- **Timestamp:** 2025-11-11 00:15 HST
-- **Current Version:** 1.0.37
+- **Timestamp:** 2025-11-11 00:50 HST
+- **Current Version:** 1.0.38
 - **Latest Commits:**
-  - (pending) Phase 5 — watch metrics + Smart Stack prep (this change)
+  - (pending) Phase 6 — widget + live activity scaffolding (this change)
+  - 1733e88 — feat: phase 5 watch metrics + smart stack prep
   - 01d658b — chore: phase 4 validation and docs
   - eb48d96 — feat: refresh watch dashboard with glass components (Phase 3)
 
 ## Done
-- Watch dashboard now surfaces GPS latency avg/p95 and battery drain/hr metrics sourced from `PerformanceMonitor`
-- Reachability pill clarified (color + status text) and Smart Stack placeholder messaging wired into the UI
-- Raw `xcodebuild` builds for `pawWatch` (iOS + watch) and `pawWatch Watch App` succeeded post-change
-- MARKETING_VERSION / Config/version.json bumped to 1.0.37 and documentation updated through Phase 5
+- Added the watch Smart Stack widget + iOS Live Activity targets (WidgetKit/ActivityKit) that read the shared `PerformanceSnapshot` store and mirror latency/drain/reachability
+- `PerformanceLiveActivityManager` + watch snapshot writer now keep the App Group cache and activity state in sync; `NSSupportsLiveActivities` enabled in the iOS Info.plist
+- Bumped MARKETING_VERSION / Config/version.json to 1.0.38 via repo script; regenerated the project with the new dependencies and confirmed clean `xcodebuild` runs for both `pawWatch` and `pawWatch Watch App`
 
 ## Pending
-1. Stand up the actual WidgetKit extension + Smart Stack card (reusing the metrics snapshot UI references)
-2. Implement Live Activities / Smart Islands + capture refreshed screenshots for docs/testers
-3. Finish applying Liquid Glass components across Settings/History grids and watch radial layouts (Phase 6 scope)
+1. Re-enable App Group entitlements for the iOS widget extension (currently removed to avoid signing issues) so shared snapshots work on device builds
+2. Flesh out the widget/Live Activity visuals (glass gradients, complications, Dynamic Island regions) and add push/background updates so data stays fresh while the phone app is suspended
+3. Phase 7 scope: finish Liquid Glass coverage for Settings/History + watch radial layouts and capture refreshed screenshots/test notes
 
 ## Next Owner
-1. Launch Phase 6 focusing on WidgetKit + Live Activities (target version 1.0.38)
-2. Capture updated screenshots/tests after widgets + Live Activities land
-3. Continue staging `Config/version.json` (or set `SKIP_VERSION_CHECK=1` for doc-only commits) with every phase push
+1. Verify provisioning/App Group setup for both extensions before shipping builds and keep `Config/version.json` staged with every commit
+2. Iterate on widget + Live Activity UI/data sources, then capture updated screenshots/tests once visuals settle
+3. Spin up Phase 7 (settings/history/watch radial polish + Live Activity alerts) after the glass widget experience stabilizes
 
 ## Notes
 - documentation_archive/ is tracked; stage TODO updates directly

@@ -128,6 +128,7 @@ public final class PetLocationManager: NSObject, ObservableObject {
     @ObservationIgnored private var sessionSamples: [SessionSample] = []
     @ObservationIgnored private var sessionStartDate: Date?
     @ObservationIgnored private var sessionReachabilityFlipCount: Int = 0
+    private var lastBatterySample: (value: Double, timestamp: Date)?
     private let maxSessionSamples = 10_000
 
     // MARK: - Initialization
@@ -444,6 +445,36 @@ public final class PetLocationManager: NSObject, ObservableObject {
         }
 
         appendSessionSample(locationFix)
+        persistPerformanceSnapshot(from: locationFix)
+    }
+
+    private func persistPerformanceSnapshot(from fix: LocationFix) {
+        let now = Date()
+        let latencyMs = max(1, Int(now.timeIntervalSince(fix.timestamp) * 1000))
+
+        var drainPerHour: Double = 0
+        if let lastSample = lastBatterySample {
+            let deltaPercent = (lastSample.value - fix.batteryFraction) * 100
+            let elapsed = fix.timestamp.timeIntervalSince(lastSample.timestamp) / 3600
+            if elapsed > 0 {
+                drainPerHour = deltaPercent / elapsed
+            }
+        }
+        lastBatterySample = (fix.batteryFraction, fix.timestamp)
+
+        let snapshot = PerformanceSnapshot(
+            latencyMs: latencyMs,
+            batteryDrainPerHour: drainPerHour,
+            reachable: isWatchReachable,
+            timestamp: now
+        )
+
+        PerformanceSnapshotStore.save(snapshot)
+    }
+
+    private func persistSnapshotUsingLatestLocation() {
+        guard let fix = latestLocation else { return }
+        persistPerformanceSnapshot(from: fix)
     }
 
     /// Decode a LocationFix from raw Data produced by the watch.
@@ -523,6 +554,7 @@ extension PetLocationManager: WCSessionDelegate {
             self.logger.log("Reachability changed: \(isReachable, privacy: .public)")
             self.sessionReachabilityFlipCount += 1
             self.recomputeSessionSummary()
+            self.persistSnapshotUsingLatestLocation()
         }
     }
 

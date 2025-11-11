@@ -32,6 +32,11 @@ This document audits the **PawWatch** iOS and watchOS companion apps against App
 - **Risks:** Metrics rely on live GPS samples, so lab testing still needs longer walks to validate drain math; Smart Stack remains informational only until a WidgetKit target is added, so snapshot freshness isn’t guaranteed yet.  
 - **Next:** Phase 6 should stand up the actual WidgetKit extension (mirroring latency/drain/reachability) plus Live Activities, then capture new screenshots for QA once widgets land.
 
+**Phase 6 — WidgetKit & Live Activities (2025-11-11 00:50 HST, v1.0.38)**  
+- **Done:** Added the watch Smart Stack widget (`pawWatchWatchWidget`) and iOS Live Activity extension (`pawWatchWidgetExtension`) that both consume the new `PerformanceSnapshot` store, wired the iOS app with `PerformanceLiveActivityManager`, and enabled live-activity support in `Info.plist`; clean `xcodebuild` runs for `pawWatch` and `pawWatch Watch App` remain green at v1.0.38.  
+- **Risks:** Widget snapshots rely on the App Group defaults fallback (no entitlements on the iOS widget yet), so shared data may be sandboxed on signed builds; Live Activities currently refresh only while the phone app is running since push updates aren’t enabled.  
+- **Next:** Harden the App Group story for production signing, flesh out the widget/Live Activity visuals (glass gradients, complications), and capture updated screens before tackling Phase 7 (Settings/History liquid pass + Live Activity alerts).
+
 ### Sources
 
 Apple’s press releases and design documents describe Liquid Glass as a **translucent material** that combines optical qualities of glass with fluidity and **dynamically adapts** its color based on surrounding content【880600779687368†L347-L367】.  Controls and navigation bars are now crafted from this material; they shrink and expand with scrolling and act as a distinct functional layer above content【880600779687368†L387-L396】.  On watchOS, the Liquid Glass design reflects and refracts content in real time across the Smart Stack, Control Center and in‑app controls, bringing focus to the content on a circular display【744407786597250†L355-L363】.  Apple’s feature list for iOS 26 further emphasises that Liquid Glass toolbars, tabs and context menus **morph fluidly** as users need more tools【205891001093005†L4-L37】.

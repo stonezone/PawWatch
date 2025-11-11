@@ -66,6 +66,9 @@ final class WatchLocationManager: WatchLocationProviderDelegate {
     /// Snapshot of observed battery drain per hour (%/hr)
     var batteryDrainPerHour: Double = 0
 
+    /// Cached snapshot so we can update reachability without new samples
+    private var lastSavedSnapshot: PerformanceSnapshot?
+
     /// Whether adaptive battery optimizations are enabled.
     private var batteryOptimizationsEnabled = true
 
@@ -201,6 +204,28 @@ final class WatchLocationManager: WatchLocationProviderDelegate {
         gpsLatencyAverageMS = performanceMonitor.gpsAverage * 1000
         gpsLatencyP95MS = performanceMonitor.gpsP95 * 1000
         batteryDrainPerHour = performanceMonitor.batteryDrainPerHour
+
+        let hasMetrics = gpsLatencyAverageMS > 0 || gpsLatencyP95MS > 0 || batteryDrainPerHour != 0 || lastSavedSnapshot != nil
+        guard hasMetrics else { return }
+
+        var latency = Int(gpsLatencyAverageMS.rounded())
+        if latency <= 0, let last = lastSavedSnapshot {
+            latency = last.latencyMs
+        }
+
+        var drain = batteryDrainPerHour
+        if abs(drain) < 0.01, let last = lastSavedSnapshot {
+            drain = last.batteryDrainPerHour
+        }
+
+        let snapshot = PerformanceSnapshot(
+            latencyMs: max(1, latency),
+            batteryDrainPerHour: drain,
+            reachable: isPhoneReachable,
+            timestamp: Date()
+        )
+        lastSavedSnapshot = snapshot
+        _ = PerformanceSnapshotStore.save(snapshot)
     }
 
     /// Called when an error occurs during location capture or relay.
@@ -275,6 +300,8 @@ final class WatchLocationManager: WatchLocationProviderDelegate {
         } else {
             connectionStatus = activationState
         }
+
+        refreshPerformanceSnapshot()
     }
 }
 

@@ -3,64 +3,120 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 63;
+	objectVersion = 77;
 	objects = {
 
 /* Begin PBXBuildFile section */
 		0E3589B340742665FCB48483 /* pawWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C17C02071845B52C99D8AFAF /* pawWatchApp.swift */; };
-		36633939613762382D636636 /* pawWatch Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 950A0AD89D5233A618F6D2BF /* pawWatch Watch App.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		0FFDA8030BE561F6626D3C2F /* WatchLocationProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19B7DB6CD8E04C1D8500CD39 /* WatchLocationProvider.swift */; };
+		1E35A8CA6A62C816927084E9 /* tech_stack.md in Resources */ = {isa = PBXBuildFile; fileRef = 1DF64214C85F44163C41C191 /* tech_stack.md */; };
+		2651D2887F844B706C7E173B /* PawActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = E61FE777F5FFC112274AF121 /* PawActivityAttributes.swift */; };
+		31476467B7B9A4329C55C11F /* PawActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = E61FE777F5FFC112274AF121 /* PawActivityAttributes.swift */; };
+		408C25FC9CC87986E932A535 /* pawWatchWatchWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 5A72CE480CD7EAA5D43AE206 /* pawWatchWatchWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		519FB2FDB97DAB928DFD0C8A /* style_and_conventions.md in Resources */ = {isa = PBXBuildFile; fileRef = 2EDC339950DF80E706265150 /* style_and_conventions.md */; };
+		52A406F92B56ACB6FD99F5E2 /* task_completion.md in Resources */ = {isa = PBXBuildFile; fileRef = E87868A8D5E1BC41DA20C38F /* task_completion.md */; };
+		55326249AA0D4F3CA6C7E836 /* PerformanceLiveActivityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D48AC02AC75EC0355F15551 /* PerformanceLiveActivityManager.swift */; };
+		5B7EA2421D64EF5B3BEE3B56 /* suggested_commands.md in Resources */ = {isa = PBXBuildFile; fileRef = 6937F500D1D896D66786F15A /* suggested_commands.md */; };
+		6A4889B958D5A146E4F8E308 /* pawWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 332C74C6C210BDC7E42FAB0B /* pawWatchApp.swift */; };
+		6D2CA5734974CC4CA01C8619 /* PawLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 014F16C4F88894AC98C61654 /* PawLiveActivity.swift */; };
+		6F21C34A42451FCB8E9B7A03 /* pawWatchFeature in Frameworks */ = {isa = PBXBuildFile; productRef = 1DB9B1EE8BBE2C383917F165 /* pawWatchFeature */; };
+		6F2D002F38F9C52AEE881908 /* PawWatchWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1185FDEB3EB169CEC8F81EAD /* PawWatchWidget.swift */; };
+		6F3BC4F08888C0CEB4F611C8 /* project_overview.md in Resources */ = {isa = PBXBuildFile; fileRef = F369377741BBA26259B4BBC1 /* project_overview.md */; };
 		6F425FF4E0BD3D78DF26C474 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 33AC2CD8AB3941DC48825948 /* Assets.xcassets */; };
+		7385D047883112C11BCEDD04 /* pawWatchFeature in Frameworks */ = {isa = PBXBuildFile; productRef = DA824215671097EEE51B44E5 /* pawWatchFeature */; };
+		7F122106E1C332C47E8721B7 /* ExtensionDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72D32CBFD23A6EE421063CBD /* ExtensionDelegate.swift */; };
+		9BCB3457324E1118D1106880 /* pawWatchWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 741879409AD8DD4128B4DCC0 /* pawWatchWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		9E1123F0DFDBDE291D23E1AE /* project.yml in Resources */ = {isa = PBXBuildFile; fileRef = 45EFDDC895399F71255F9661 /* project.yml */; };
+		BFE171C459CD5760E7997CEE /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31CF20CA899DE2D203ABA5E0 /* ContentView.swift */; };
 		CE68223DCCF237599C6ABF9C /* pawWatchFeature in Frameworks */ = {isa = PBXBuildFile; productRef = CC2F6242165D6F162A627F2C /* pawWatchFeature */; };
+		DE45C7EAE189D600449FB456 /* PerformanceMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0CA573AE81E9A7B705BD61F /* PerformanceMonitor.swift */; };
 		E575984C7A181CFECE73E9C1 /* pawWatchFeature in Frameworks */ = {isa = PBXBuildFile; productRef = D1DEC52533FBF1BEBDC06C9C /* pawWatchFeature */; };
 		EBD92BF7E3C90D2ED912EE97 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 6AAB458652C595976E7FA680 /* Assets.xcassets */; };
-		WATCHAPP001ContentView00 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31CF20CA899DE2D203ABA5E0 /* ContentView.swift */; };
-		WATCHAPP002WatchLocProv /* WatchLocationProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65B60F212EBD77CE00499A74 /* WatchLocationProvider.swift */; };
-		WATCHAPP003pawWatchApp /* pawWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 332C74C6C210BDC7E42FAB0B /* pawWatchApp.swift */; };
-		WATCHAPP004ExtDelegate /* ExtensionDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = E05B7BA527D5E57F00B2769C /* ExtensionDelegate.swift */; };
-		WATCHAPP005PerfMonitor /* PerformanceMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = PERFMON001FILE00000001 /* PerformanceMonitor.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
-		32616163643165382D653764PROXY /* PBXContainerItemProxy */ = {
+		4AFF003B931EFB4BE4D0721A /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 5B295C316277830C19C95E54 /* Project object */;
 			proxyType = 1;
-			remoteGlobalIDString = 73B1D24D6D37160012C57894;
-			remoteInfo = "pawWatch Watch App";
+			remoteGlobalIDString = 480178B48EFF87000F1C5AA1;
+			remoteInfo = pawWatchWatchWidget;
+		};
+		E8FC88E79384B52412B29575 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 5B295C316277830C19C95E54 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A28DD1D284D9078E992A8533;
+			remoteInfo = pawWatchWidgetExtension;
 		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
-		62393438646532612D363163 /* Embed Watch Content */ = {
+		1424C837BA38D618BC89D42B /* Embed Foundation Extensions */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
-			dstPath = "$(CONTENTS_FOLDER_PATH)/Watch";
-			dstSubfolderSpec = 16;
+			dstPath = "";
+			dstSubfolderSpec = 13;
 			files = (
-				36633939613762382D636636 /* pawWatch Watch App.app in Embed Watch Content */,
+				9BCB3457324E1118D1106880 /* pawWatchWidgetExtension.appex in Embed Foundation Extensions */,
 			);
-			name = "Embed Watch Content";
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E3E5EF25672FACC1507079A6 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				408C25FC9CC87986E932A535 /* pawWatchWatchWidget.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		24A9551A73A98AE2FB4AA8C3 /* pawWatch.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = pawWatch.xctestplan; sourceTree = "<group>"; };
+		014F16C4F88894AC98C61654 /* PawLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PawLiveActivity.swift; sourceTree = "<group>"; };
+		1185FDEB3EB169CEC8F81EAD /* PawWatchWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PawWatchWidget.swift; sourceTree = "<group>"; };
+		13F3BD75DEBE9DF7A1968141 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		19B7DB6CD8E04C1D8500CD39 /* WatchLocationProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchLocationProvider.swift; sourceTree = "<group>"; };
+		1DF64214C85F44163C41C191 /* tech_stack.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = tech_stack.md; sourceTree = "<group>"; };
+		24A9551A73A98AE2FB4AA8C3 /* pawWatch.xctestplan */ = {isa = PBXFileReference; path = pawWatch.xctestplan; sourceTree = "<group>"; };
+		2A7EA5BE218F55937A8E50D8 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		2EDC339950DF80E706265150 /* style_and_conventions.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = style_and_conventions.md; sourceTree = "<group>"; };
 		31CF20CA899DE2D203ABA5E0 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		332C74C6C210BDC7E42FAB0B /* pawWatchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = pawWatchApp.swift; sourceTree = "<group>"; };
 		33AC2CD8AB3941DC48825948 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		45EFDDC895399F71255F9661 /* project.yml */ = {isa = PBXFileReference; lastKnownFileType = text.yaml; path = project.yml; sourceTree = "<group>"; };
+		4D48AC02AC75EC0355F15551 /* PerformanceLiveActivityManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformanceLiveActivityManager.swift; sourceTree = "<group>"; };
 		594D3B7268AF24EF28D0EA80 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
-		65B60F212EBD77CE00499A74 /* WatchLocationProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchLocationProvider.swift; sourceTree = "<group>"; };
+		5A72CE480CD7EAA5D43AE206 /* pawWatchWatchWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = pawWatchWatchWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		6937F500D1D896D66786F15A /* suggested_commands.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = suggested_commands.md; sourceTree = "<group>"; };
 		6AAB458652C595976E7FA680 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		72D32CBFD23A6EE421063CBD /* ExtensionDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionDelegate.swift; sourceTree = "<group>"; };
+		741879409AD8DD4128B4DCC0 /* pawWatchWidgetExtension.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = pawWatchWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		88320EC8A33E9CB718EB307B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		950A0AD89D5233A618F6D2BF /* pawWatch Watch App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "pawWatch Watch App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
-		A516D3F21A55137C5D54F3DF /* pawWatchPackage */ = {isa = PBXFileReference; lastKnownFileType = folder; path = pawWatchPackage; sourceTree = SOURCE_ROOT; };
+		A516D3F21A55137C5D54F3DF /* pawWatchPackage */ = {isa = PBXFileReference; lastKnownFileType = folder; name = pawWatchPackage; path = pawWatchPackage; sourceTree = SOURCE_ROOT; };
 		C17C02071845B52C99D8AFAF /* pawWatchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = pawWatchApp.swift; sourceTree = "<group>"; };
-		D8DF9D5B77E59B7AD1D4407E /* pawWatch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = pawWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		E05B7BA527D5E57F00B2769C /* ExtensionDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionDelegate.swift; sourceTree = "<group>"; };
-		PERFMON001FILE00000001 /* PerformanceMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformanceMonitor.swift; sourceTree = "<group>"; };
+		D227868C2CFA425FAB450943 /* .gitignore */ = {isa = PBXFileReference; path = .gitignore; sourceTree = "<group>"; };
+		D8DF9D5B77E59B7AD1D4407E /* pawWatch.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = pawWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		E61FE777F5FFC112274AF121 /* PawActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PawActivityAttributes.swift; sourceTree = "<group>"; };
+		E87868A8D5E1BC41DA20C38F /* task_completion.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = task_completion.md; sourceTree = "<group>"; };
+		F0CA573AE81E9A7B705BD61F /* PerformanceMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformanceMonitor.swift; sourceTree = "<group>"; };
+		F369377741BBA26259B4BBC1 /* project_overview.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = project_overview.md; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		4615B63EA11AEE47395C695B /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7385D047883112C11BCEDD04 /* pawWatchFeature in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		5F1A1540E815DEDD9F610AD1 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -74,6 +130,14 @@
 			buildActionMask = 2147483647;
 			files = (
 				CE68223DCCF237599C6ABF9C /* pawWatchFeature in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D0A1A15F85D5CE8114BCE86A /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6F21C34A42451FCB8E9B7A03 /* pawWatchFeature in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -93,33 +157,94 @@
 			children = (
 				33AC2CD8AB3941DC48825948 /* Assets.xcassets */,
 				31CF20CA899DE2D203ABA5E0 /* ContentView.swift */,
-				332C74C6C210BDC7E42FAB0B /* pawWatchApp.swift */,
-				65B60F212EBD77CE00499A74 /* WatchLocationProvider.swift */,
-				E05B7BA527D5E57F00B2769C /* ExtensionDelegate.swift */,
-				PERFMON001FILE00000001 /* PerformanceMonitor.swift */,
+				72D32CBFD23A6EE421063CBD /* ExtensionDelegate.swift */,
 				594D3B7268AF24EF28D0EA80 /* Info.plist */,
+				332C74C6C210BDC7E42FAB0B /* pawWatchApp.swift */,
+				F0CA573AE81E9A7B705BD61F /* PerformanceMonitor.swift */,
+				19B7DB6CD8E04C1D8500CD39 /* WatchLocationProvider.swift */,
 			);
 			path = "pawWatch Watch App";
+			sourceTree = "<group>";
+		};
+		641C8612B8F5395917E56B9D /* pawWatchWatchWidget */ = {
+			isa = PBXGroup;
+			children = (
+				88320EC8A33E9CB718EB307B /* Info.plist */,
+				1185FDEB3EB169CEC8F81EAD /* PawWatchWidget.swift */,
+			);
+			path = pawWatchWatchWidget;
+			sourceTree = "<group>";
+		};
+		7252FCDD14CAE1AF69E9DAF6 /* LiveActivity */ = {
+			isa = PBXGroup;
+			children = (
+				4D48AC02AC75EC0355F15551 /* PerformanceLiveActivityManager.swift */,
+			);
+			path = LiveActivity;
 			sourceTree = "<group>";
 		};
 		75B3FE4A8DA07E67838C107C /* pawWatch */ = {
 			isa = PBXGroup;
 			children = (
 				6AAB458652C595976E7FA680 /* Assets.xcassets */,
+				13F3BD75DEBE9DF7A1968141 /* Info.plist */,
 				24A9551A73A98AE2FB4AA8C3 /* pawWatch.xctestplan */,
 				C17C02071845B52C99D8AFAF /* pawWatchApp.swift */,
+				F25D63EECB592294A5523E16 /* .serena */,
+				8F882A7C36947CE7088E5232 /* Sources */,
 			);
 			path = pawWatch;
+			sourceTree = "<group>";
+		};
+		7A20F52F68D77EC305D414FE /* pawWatchWidgetExtension */ = {
+			isa = PBXGroup;
+			children = (
+				2A7EA5BE218F55937A8E50D8 /* Info.plist */,
+				014F16C4F88894AC98C61654 /* PawLiveActivity.swift */,
+			);
+			path = pawWatchWidgetExtension;
+			sourceTree = "<group>";
+		};
+		8F882A7C36947CE7088E5232 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				7252FCDD14CAE1AF69E9DAF6 /* LiveActivity */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		A0D23A09F045500114B1159C /* LiveActivity */ = {
+			isa = PBXGroup;
+			children = (
+				E61FE777F5FFC112274AF121 /* PawActivityAttributes.swift */,
+			);
+			name = LiveActivity;
+			path = Sources/LiveActivity;
 			sourceTree = "<group>";
 		};
 		B7696481AC996D78CBB7804A = {
 			isa = PBXGroup;
 			children = (
+				A0D23A09F045500114B1159C /* LiveActivity */,
 				16DCA9FDD5EEA668C9A2283B /* Packages */,
 				75B3FE4A8DA07E67838C107C /* pawWatch */,
 				22AF874BEB830E0592595306 /* pawWatch Watch App */,
+				641C8612B8F5395917E56B9D /* pawWatchWatchWidget */,
+				7A20F52F68D77EC305D414FE /* pawWatchWidgetExtension */,
 				E6532C0AB8A77F10F8C60061 /* Products */,
 			);
+			sourceTree = "<group>";
+		};
+		B94AEC91770485059C205A8C /* memories */ = {
+			isa = PBXGroup;
+			children = (
+				F369377741BBA26259B4BBC1 /* project_overview.md */,
+				2EDC339950DF80E706265150 /* style_and_conventions.md */,
+				6937F500D1D896D66786F15A /* suggested_commands.md */,
+				E87868A8D5E1BC41DA20C38F /* task_completion.md */,
+				1DF64214C85F44163C41C191 /* tech_stack.md */,
+			);
+			path = memories;
 			sourceTree = "<group>";
 		};
 		E6532C0AB8A77F10F8C60061 /* Products */ = {
@@ -127,13 +252,44 @@
 			children = (
 				950A0AD89D5233A618F6D2BF /* pawWatch Watch App.app */,
 				D8DF9D5B77E59B7AD1D4407E /* pawWatch.app */,
+				5A72CE480CD7EAA5D43AE206 /* pawWatchWatchWidget.appex */,
+				741879409AD8DD4128B4DCC0 /* pawWatchWidgetExtension.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		F25D63EECB592294A5523E16 /* .serena */ = {
+			isa = PBXGroup;
+			children = (
+				D227868C2CFA425FAB450943 /* .gitignore */,
+				45EFDDC895399F71255F9661 /* project.yml */,
+				B94AEC91770485059C205A8C /* memories */,
+			);
+			path = .serena;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		480178B48EFF87000F1C5AA1 /* pawWatchWatchWidget */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 01A3D532E7C07D01958CC15D /* Build configuration list for PBXNativeTarget "pawWatchWatchWidget" */;
+			buildPhases = (
+				276E7CAA02541040912C6D17 /* Sources */,
+				4615B63EA11AEE47395C695B /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = pawWatchWatchWidget;
+			packageProductDependencies = (
+				DA824215671097EEE51B44E5 /* pawWatchFeature */,
+			);
+			productName = pawWatchWatchWidget;
+			productReference = 5A72CE480CD7EAA5D43AE206 /* pawWatchWatchWidget.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		73B1D24D6D37160012C57894 /* pawWatch Watch App */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = E8A856CF80F27C995A6EF70B /* Build configuration list for PBXNativeTarget "pawWatch Watch App" */;
@@ -141,10 +297,12 @@
 				9B93ED7C11A21FD20C5C6EBA /* Sources */,
 				5776554AAD689C458A5C3A8C /* Resources */,
 				5F1A1540E815DEDD9F610AD1 /* Frameworks */,
+				E3E5EF25672FACC1507079A6 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				518C351029236D0CB6C57AA9 /* PBXTargetDependency */,
 			);
 			name = "pawWatch Watch App";
 			packageProductDependencies = (
@@ -154,6 +312,25 @@
 			productReference = 950A0AD89D5233A618F6D2BF /* pawWatch Watch App.app */;
 			productType = "com.apple.product-type.application";
 		};
+		A28DD1D284D9078E992A8533 /* pawWatchWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D232C1901B32A5F19AD5418B /* Build configuration list for PBXNativeTarget "pawWatchWidgetExtension" */;
+			buildPhases = (
+				3F6A9101E0DEF4177FFDDED6 /* Sources */,
+				D0A1A15F85D5CE8114BCE86A /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = pawWatchWidgetExtension;
+			packageProductDependencies = (
+				1DB9B1EE8BBE2C383917F165 /* pawWatchFeature */,
+			);
+			productName = pawWatchWidgetExtension;
+			productReference = 741879409AD8DD4128B4DCC0 /* pawWatchWidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		F114C28D00A22C7F66E1F7E8 /* pawWatch */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = FA2E77C34DEF63E27435554B /* Build configuration list for PBXNativeTarget "pawWatch" */;
@@ -161,12 +338,12 @@
 				2C7C1392F402153C30440725 /* Sources */,
 				A1DF51BD767A5A4EFAE51D46 /* Resources */,
 				81051F5D748EDF4D1C0F5945 /* Frameworks */,
-				62393438646532612D363163 /* Embed Watch Content */,
+				1424C837BA38D618BC89D42B /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
-				32616163643165382D653764 /* PBXTargetDependency */,
+				5598A49114AFB7EDB300369C /* PBXTargetDependency */,
 			);
 			name = pawWatch;
 			packageProductDependencies = (
@@ -184,6 +361,20 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1630;
+				TargetAttributes = {
+					480178B48EFF87000F1C5AA1 = {
+						DevelopmentTeam = 78725QX6PZ;
+					};
+					73B1D24D6D37160012C57894 = {
+						DevelopmentTeam = 78725QX6PZ;
+					};
+					A28DD1D284D9078E992A8533 = {
+						DevelopmentTeam = 78725QX6PZ;
+					};
+					F114C28D00A22C7F66E1F7E8 = {
+						DevelopmentTeam = 78725QX6PZ;
+					};
+				};
 			};
 			buildConfigurationList = 532430E6AEA7CFF5A795E48E /* Build configuration list for PBXProject "pawWatch" */;
 			compatibilityVersion = "Xcode 14.0";
@@ -198,11 +389,14 @@
 			packageReferences = (
 				75FCD03AE4A9E679D60BBE1C /* XCLocalSwiftPackageReference "pawWatchPackage" */,
 			);
+			preferredProjectObjectVersion = 77;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
 				F114C28D00A22C7F66E1F7E8 /* pawWatch */,
 				73B1D24D6D37160012C57894 /* pawWatch Watch App */,
+				480178B48EFF87000F1C5AA1 /* pawWatchWatchWidget */,
+				A28DD1D284D9078E992A8533 /* pawWatchWidgetExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -221,17 +415,42 @@
 			buildActionMask = 2147483647;
 			files = (
 				EBD92BF7E3C90D2ED912EE97 /* Assets.xcassets in Resources */,
+				9E1123F0DFDBDE291D23E1AE /* project.yml in Resources */,
+				6F3BC4F08888C0CEB4F611C8 /* project_overview.md in Resources */,
+				519FB2FDB97DAB928DFD0C8A /* style_and_conventions.md in Resources */,
+				5B7EA2421D64EF5B3BEE3B56 /* suggested_commands.md in Resources */,
+				52A406F92B56ACB6FD99F5E2 /* task_completion.md in Resources */,
+				1E35A8CA6A62C816927084E9 /* tech_stack.md in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		276E7CAA02541040912C6D17 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6F2D002F38F9C52AEE881908 /* PawWatchWidget.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		2C7C1392F402153C30440725 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				2651D2887F844B706C7E173B /* PawActivityAttributes.swift in Sources */,
+				55326249AA0D4F3CA6C7E836 /* PerformanceLiveActivityManager.swift in Sources */,
 				0E3589B340742665FCB48483 /* pawWatchApp.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		3F6A9101E0DEF4177FFDDED6 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				31476467B7B9A4329C55C11F /* PawActivityAttributes.swift in Sources */,
+				6D2CA5734974CC4CA01C8619 /* PawLiveActivity.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -239,21 +458,26 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				WATCHAPP001ContentView00 /* ContentView.swift in Sources */,
-				WATCHAPP002WatchLocProv /* WatchLocationProvider.swift in Sources */,
-				WATCHAPP003pawWatchApp /* pawWatchApp.swift in Sources */,
-				WATCHAPP004ExtDelegate /* ExtensionDelegate.swift in Sources */,
-				WATCHAPP005PerfMonitor /* PerformanceMonitor.swift in Sources */,
+				BFE171C459CD5760E7997CEE /* ContentView.swift in Sources */,
+				7F122106E1C332C47E8721B7 /* ExtensionDelegate.swift in Sources */,
+				DE45C7EAE189D600449FB456 /* PerformanceMonitor.swift in Sources */,
+				0FFDA8030BE561F6626D3C2F /* WatchLocationProvider.swift in Sources */,
+				6A4889B958D5A146E4F8E308 /* pawWatchApp.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
-		32616163643165382D653764 /* PBXTargetDependency */ = {
+		518C351029236D0CB6C57AA9 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 73B1D24D6D37160012C57894 /* pawWatch Watch App */;
-			targetProxy = 32616163643165382D653764PROXY /* PBXContainerItemProxy */;
+			target = 480178B48EFF87000F1C5AA1 /* pawWatchWatchWidget */;
+			targetProxy = 4AFF003B931EFB4BE4D0721A /* PBXContainerItemProxy */;
+		};
+		5598A49114AFB7EDB300369C /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A28DD1D284D9078E992A8533 /* pawWatchWidgetExtension */;
+			targetProxy = E8FC88E79384B52412B29575 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -262,10 +486,8 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_ENTITLEMENTS = Config/pawWatch.entitlements;
-				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = 78725QX6PZ;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = pawWatch/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -275,20 +497,91 @@
 					"@executable_path/Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.stonezone.pawWatch;
-				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = iphoneos;
-				TARGETED_DEVICE_FAMILY = 1;
+				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
+		};
+		133EED67F8AB76E1ECC9F4A8 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				INFOPLIST_FILE = pawWatchWatchWidget/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.stonezone.pawWatch.watchkitapp.widget;
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 6.2;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 11.0;
+			};
+			name = Release;
+		};
+		1C78972EAF2434660BAA8A19 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				INFOPLIST_FILE = pawWatchWidgetExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.4;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.stonezone.pawWatch.widget;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 6.2;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		35701ED56931890CBE88A3C9 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				INFOPLIST_FILE = pawWatchWidgetExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.4;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.stonezone.pawWatch.widget;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 6.2;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		3B304EDF6DDE771AA3D88971 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				INFOPLIST_FILE = pawWatchWatchWidget/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.stonezone.pawWatch.watchkitapp.widget;
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 6.2;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 11.0;
+			};
+			name = Debug;
 		};
 		3B3E3C5BAAE4E231336C23D5 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_ENTITLEMENTS = Config/pawWatch.entitlements;
-				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = 78725QX6PZ;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = pawWatch/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -298,9 +591,8 @@
 					"@executable_path/Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.stonezone.pawWatch;
-				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = iphoneos;
-				TARGETED_DEVICE_FAMILY = 1;
+				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
 		};
@@ -338,8 +630,9 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 37;
+				CURRENT_PROJECT_VERSION = 38;
 				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 78725QX6PZ;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
@@ -357,7 +650,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.4;
-				MARKETING_VERSION = 1.0.37;
+				MARKETING_VERSION = 1.0.38;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -403,8 +696,9 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 37;
+				CURRENT_PROJECT_VERSION = 38;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 78725QX6PZ;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
@@ -416,7 +710,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.4;
-				MARKETING_VERSION = 1.0.37;
+				MARKETING_VERSION = 1.0.38;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -433,16 +727,13 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Config/pawWatch_Watch_App.entitlements;
-				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				DEVELOPMENT_TEAM = 78725QX6PZ;
+				ENABLE_PREVIEWS = YES;
 				INFOPLIST_FILE = "pawWatch Watch App/Info.plist";
-				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.stonezone.pawWatch.watchkitapp;
 				PRODUCT_NAME = "pawWatch Watch App";
 				SDKROOT = watchos;
 				SKIP_INSTALL = NO;
-				SUPPORTED_PLATFORMS = "watchos watchsimulator";
 				SUPPORTS_MACCATALYST = NO;
 				SWIFT_VERSION = 6.2;
 				TARGETED_DEVICE_FAMILY = 4;
@@ -456,15 +747,13 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Config/pawWatch_Watch_App.entitlements;
-				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = 78725QX6PZ;
+				COPY_PHASE_STRIP = NO;
+				ENABLE_PREVIEWS = YES;
 				INFOPLIST_FILE = "pawWatch Watch App/Info.plist";
-				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.stonezone.pawWatch.watchkitapp;
 				PRODUCT_NAME = "pawWatch Watch App";
 				SDKROOT = watchos;
 				SKIP_INSTALL = NO;
-				SUPPORTED_PLATFORMS = "watchos watchsimulator";
 				SUPPORTS_MACCATALYST = NO;
 				SWIFT_VERSION = 6.2;
 				TARGETED_DEVICE_FAMILY = 4;
@@ -475,11 +764,29 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		01A3D532E7C07D01958CC15D /* Build configuration list for PBXNativeTarget "pawWatchWatchWidget" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				3B304EDF6DDE771AA3D88971 /* Debug */,
+				133EED67F8AB76E1ECC9F4A8 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
 		532430E6AEA7CFF5A795E48E /* Build configuration list for PBXProject "pawWatch" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				7E0C29F20D3BF43B174A8993 /* Debug */,
 				B8BEB1F224612DF9916E12B1 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		D232C1901B32A5F19AD5418B /* Build configuration list for PBXNativeTarget "pawWatchWidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1C78972EAF2434660BAA8A19 /* Debug */,
+				35701ED56931890CBE88A3C9 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
@@ -512,11 +819,19 @@
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		1DB9B1EE8BBE2C383917F165 /* pawWatchFeature */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = pawWatchFeature;
+		};
 		CC2F6242165D6F162A627F2C /* pawWatchFeature */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = pawWatchFeature;
 		};
 		D1DEC52533FBF1BEBDC06C9C /* pawWatchFeature */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = pawWatchFeature;
+		};
+		DA824215671097EEE51B44E5 /* pawWatchFeature */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = pawWatchFeature;
 		};

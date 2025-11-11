@@ -9,5 +9,11 @@
 	<!-- HealthKit Clinical Records Access (required for some health data types) -->
 	<key>com.apple.developer.healthkit.access</key>
 	<array/>
+
+	<!-- Shared App Group for widgets/live activities -->
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>group.com.stonezone.pawWatch</string>
+	</array>
 </dict>
 </plist>
