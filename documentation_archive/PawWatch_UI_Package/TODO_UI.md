@@ -22,6 +22,11 @@ This document audits the **PawWatch** iOS and watchOS companion apps against App
 - **Done:** Added watch-safe glass helpers (background, pills, shimmer) and refreshed the watch dashboard with frosted grouping, connection/battery pills, and loading skeletons; rebuilt via plain `xcodebuild`.  
 - **Next:** Expand watch metrics + Smart Stack hints before moving on to Live Activities / Smart Islands.
 
+**Phase 4 — Validation & Docs (2025-11-11 00:05 HST, v1.0.36)**  
+- **Done:** Ran clean `xcodebuild` builds for both the iOS app and watch target, confirmed they stay green after Phase 3, bumped MARKETING_VERSION + Config/version.json to 1.0.36 via the repo script, and refreshed docs/HANDOFF_STATUS.md for the new milestone.  
+- **Risks:** Live Activities + Smart Stack work remain unvalidated; watch metrics/Smart Stack hooks still pending so future phases must cover them.  
+- **Next:** Kick off Phase 5 (watch metrics + Live Activities) once the next owner is ready; capture fresh screenshots for docs/testers after wiring those experiences.
+
 ### Sources
 
 Apple’s press releases and design documents describe Liquid Glass as a **translucent material** that combines optical qualities of glass with fluidity and **dynamically adapts** its color based on surrounding content【880600779687368†L347-L367】.  Controls and navigation bars are now crafted from this material; they shrink and expand with scrolling and act as a distinct functional layer above content【880600779687368†L387-L396】.  On watchOS, the Liquid Glass design reflects and refracts content in real time across the Smart Stack, Control Center and in‑app controls, bringing focus to the content on a circular display【744407786597250†L355-L363】.  Apple’s feature list for iOS 26 further emphasises that Liquid Glass toolbars, tabs and context menus **morph fluidly** as users need more tools【205891001093005†L4-L37】.
