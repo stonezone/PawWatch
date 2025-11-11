@@ -231,7 +231,24 @@ struct LocationFix: Codable {
 
 **Expected impact:** ~30% smaller JSON payloads reduce transmission overhead
 
-#### 5. Add Basic Performance Logging
+#### 5. Lock Tracker Mode (NEW)
+
+**Status:** ✅ Implemented (watch app `ContentView`, 2025-11-10)
+
+**Why:** During dry-runs testers accidentally paused workouts whenever the watch brushed against fur or harnesses. Lock mode lets owners intentionally disable touch input while keeping GPS + HealthKit sessions alive.
+
+**Highlights:**
+- Adds a **Lock Tracker** button that is visible whenever tracking is active.
+- Shows a blurred overlay that captures Digital Crown focus, displays instructions, and exposes an emergency stop button.
+- Rotating the crown roughly 1.75 turns unlocks the UI and plays a confirmation haptic; the lock auto-disengages if tracking stops.
+- Overlay continues to display lock duration (TimelineView) so owners can confirm the tracker remains armed.
+
+**Next validation items:**
+1. Collect feedback on the rotation threshold during Phase 1 field runs (accidental unlocks vs difficulty unlocking with gloves).
+2. Surface lock-state telemetry on the iPhone UI and csv logs so testers know why commands are ignored.
+3. Re-enable `WKExtendedRuntimeSession` once the entitlement lands to further harden the mode.
+
+#### 6. Add Basic Performance Logging
 
 **What to add:**
 ```swift
@@ -256,6 +273,7 @@ private func logPerformanceMetrics(_ location: CLLocation) {
 - ✅ Motion detection detects stationary state (5m radius, 30s duration)
 - ✅ Triple-path messaging uses all 3 WatchConnectivity methods
 - ✅ Compact JSON keys reduce payload size by ~30%
+- ✅ Lock Tracker mode keeps workouts running when users intentionally disable touch input
 - ✅ Performance logging captures battery, accuracy, latency metrics
 - ✅ Code compiles and runs on simulator
 - ✅ No architectural changes (preserve existing structure)

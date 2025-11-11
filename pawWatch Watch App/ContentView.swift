@@ -272,10 +272,42 @@ struct ContentView: View {
     /// Location manager handling GPS tracking and phone relay
     @State private var locationManager = WatchLocationManager()
     @AppStorage("watchBatteryOptimizationsEnabled") private var batteryOptimizationsEnabled = true
+    @State private var isTrackerLocked = false
+    @State private var crownRotation: Double = 0
+    @State private var crownRotationAccumulator: Double = 0
+    @State private var lockEngagedAt: Date?
+    @Environment(\.crownSequencer) private var crownSequencer
+
+    private let unlockRotationThreshold = 1.75  // roughly one and a half turns
 
     // MARK: - Body
 
     var body: some View {
+        ZStack {
+            mainContent
+                .blur(radius: isTrackerLocked ? 4 : 0)
+                .disabled(isTrackerLocked)
+
+            if isTrackerLocked {
+                lockOverlay
+                    .transition(.opacity.combined(with: .scale))
+            }
+        }
+        .animation(.easeInOut(duration: 0.2), value: isTrackerLocked)
+        .onAppear {
+            locationManager.setBatteryOptimizationsEnabled(batteryOptimizationsEnabled)
+        }
+        .onChange(of: batteryOptimizationsEnabled) { _, newValue in
+            locationManager.setBatteryOptimizationsEnabled(newValue)
+        }
+        .onChange(of: locationManager.isTracking) { _, newValue in
+            if !newValue {
+                disengageLock()
+            }
+        }
+    }
+
+    private var mainContent: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 12) {
@@ -424,6 +456,16 @@ struct ContentView: View {
                     .tint(locationManager.isTracking ? .red : .green)
                     .padding(.top, 8)
 
+                    if locationManager.isTracking, !isTrackerLocked {
+                        Button {
+                            engageLockMode()
+                        } label: {
+                            Label("Lock Tracker", systemImage: "lock.fill")
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(.blue)
+                    }
+
                     NavigationLink {
                         WatchSettingsView(optimizationsEnabled: $batteryOptimizationsEnabled)
                     } label: {
@@ -443,12 +485,6 @@ struct ContentView: View {
                 }
             }
         }
-        .onAppear {
-            locationManager.setBatteryOptimizationsEnabled(batteryOptimizationsEnabled)
-        }
-        .onChange(of: batteryOptimizationsEnabled) { _, newValue in
-            locationManager.setBatteryOptimizationsEnabled(newValue)
-        }
     }
 
     // MARK: - Actions
@@ -467,9 +503,31 @@ struct ContentView: View {
     private func toggleTracking() {
         if locationManager.isTracking {
             locationManager.stopTracking()
+            disengageLock()
         } else {
             locationManager.startTracking()
         }
+    }
+
+    private func engageLockMode() {
+        guard locationManager.isTracking else { return }
+        isTrackerLocked = true
+        lockEngagedAt = Date()
+        crownRotation = 0
+        crownRotationAccumulator = 0
+        crownSequencer?.focus()
+        WKInterfaceDevice.current().play(.click)
+    }
+
+    private func disengageLock() {
+        if isTrackerLocked {
+            WKInterfaceDevice.current().play(.success)
+        }
+        isTrackerLocked = false
+        lockEngagedAt = nil
+        crownRotation = 0
+        crownRotationAccumulator = 0
+        crownSequencer?.resignFocus()
     }
 
     // MARK: - Helper Methods
@@ -527,6 +585,74 @@ struct ContentView: View {
         default:
             return "battery.0"
         }
+    }
+}
+
+// MARK: - Lock Overlay
+
+private extension ContentView {
+    var lockOverlay: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "lock.fill")
+                .font(.title2)
+                .foregroundStyle(.cyan)
+
+            Text("Tracker Locked")
+                .font(.headline)
+
+            Text("Rotate the Digital Crown to unlock. Tracking stays active while locked.")
+                .font(.caption2)
+                .multilineTextAlignment(.center)
+                .foregroundStyle(.secondary)
+
+            if let lockEngagedAt {
+                TimelineView(.periodic(from: .now, by: 1)) { _ in
+                    Text("Locked for \(formattedLockDuration(since: lockEngagedAt))")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Button(role: .destructive) {
+                locationManager.stopTracking()
+                disengageLock()
+            } label: {
+                Label("Emergency Stop", systemImage: "exclamationmark.triangle")
+            }
+            .buttonStyle(.bordered)
+            .tint(.red)
+        }
+        .padding()
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .padding()
+        .digitalCrownRotation(
+            $crownRotation,
+            from: -10,
+            through: 10,
+            by: 0.1,
+            sensitivity: .medium,
+            isContinuous: true,
+            isHapticFeedbackEnabled: true
+        )
+        .onChange(of: crownRotation) { oldValue, newValue in
+            let delta = newValue - oldValue
+            crownRotationAccumulator += delta
+
+            if abs(crownRotationAccumulator) >= unlockRotationThreshold {
+                disengageLock()
+            }
+        }
+    }
+
+    func formattedLockDuration(since date: Date) -> String {
+        let elapsed = Date().timeIntervalSince(date)
+        if elapsed < 60 {
+            return "\(Int(elapsed))s"
+        }
+        let minutes = Int(elapsed) / 60
+        let seconds = Int(elapsed) % 60
+        return String(format: "%dm %02ds", minutes, seconds)
     }
 }
 
