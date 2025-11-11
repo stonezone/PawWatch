@@ -276,7 +276,6 @@ struct ContentView: View {
     @State private var crownRotation: Double = 0
     @State private var crownRotationAccumulator: Double = 0
     @State private var lockEngagedAt: Date?
-    @Environment(\.crownSequencer) private var crownSequencer
 
     private let unlockRotationThreshold = 1.75  // roughly one and a half turns
 
@@ -515,7 +514,6 @@ struct ContentView: View {
         lockEngagedAt = Date()
         crownRotation = 0
         crownRotationAccumulator = 0
-        crownSequencer?.focus()
         WKInterfaceDevice.current().play(.click)
     }
 
@@ -527,7 +525,6 @@ struct ContentView: View {
         lockEngagedAt = nil
         crownRotation = 0
         crownRotationAccumulator = 0
-        crownSequencer?.resignFocus()
     }
 
     // MARK: - Helper Methods
@@ -635,6 +632,7 @@ private extension ContentView {
             isContinuous: true,
             isHapticFeedbackEnabled: true
         )
+        .focusable(true)
         .onChange(of: crownRotation) { oldValue, newValue in
             let delta = newValue - oldValue
             crownRotationAccumulator += delta

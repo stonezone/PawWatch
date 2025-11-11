@@ -293,7 +293,7 @@ private func logPerformanceMetrics(_ location: CLLocation) {
 
 **Timeline:** 1 week
 **Goal:** Prove the concept works on real devices with acceptable metrics
-**Reference:** Follow `docs/HARDWARE_VALIDATION.md` test plan exactly
+**Reference:** Follow `docs/HARDWARE_VALIDATION.md` test plan exactly. Use `docs/PHASE1_READINESS.md` to confirm instrumentation + exports before heading to the field.
 
 ### Test Scenarios
 
