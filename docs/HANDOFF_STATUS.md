@@ -1,27 +1,27 @@
 # Handoff — Ready for Claude
 
-- **Timestamp:** 2025-11-11 00:05 HST
-- **Current Version:** 1.0.36
+- **Timestamp:** 2025-11-11 00:15 HST
+- **Current Version:** 1.0.37
 - **Latest Commits:**
-  - (pending) Phase 4 — Validation & Docs (this change)
+  - (pending) Phase 5 — watch metrics + Smart Stack prep (this change)
+  - 01d658b — chore: phase 4 validation and docs
   - eb48d96 — feat: refresh watch dashboard with glass components (Phase 3)
-  - 6e029ad — feat: wire iOS views to liquid glass components (Phase 2)
 
 ## Done
-- Clean raw `xcodebuild` builds for both the iOS app (`pawWatch` scheme) and watch target passed after Phase 3 UI changes
-- MARKETING_VERSION / Config/version.json bumped to 1.0.36 via `python3 scripts/bump_version.py --set 1.0.36`
-- `documentation_archive/PawWatch_UI_Package/TODO_UI.md` updated with “Phase 4 — Validation & Docs”
-- This handoff doc refreshed with latest timestamp/version for the next owner
+- Watch dashboard now surfaces GPS latency avg/p95 and battery drain/hr metrics sourced from `PerformanceMonitor`
+- Reachability pill clarified (color + status text) and Smart Stack placeholder messaging wired into the UI
+- Raw `xcodebuild` builds for `pawWatch` (iOS + watch) and `pawWatch Watch App` succeeded post-change
+- MARKETING_VERSION / Config/version.json bumped to 1.0.37 and documentation updated through Phase 5
 
 ## Pending
-1. Implement watch metrics + Smart Stack hints (carried over from Phase 3 follow-ups)
-2. Begin Live Activities / Smart Islands integration + screenshot refresh
-3. Validate Liquid Glass components across Settings/History grids (Phase 5 scope)
+1. Stand up the actual WidgetKit extension + Smart Stack card (reusing the metrics snapshot UI references)
+2. Implement Live Activities / Smart Islands + capture refreshed screenshots for docs/testers
+3. Finish applying Liquid Glass components across Settings/History grids and watch radial layouts (Phase 6 scope)
 
 ## Next Owner
-1. Start Phase 5 (watch metrics + Live Activities / Smart Stack) using the new Liquid Glass primitives
-2. Capture updated screenshots once new experiences land, then continue the phase-by-phase version bumps (next target: 1.0.37)
-3. Keep staging `Config/version.json` with each commit or set `SKIP_VERSION_CHECK=1` for doc-only changes
+1. Launch Phase 6 focusing on WidgetKit + Live Activities (target version 1.0.38)
+2. Capture updated screenshots/tests after widgets + Live Activities land
+3. Continue staging `Config/version.json` (or set `SKIP_VERSION_CHECK=1` for doc-only commits) with every phase push
 
 ## Notes
 - documentation_archive/ is tracked; stage TODO updates directly

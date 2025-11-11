@@ -27,6 +27,11 @@ This document audits the **PawWatch** iOS and watchOS companion apps against App
 - **Risks:** Live Activities + Smart Stack work remain unvalidated; watch metrics/Smart Stack hooks still pending so future phases must cover them.  
 - **Next:** Kick off Phase 5 (watch metrics + Live Activities) once the next owner is ready; capture fresh screenshots for docs/testers after wiring those experiences.
 
+**Phase 5 — Watch Metrics & Smart Stack Prep (2025-11-11 00:15 HST, v1.0.37)**  
+- **Done:** Surfaced watch-safe metrics (GPS latency avg/p95 + battery drain per hour) directly in the watch dashboard via new glass pills, refreshed the reachability indicator, and added an in-app Smart Stack placeholder hinting at the upcoming WidgetKit card; underlying data now flows from `PerformanceMonitor` snapshots.  
+- **Risks:** Metrics rely on live GPS samples, so lab testing still needs longer walks to validate drain math; Smart Stack remains informational only until a WidgetKit target is added, so snapshot freshness isn’t guaranteed yet.  
+- **Next:** Phase 6 should stand up the actual WidgetKit extension (mirroring latency/drain/reachability) plus Live Activities, then capture new screenshots for QA once widgets land.
+
 ### Sources
 
 Apple’s press releases and design documents describe Liquid Glass as a **translucent material** that combines optical qualities of glass with fluidity and **dynamically adapts** its color based on surrounding content【880600779687368†L347-L367】.  Controls and navigation bars are now crafted from this material; they shrink and expand with scrolling and act as a distinct functional layer above content【880600779687368†L387-L396】.  On watchOS, the Liquid Glass design reflects and refracts content in real time across the Smart Stack, Control Center and in‑app controls, bringing focus to the content on a circular display【744407786597250†L355-L363】.  Apple’s feature list for iOS 26 further emphasises that Liquid Glass toolbars, tabs and context menus **morph fluidly** as users need more tools【205891001093005†L4-L37】.

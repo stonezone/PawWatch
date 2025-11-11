@@ -57,6 +57,15 @@ final class WatchLocationManager: WatchLocationProviderDelegate {
     /// Tracks number of GPS fixes received (for update frequency calculation)
     private var fixCount: Int = 0
 
+    /// Snapshot of GPS latency (average, ms)
+    var gpsLatencyAverageMS: Double = 0
+
+    /// Snapshot of GPS latency (p95, ms)
+    var gpsLatencyP95MS: Double = 0
+
+    /// Snapshot of observed battery drain per hour (%/hr)
+    var batteryDrainPerHour: Double = 0
+
     /// Whether adaptive battery optimizations are enabled.
     private var batteryOptimizationsEnabled = true
 
@@ -72,6 +81,8 @@ final class WatchLocationManager: WatchLocationProviderDelegate {
     }
 
     // MARK: - Initialization
+
+    private let performanceMonitor = PerformanceMonitor.shared
 
     init() {
         // Set ourselves as delegate to receive GPS fixes and errors
@@ -126,6 +137,9 @@ final class WatchLocationManager: WatchLocationProviderDelegate {
         currentFix = nil
         fixCount = 0
         firstFixTime = nil
+        gpsLatencyAverageMS = 0
+        gpsLatencyP95MS = 0
+        batteryDrainPerHour = 0
     }
 
     /// Convenience helper to restart the workout/session flow.
@@ -179,6 +193,14 @@ final class WatchLocationManager: WatchLocationProviderDelegate {
 
         // Clear any previous errors on successful fix
         errorMessage = nil
+
+        refreshPerformanceSnapshot()
+    }
+
+    private func refreshPerformanceSnapshot() {
+        gpsLatencyAverageMS = performanceMonitor.gpsAverage * 1000
+        gpsLatencyP95MS = performanceMonitor.gpsP95 * 1000
+        batteryDrainPerHour = performanceMonitor.batteryDrainPerHour
     }
 
     /// Called when an error occurs during location capture or relay.
@@ -441,18 +463,10 @@ struct ContentView: View {
                             .padding(.vertical, 8)
                     }
 
-                    // MARK: - Connection Status
+                    metricsSection
 
-                    GlassPill {
-                        HStack(spacing: 4) {
-                            Image(systemName: locationManager.isPhoneReachable ? "iphone.radiowaves.left.and.right" : "iphone.slash")
-                                .font(.caption2)
-                            Text(locationManager.connectionStatus)
-                                .font(.caption2)
-                        }
-                        .foregroundStyle(locationManager.isPhoneReachable ? .green : .orange)
-                    }
-                    .padding(.top, 4)
+                    reachabilityPill
+                        .padding(.top, 4)
 
                     // MARK: - Tracking Control Button
 
@@ -482,6 +496,8 @@ struct ContentView: View {
                         Label("Settings", systemImage: "gearshape")
                     }
                     .buttonStyle(.bordered)
+
+                    smartStackHint
                 }
                 .padding(.vertical)
             }
@@ -498,7 +514,73 @@ struct ContentView: View {
         .background(WatchGlassBackground())
     }
 
+    // MARK: - Derived Views
+
+    @ViewBuilder
+    private var metricsSection: some View {
+        if locationManager.isTracking || locationManager.gpsLatencyAverageMS > 0 {
+            VStack(spacing: 6) {
+                HStack(spacing: 6) {
+                    GlassPill {
+                        MetricTile(
+                            icon: "waveform.path", 
+                            title: "GPS Latency",
+                            value: formattedLatency(locationManager.gpsLatencyAverageMS),
+                            subtitle: "p95 \(formattedLatency(locationManager.gpsLatencyP95MS))",
+                            tint: .mint
+                        )
+                    }
+                    .frame(maxWidth: .infinity)
+
+                    GlassPill {
+                        MetricTile(
+                            icon: "bolt.fill",
+                            title: "Drain / hr",
+                            value: formattedDrain(locationManager.batteryDrainPerHour),
+                            subtitle: batteryOptimizationsEnabled ? "Optimized" : "Performance",
+                            tint: batteryOptimizationsEnabled ? .green : .orange
+                        )
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+            }
+            .transition(.opacity.combined(with: .scale))
+        }
+    }
+
+    private var reachabilityPill: some View {
+        GlassPill {
+            MetricTile(
+                icon: locationManager.isPhoneReachable ? "iphone.radiowaves.left.and.right" : "iphone.slash",
+                title: "Reachability",
+                value: locationManager.isPhoneReachable ? "Reachable" : "Offline",
+                subtitle: locationManager.connectionStatus,
+                tint: locationManager.isPhoneReachable ? .green : .orange
+            )
+        }
+    }
+
+    private var smartStackHint: some View {
+        GlassPill {
+            SmartStackHintView(
+                latency: formattedLatency(locationManager.gpsLatencyAverageMS),
+                drain: formattedDrain(locationManager.batteryDrainPerHour)
+            )
+        }
+    }
+
     // MARK: - Actions
+
+    private func formattedLatency(_ value: Double) -> String {
+        guard value.isFinite, value > 1 else { return "—" }
+        return String(format: "%.0f ms", value)
+    }
+
+    private func formattedDrain(_ value: Double) -> String {
+        guard value.isFinite, abs(value) > 0.05 else { return "—" }
+        let clamped = max(-25, min(25, value))
+        return String(format: "%.1f%%/h", clamped)
+    }
 
     /// Toggles GPS tracking on/off.
     ///
@@ -632,6 +714,68 @@ private struct GlassSkeleton: View {
                         .offset(x: CGFloat(phase) * 60 - 30)
                 )
                 .frame(height: height)
+        }
+    }
+}
+
+private struct MetricTile: View {
+    let icon: String
+    let title: String
+    let value: String
+    let subtitle: String?
+    var tint: Color = .cyan
+
+    init(icon: String, title: String, value: String, subtitle: String? = nil, tint: Color = .cyan) {
+        self.icon = icon
+        self.title = title
+        self.value = value
+        self.subtitle = subtitle
+        self.tint = tint
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 6) {
+            Image(systemName: icon)
+                .font(.caption2)
+                .foregroundStyle(tint)
+                .imageScale(.small)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                Text(value)
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .monospacedDigit()
+                if let subtitle, !subtitle.isEmpty {
+                    Text(subtitle)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct SmartStackHintView: View {
+    let latency: String
+    let drain: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 6) {
+            Image(systemName: "rectangle.stack.badge.play.fill")
+                .font(.caption2)
+                .foregroundStyle(.blue)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Smart Stack preview")
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                Text("WidgetKit card will mirror \(latency) + \(drain) snapshot when Phase 6 lands.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 }
