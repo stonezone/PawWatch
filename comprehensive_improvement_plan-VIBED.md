@@ -1,6 +1,14 @@
 # Revised Enhancement Plan for pawWatch (Post-Vibe Check)
 
-_Updated: November 8, 2025 | Version: 1.0.15 | Status: Pre-Hardware Validation_
+_Updated: November 10, 2025 | Version: 1.0.32 | Status: Phase 1 Pre-Flight_
+
+## Current Status Snapshot (Nov 10)
+
+- ✅ **Watch/iPhone builds @ 1.0.32** – simulator builds pass for both platforms and the watch lock overlay now mirrors back to the phone UI.
+- ✅ **HealthKit + Location prompts exercised** – verified end-to-end on the watch simulator (screenshots logged) and confirmed the iOS-side entitlements after the recent provisioning fixes; awaiting a quick real-device sanity check when hardware is available.
+- ✅ **Log tooling warmed up** – `scripts/collect_logs.sh` patched/tested; sample output lives in `logs/phase1-smoke.jsonl` for reference.
+- ⚠️ **Session CSV smoke export still pending** – needs to be run on-device/iOS simulator before heading outside so the Phase 1 team can confirm artifacts.
+- ⚠️ **Field metrics outstanding** – battery/accuracy/WC range tests remain the gating factor; no real-world data yet, so GO/NO-GO decision is still “NO DATA”.
 
 ## Executive Summary
 
@@ -49,17 +57,17 @@ Cherry-pick ONLY the high-impact battery optimizations from pet-tracker that mig
 Before copying anything from `pet-tracker`, we need three blockers cleared:
 
 1. **HealthKit authorization works on iOS** – Build/deploy the phone app, tap “Request Health Data,” and confirm the HealthKit prompt appears and grants Heart Rate/Workout permissions. Fix entitlements/profiles until Settings reports “Heart Rate: Authorized.”
-   - _Status 2025-11-08_: **Blocked** – provisioning profile still lacks HealthKit; signing refresh + device re-install pending.
+   - _Status 2025-11-10_: **Ready (simulator-verified)** – new entitlements + manual signing allow the watch/iOS pair to grant Workout + Heart Rate permissions. Re-run on hardware during the first field outing.
 2. **Extended-runtime spam disabled** – Gate `WKExtendedRuntimeSession` behind a feature flag so we don’t flood logs with “client not approved” errors.
    - _Status 2025-11-08_: **Done** – new env-flag defaults to disabled; logs clean.
 3. **Session export/logging verified** – The new CSV export & stats must run without errors so Phase 1 can immediately log data.
-   - _Status 2025-11-08_: **Ready** – CSV export tested earlier; re-verify after HealthKit fix.
+   - _Status 2025-11-10_: **Partial** – log tooling exercised (`logs/phase1-smoke.jsonl`), CSV export still needs a fresh sample from current build before field tests begin.
 
 Once those pass, proceed to Phase 0.
 
 ## Phase 0: Pre-Validation Battery Optimizations
 
-_Progress 2025-11-08_: Adaptive motion detection + battery-aware throttling now live in `WatchLocationProvider`, manual tracking modes exposed in Settings, periodic battery heartbeats keep the phone updated while the watch is locked, and a lightweight watch-side `PerformanceMonitor` collects latency/battery-drain stats. Phase 1 hardware runs are next.
+_Progress 2025-11-10_: Adaptive motion detection + battery-aware throttling now live in `WatchLocationProvider`, manual tracking modes exposed in Settings, periodic battery heartbeats keep the phone updated while the watch is locked, a lightweight watch-side `PerformanceMonitor` collects latency/battery-drain stats, and lock state now mirrors to the iPhone UI. Simulator smoke tests (logs, permissions) are complete; CSV export + real hardware metrics remain outstanding before Phase 1 can start.
 
 **Timeline:** 3-5 days
 **Goal:** Maximize battery life with minimal code changes before Phase 1 field testing
