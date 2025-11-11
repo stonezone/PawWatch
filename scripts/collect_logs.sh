@@ -64,12 +64,12 @@ if [[ -n "$duration_min" ]]; then
     echo "--duration expects a numeric value (minutes)" >&2
     exit 1
   fi
-  duration_sec=$(python3 - <<'PY'
+  duration_sec=$(python3 - "$duration_min" <<'PY'
 import sys
 val = float(sys.argv[1])
 print(int(val * 60))
 PY
-"$duration_min")
+)
 fi
 
 timestamp() {

@@ -16,6 +16,7 @@ This document captures the pre-flight tasks required before executing the hardwa
 - [ ] Run `scripts/collect_logs.sh --duration 5 --out logs/validation-smoke.jsonl` while the simulator is producing fixes.
 - [ ] Open the JSONL and ensure each entry contains `subsystem == "com.stonezone.pawwatch"` plus `category` fields (`Battery`, `WCSession`, `Fix`).
 - [ ] Confirm the script exits cleanly with `0` (no lingering `log stream` processes).
+- _Note (2025-11-10)_: `logs/phase1-smoke.jsonl` was captured on simulator to verify the script/predicate wiring after fixing the duration flag bug.
 
 ### 1.3 Lock-State Telemetry
 - [ ] In the watch simulator, start tracking, tap **Lock Tracker**, rotate the crown to unlock, and export iOS logs.
@@ -51,4 +52,3 @@ Upload large artifacts (videos, full logarchives) to the shared drive and note t
 3. Once complete, move to `docs/HARDWARE_VALIDATION.md` and execute Phase 1 per the tables there.
 
 > **Reminder:** push updates to `comprehensive_improvement_plan-VIBED.md` after each major milestone so the GO/NO-GO table reflects the latest field data.
-
