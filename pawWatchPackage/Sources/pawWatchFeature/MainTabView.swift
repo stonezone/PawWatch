@@ -15,6 +15,8 @@ public struct MainTabView: View {
 
     public var body: some View {
         ZStack(alignment: .bottom) {
+            GlassBackground()
+
             TabView(selection: $selectedTab) {
                 NavigationStack {
                     DashboardView(useMetricUnits: useMetricUnits)
@@ -37,69 +39,26 @@ public struct MainTabView: View {
                 Color.clear.frame(height: 65)
             }
             
-            // Custom tab bar
-            HStack(spacing: 0) {
-                TabBarButton(
-                    icon: "house.fill",
-                    title: "Dashboard",
-                    isSelected: selectedTab == .dashboard
-                ) {
-                    withAnimation(.spring(response: 0.3)) {
-                        selectedTab = .dashboard
-                    }
-                }
-                
-                TabBarButton(
-                    icon: "clock.arrow.circlepath",
-                    title: "History",
-                    isSelected: selectedTab == .history
-                ) {
-                    withAnimation(.spring(response: 0.3)) {
-                        selectedTab = .history
-                    }
-                }
-                
-                TabBarButton(
-                    icon: "gearshape.fill",
-                    title: "Settings",
-                    isSelected: selectedTab == .settings
-                ) {
-                    withAnimation(.spring(response: 0.3)) {
-                        selectedTab = .settings
-                    }
+            LiquidGlassTabBar(
+                selection: $selectedTab,
+                items: tabItems
+            ) { tab in
+                withAnimation(.spring(response: 0.3)) {
+                    selectedTab = tab
                 }
             }
-            .padding(.horizontal, 8)
-            .padding(.top, 12)
-            .padding(.bottom, 8)
-            .background(.ultraThinMaterial)
+            .padding(.bottom, 4)
         }
     }
 }
 
-// MARK: - Tab Bar Button
-
-private struct TabBarButton: View {
-    let icon: String
-    let title: String
-    let isSelected: Bool
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: 4) {
-                Image(systemName: icon)
-                    .font(.system(size: 20))
-                    .symbolVariant(isSelected ? .fill : .none)
-                
-                Text(title)
-                    .font(.caption2)
-            }
-            .foregroundStyle(isSelected ? .blue : .secondary)
-            .frame(maxWidth: .infinity)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
+private extension MainTabView {
+    var tabItems: [(icon: String, title: String, tag: Tab)] {
+        [
+            ("house.fill", "Dashboard", .dashboard),
+            ("clock.arrow.circlepath", "History", .history),
+            ("gearshape.fill", "Settings", .settings)
+        ]
     }
 }
 
@@ -112,26 +71,28 @@ struct DashboardView: View {
 
     var body: some View {
         ZStack {
-            LinearGradient(
-                colors: [.blue.opacity(0.1), .purple.opacity(0.05)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
+            GlassBackground()
 
             ScrollView {
                 VStack(spacing: 24) {
-                    PetStatusCard(useMetricUnits: useMetricUnits)
-                        .padding(.top, 8)
+                    GlassCard {
+                        PetStatusCard(useMetricUnits: useMetricUnits)
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 8)
 
-                    PetMapView()
-                        .frame(height: 400)
-                        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-                        .shadow(color: .black.opacity(0.1), radius: 20, x: 0, y: 10)
-                        .padding(.horizontal, 20)
+                    GlassCard {
+                        PetMapView()
+                            .frame(height: 400)
+                            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                    }
+                    .padding(.horizontal, 20)
 
                     if !locationManager.locationHistory.isEmpty {
-                        HistoryCountView(count: locationManager.locationHistory.count)
+                        GlassCard(cornerRadius: 20, padding: 16) {
+                            HistoryCountView(count: locationManager.locationHistory.count)
+                        }
+                        .padding(.horizontal, 20)
                     }
 
                     Spacer(minLength: 40)
@@ -192,11 +153,7 @@ private struct HistoryCountView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-        .background(.ultraThinMaterial)
-        .clipShape(Capsule())
-        .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 4)
+        .padding(.horizontal, 4)
     }
 }
 

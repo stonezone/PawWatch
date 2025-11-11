@@ -156,8 +156,8 @@ struct LiquidGlassTabBar<Selection: Hashable>: View {
 
 private extension Image {
     init?(resource name: String) {
-        if UIImage(named: name, in: .module, compatibleWith: nil) != nil {
-            self.init(name, bundle: .module)
+        if UIImage(named: name, in: Bundle.module, compatibleWith: nil) != nil {
+            self.init(name, bundle: Bundle.module)
         } else if UIImage(named: name) != nil {
             self.init(name)
         } else {

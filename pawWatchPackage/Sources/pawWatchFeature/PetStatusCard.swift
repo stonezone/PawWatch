@@ -84,12 +84,7 @@ public struct PetStatusCard: View {
                 ErrorBanner(message: error)
             }
         }
-        .padding(24)
-        .background(.ultraThinMaterial) // Liquid Glass frosted background
-        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .shadow(color: .black.opacity(0.1), radius: 20, x: 0, y: 10) // Depth layer
-        .padding(.horizontal, 20)
-        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: locationManager.latestLocation) // Liquid animation
+        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: locationManager.latestLocation)
     }
 }
 
