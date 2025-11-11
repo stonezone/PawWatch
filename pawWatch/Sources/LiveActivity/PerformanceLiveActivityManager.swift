@@ -6,14 +6,22 @@ import pawWatchFeature
 
 enum PerformanceLiveActivityManager {
     private static let logger = Logger(subsystem: "com.stonezone.pawwatch", category: "LiveActivity")
+    private static let highDrainThreshold: Double = 5.0
 
     static func syncLiveActivity(with snapshot: PerformanceSnapshot) {
         guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
+        let alert: PawActivityAttributes.AlertState? = {
+            if snapshot.reachable == false { return .unreachable }
+            if snapshot.batteryDrainPerHour >= highDrainThreshold { return .highDrain }
+            return nil
+        }()
+
         let contentState = PawActivityAttributes.ContentState(
             latencyMs: snapshot.latencyMs,
             batteryDrainPerHour: snapshot.batteryDrainPerHour,
             reachable: snapshot.reachable,
-            timestamp: snapshot.timestamp
+            timestamp: snapshot.timestamp,
+            alert: alert
         )
 
         Task {

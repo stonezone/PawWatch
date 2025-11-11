@@ -23,7 +23,11 @@ struct PawLiveActivityWidget: Widget {
                 }
                 DynamicIslandExpandedRegion(.bottom) {
                     HStack(spacing: 12) {
-                        ReachabilityLabel(reachable: context.state.reachable)
+                        if let alert = context.state.alert {
+                            AlertBadge(alert: alert)
+                        } else {
+                            ReachabilityLabel(reachable: context.state.reachable)
+                        }
                         Spacer(minLength: 0)
                         LiveActivityActions()
                     }
@@ -32,9 +36,17 @@ struct PawLiveActivityWidget: Widget {
                 Text("\(min(999, context.state.latencyMs))")
                     .monospacedDigit()
             } compactTrailing: {
-                Image(systemName: context.state.reachable ? "antenna.radiowaves.left.and.right" : "wifi.exclamationmark")
+                if let alert = context.state.alert {
+                    Image(systemName: alert == .unreachable ? "wifi.exclamationmark" : "bolt.fill")
+                } else {
+                    Image(systemName: context.state.reachable ? "antenna.radiowaves.left.and.right" : "wifi.exclamationmark")
+                }
             } minimal: {
-                Image(systemName: context.state.reachable ? "checkmark.circle" : "xmark.circle")
+                if let alert = context.state.alert {
+                    Image(systemName: alert == .unreachable ? "wifi.exclamationmark" : "bolt.fill")
+                } else {
+                    Image(systemName: context.state.reachable ? "checkmark.circle" : "xmark.circle")
+                }
             }
         }
     }
@@ -47,8 +59,12 @@ private struct LiveActivityLockView: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            ReachabilityLabel(reachable: state.reachable)
-                .font(.headline)
+            if let alert = state.alert {
+                AlertBadge(alert: alert)
+            } else {
+                ReachabilityLabel(reachable: state.reachable)
+                    .font(.headline)
+            }
 
             VStack(alignment: .leading, spacing: 4) {
                 MetricLabel(title: "Latency", value: "\(state.latencyMs) ms")
@@ -113,12 +129,49 @@ private struct ReachabilityLabel: View {
     }
 }
 
+private struct AlertBadge: View {
+    let alert: PawActivityAttributes.AlertState
+
+    var body: some View {
+        switch alert {
+        case .unreachable:
+            Label("Offline", systemImage: "wifi.exclamationmark")
+                .font(.caption)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.red.opacity(0.15), in: Capsule())
+                .foregroundStyle(.red)
+        case .highDrain:
+            Label("High Drain", systemImage: "bolt.fill")
+                .font(.caption)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.orange.opacity(0.15), in: Capsule())
+                .foregroundStyle(.orange)
+        }
+    }
+}
+
 // MARK: - Preview
 #if DEBUG
 @available(iOS 18.0, *)
 #Preview("Lock Screen") {
     LiveActivityLockView(
         state: .init(latencyMs: 137, batteryDrainPerHour: 2.6, reachable: true)
+    )
+}
+
+@available(iOS 18.0, *)
+#Preview("Lock Screen — High Drain") {
+    LiveActivityLockView(
+        state: .init(latencyMs: 95, batteryDrainPerHour: 5.4, reachable: true, alert: .highDrain)
+    )
+}
+
+@available(iOS 18.0, *)
+#Preview("Lock Screen — Offline") {
+    LiveActivityLockView(
+        state: .init(latencyMs: 0, batteryDrainPerHour: 1.1, reachable: false, alert: .unreachable)
     )
 }
 #endif

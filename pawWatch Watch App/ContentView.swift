@@ -9,6 +9,7 @@
 //
 
 import SwiftUI
+import Observation
 import WatchKit
 @preconcurrency import WatchConnectivity
 import CoreLocation
@@ -41,6 +42,10 @@ final class WatchLocationManager: WatchLocationProviderDelegate {
 
     /// Latest location fix received from GPS
     var currentFix: LocationFix?
+
+    /// Rolling in-memory history of recent fixes (most recent first)
+    var recentFixes: [LocationFix] = []
+    private let maxRecentFixesHistory = 12
 
     /// User-friendly status message for display
     var statusMessage: String = "Ready to track"
@@ -181,6 +186,14 @@ final class WatchLocationManager: WatchLocationProviderDelegate {
 
         // Update state with latest fix
         currentFix = fix
+
+        // Refresh history and trim to capacity
+        if recentFixes.first?.sequence != fix.sequence {
+            recentFixes.insert(fix, at: 0)
+            if recentFixes.count > maxRecentFixesHistory {
+                recentFixes.removeLast(recentFixes.count - maxRecentFixesHistory)
+            }
+        }
 
         // Track frequency metrics
         fixCount += 1
@@ -524,6 +537,13 @@ struct ContentView: View {
                     }
                     .buttonStyle(.bordered)
 
+                    NavigationLink {
+                        RadialHistoryGlanceView(manager: locationManager)
+                    } label: {
+                        Label("History", systemImage: "clock.arrow.circlepath")
+                    }
+                    .buttonStyle(.bordered)
+
                     smartStackHint
                 }
                 .padding(.vertical)
@@ -705,6 +725,164 @@ private func batteryIcon(for batteryLevel: Double) -> String {
         default:
             return "battery.0"
         }
+    }
+}
+
+// MARK: - Glass Helpers
+
+// MARK: - Radial History Glance
+
+private struct RadialHistoryGlanceView: View {
+    @Bindable var manager: WatchLocationManager
+    private let maxItems = 8
+
+    var body: some View {
+        List {
+            if manager.recentFixes.isEmpty {
+                RadialHistoryEmptyState()
+                    .listRowBackground(Color.clear)
+            } else {
+                ForEach(manager.recentFixes.prefix(maxItems), id: \.sequence) { fix in
+                    GlassPill {
+                        RadialFixRow(fix: fix)
+                    }
+                    .listRowInsets(EdgeInsets(top: 2, leading: 6, bottom: 2, trailing: 6))
+                }
+            }
+        }
+        .listStyle(.carousel)
+        .navigationTitle("History")
+        .navigationBarTitleDisplayMode(.inline)
+        .background(WatchGlassBackground())
+    }
+}
+
+private struct RadialHistoryEmptyState: View {
+    var body: some View {
+        VStack(spacing: 8) {
+            Image(systemName: "location.slash")
+                .font(.title2)
+                .foregroundStyle(.secondary)
+            Text("No recent fixes")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Text("Start tracking to populate the glance.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .center)
+        .padding(.vertical, 32)
+    }
+}
+
+private struct RadialFixRow: View {
+    let fix: LocationFix
+    private let maxAge: TimeInterval = 15 * 60
+
+    var body: some View {
+        HStack(spacing: 10) {
+            RadialRing(
+                progress: progress(for: fix.timestamp),
+                color: accuracyColor(for: fix.horizontalAccuracyMeters),
+                size: 30,
+                lineWidth: 4
+            ) {
+                Text(timeAgoShort(since: fix.timestamp))
+                    .font(.system(size: 9, weight: .semibold, design: .rounded))
+                    .monospacedDigit()
+                    .minimumScaleFactor(0.7)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(timeAgoLong(since: fix.timestamp))
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .monospacedDigit()
+
+                    HStack(spacing: 2) {
+                        Image(systemName: batteryIcon(for: fix.batteryFraction))
+                            .font(.caption2)
+                        Text("\(Int((fix.batteryFraction * 100).rounded()))%")
+                            .font(.caption2)
+                            .monospacedDigit()
+                    }
+                    .foregroundStyle(.secondary)
+                }
+
+                Text("±\(fix.horizontalAccuracyMeters, specifier: "%.0f") m")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    // MARK: - Helpers
+
+    private func progress(for timestamp: Date) -> CGFloat {
+        let age = max(0, Date().timeIntervalSince(timestamp))
+        let clamped = max(0.2, 1 - age / maxAge)
+        return CGFloat(min(1, clamped))
+    }
+
+    private func timeAgoShort(since date: Date) -> String {
+        let seconds = max(0, Int(Date().timeIntervalSince(date)))
+        if seconds < 60 { return "\(seconds)s" }
+        let minutes = seconds / 60
+        if minutes < 60 { return "\(minutes)m" }
+        return "\(minutes / 60)h"
+    }
+
+    private func timeAgoLong(since date: Date) -> String {
+        let seconds = max(0, Int(Date().timeIntervalSince(date)))
+        if seconds < 60 { return "\(seconds)s ago" }
+        let minutes = seconds / 60
+        if minutes < 60 { return "\(minutes)m ago" }
+        return "\(minutes / 60)h ago"
+    }
+
+    private func accuracyColor(for accuracy: Double) -> Color {
+        switch accuracy {
+        case 0..<10: return .green
+        case 10..<25: return .yellow
+        default: return .orange
+        }
+    }
+
+    private func batteryIcon(for batteryLevel: Double) -> String {
+        let percentage = batteryLevel * 100
+        switch percentage {
+        case 75...100: return "battery.100"
+        case 50..<75: return "battery.75"
+        case 25..<50: return "battery.50"
+        case 10..<25: return "battery.25"
+        default: return "battery.0"
+        }
+    }
+}
+
+private struct RadialRing<Content: View>: View {
+    let progress: CGFloat
+    let color: Color
+    let size: CGFloat
+    let lineWidth: CGFloat
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .stroke(Color.white.opacity(0.15), lineWidth: lineWidth)
+
+            Circle()
+                .trim(from: 0, to: progress)
+                .stroke(color, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+
+            content
+        }
+        .frame(width: size, height: size)
     }
 }
 
