@@ -229,10 +229,15 @@ public protocol WatchLocationProviderDelegate: AnyObject, Sendable {
 
     /// Called when the paired iPhone requests the watch to stop tracking.
     func didReceiveRemoteStop()
+
+    /// Called whenever WatchConnectivity reachability changes.
+    /// - Parameter isReachable: True when the paired iPhone is reachable for interactive messaging.
+    func didUpdateReachability(_ isReachable: Bool)
 }
 
 public extension WatchLocationProviderDelegate {
     func didReceiveRemoteStop() {}
+    func didUpdateReachability(_ isReachable: Bool) {}
 }
 
 // MARK: - Main Provider Class
@@ -981,6 +986,9 @@ extension WatchLocationProvider: WCSessionDelegate {
     /// - Parameter session: The WatchConnectivity session
     nonisolated public func sessionReachabilityDidChange(_ session: WCSession) {
         ConnectivityLog.verbose("Reachability changed → reachable: \(session.isReachable)")
+        Task { @MainActor [weak self] in
+            self?.delegate?.didUpdateReachability(session.isReachable)
+        }
     }
     
     nonisolated private func handleIncomingMessage(_ message: [String: Any]) -> [String: Any] {

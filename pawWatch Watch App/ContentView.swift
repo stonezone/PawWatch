@@ -281,6 +281,11 @@ final class WatchLocationManager: WatchLocationProviderDelegate {
         statusMessage = "Tracking stopped remotely"
     }
 
+    func didUpdateReachability(_ isReachable: Bool) {
+        isPhoneReachable = isReachable
+        updateConnectionStatus()
+    }
+
     // MARK: - Private Methods
 
     /// Updates connection status display based on WCSession state.
@@ -322,6 +327,12 @@ final class WatchLocationManager: WatchLocationProviderDelegate {
             connectionStatus = activationState
         }
 
+        if !session.isCompanionAppInstalled {
+            statusMessage = "Install or launch pawWatch on iPhone"
+        } else if isTracking, !session.isReachable, currentFix == nil {
+            statusMessage = "Waiting for iPhone to connect…"
+        }
+
         refreshPerformanceSnapshot()
     }
 }
@@ -347,10 +358,13 @@ struct ContentView: View {
     /// Location manager handling GPS tracking and phone relay
     @State private var locationManager = WatchLocationManager()
     @AppStorage("watchBatteryOptimizationsEnabled") private var batteryOptimizationsEnabled = true
+    @AppStorage("watchAutoLockEnabled") private var autoLockEnabled = true
     @State private var isTrackerLocked = false
     @State private var crownRotation: Double = 0
     @State private var crownRotationAccumulator: Double = 0
     @State private var lockEngagedAt: Date?
+    @State private var showSettings = false
+    @FocusState private var lockOverlayFocused: Bool
 
     private let unlockRotationThreshold = 1.75  // roughly one and a half turns
 
@@ -370,6 +384,7 @@ struct ContentView: View {
         .animation(.easeInOut(duration: 0.2), value: isTrackerLocked)
         .onAppear {
             locationManager.setBatteryOptimizationsEnabled(batteryOptimizationsEnabled)
+            locationManager.updateConnectionStatus()
         }
         .onChange(of: batteryOptimizationsEnabled) { _, newValue in
             locationManager.setBatteryOptimizationsEnabled(newValue)
@@ -377,6 +392,15 @@ struct ContentView: View {
         .onChange(of: locationManager.isTracking) { _, newValue in
             if !newValue {
                 disengageLock()
+            }
+        }
+        .onChange(of: isTrackerLocked) { _, locked in
+            if locked {
+                resetCrownTracking()
+                lockOverlayFocused = true
+            } else {
+                lockOverlayFocused = false
+                resetCrownTracking()
             }
         }
     }
@@ -539,7 +563,10 @@ struct ContentView: View {
                     }
 
                     NavigationLink {
-                        WatchSettingsView(optimizationsEnabled: $batteryOptimizationsEnabled)
+                        WatchSettingsView(
+                            optimizationsEnabled: $batteryOptimizationsEnabled,
+                            autoLockEnabled: $autoLockEnabled
+                        )
                     } label: {
                         Label("Settings", systemImage: "gearshape")
                     }
@@ -556,13 +583,6 @@ struct ContentView: View {
             }
             .navigationTitle("Pet Tracker")
             .navigationBarTitleDisplayMode(.inline)
-            .task {
-                // Poll WatchConnectivity status periodically
-                while !Task.isCancelled {
-                    locationManager.updateConnectionStatus()
-                    try? await Task.sleep(for: .seconds(2))
-                }
-            }
         }
         .background(WatchGlassBackground())
     }
@@ -652,11 +672,13 @@ struct ContentView: View {
             disengageLock()
         } else {
             locationManager.startTracking()
-            // Auto-engage lock mode when tracking starts (like water lock)
-            Task {
-                try? await Task.sleep(for: .milliseconds(500))
-                await MainActor.run {
-                    engageLockMode()
+            // Auto-engage lock mode when tracking starts (like water lock) if enabled
+            if autoLockEnabled {
+                Task {
+                    try? await Task.sleep(for: .milliseconds(500))
+                    await MainActor.run {
+                        engageLockMode()
+                    }
                 }
             }
         }
@@ -1036,6 +1058,8 @@ private extension ContentView {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         .padding()
+        .focusable(true)
+        .focused($lockOverlayFocused)
         .digitalCrownRotation(
             $crownRotation,
             from: -10,
@@ -1045,14 +1069,22 @@ private extension ContentView {
             isContinuous: true,
             isHapticFeedbackEnabled: true
         )
-        .focusable(true)
         .onChange(of: crownRotation) { oldValue, newValue in
+            guard isTrackerLocked else { return }
             let delta = newValue - oldValue
             crownRotationAccumulator += delta
 
             if abs(crownRotationAccumulator) >= unlockRotationThreshold {
                 disengageLock()
             }
+        }
+        .onAppear {
+            resetCrownTracking()
+            lockOverlayFocused = true
+        }
+        .onDisappear {
+            lockOverlayFocused = false
+            resetCrownTracking()
         }
     }
 
@@ -1064,6 +1096,11 @@ private extension ContentView {
         let minutes = Int(elapsed) / 60
         let seconds = Int(elapsed) % 60
         return String(format: "%dm %02ds", minutes, seconds)
+    }
+
+    func resetCrownTracking() {
+        crownRotation = 0
+        crownRotationAccumulator = 0
     }
 }
 
@@ -1077,12 +1114,20 @@ private extension ContentView {
 
 private struct WatchSettingsView: View {
     @Binding var optimizationsEnabled: Bool
+    @Binding var autoLockEnabled: Bool
 
     var body: some View {
         List {
             Section("Battery") {
                 Toggle("Runtime Guard & Smart Polling", isOn: $optimizationsEnabled)
                 Text("Keeps the workout alive with WKExtendedRuntimeSession and slows GPS when stationary or low battery.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("Water Lock") {
+                Toggle("Auto-Lock on Start", isOn: $autoLockEnabled)
+                Text("Automatically locks the tracker when you start tracking. Rotate the Digital Crown to unlock.")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
