@@ -6,7 +6,7 @@ public struct PerformanceSnapshot: Codable, Equatable, Sendable {
     public var reachable: Bool
     public var timestamp: Date
 
-    public init(latencyMs: Int, batteryDrainPerHour: Double, reachable: Bool, timestamp: Date = .now) {
+    public init(latencyMs: Int, batteryDrainPerHour: Double, reachable: Bool, timestamp: Date = Date()) {
         self.latencyMs = latencyMs
         self.batteryDrainPerHour = batteryDrainPerHour
         self.reachable = reachable

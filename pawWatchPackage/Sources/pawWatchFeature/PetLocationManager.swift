@@ -111,6 +111,12 @@ public final class PetLocationManager: NSObject, ObservableObject {
     // MARK: - Constants
 
     private let maxHistoryCount = 100 // Trail history limit
+    private let recentSequenceCapacity = 512
+    private let maxHorizontalAccuracyMeters: Double = 75
+    private let maxFixStaleness: TimeInterval = 120
+    private let maxJumpDistanceMeters: Double = 5000
+    private var recentSequenceSet: Set<Int> = []
+    private var recentSequenceOrder: [Int] = []
 
     // MARK: - Dependencies
 
@@ -428,24 +434,90 @@ public final class PetLocationManager: NSObject, ObservableObject {
 
     /// Process incoming LocationFix and update state.
     private func handleLocationFix(_ locationFix: LocationFix) {
-        // Update latest location
-        latestLocation = locationFix
+        guard shouldAccept(locationFix) else { return }
+
+        recordSequence(locationFix.sequence)
+
+        if let current = latestLocation {
+            if locationFix.timestamp >= current.timestamp {
+                latestLocation = locationFix
+            }
+        } else {
+            latestLocation = locationFix
+        }
+
         lastUpdateTime = Date()
         errorMessage = nil
         watchBatteryFraction = locationFix.batteryFraction
         logger.debug("Received fix accuracy=\(locationFix.horizontalAccuracyMeters, privacy: .public)")
         signposter.emitEvent("FixReceived")
 
-        // Add to history (newest first)
-        locationHistory.insert(locationFix, at: 0)
-
-        // Trim history to last 100 fixes
-        if locationHistory.count > maxHistoryCount {
-            locationHistory = Array(locationHistory.prefix(maxHistoryCount))
-        }
-
+        insertIntoHistory(locationFix)
         appendSessionSample(locationFix)
         persistPerformanceSnapshot(from: locationFix)
+    }
+
+    private func shouldAccept(_ fix: LocationFix) -> Bool {
+        if recentSequenceSet.contains(fix.sequence) {
+            logger.debug("Dropping duplicate fix seq=\(fix.sequence)")
+            return false
+        }
+
+        let staleness = Date().timeIntervalSince(fix.timestamp)
+        if staleness > maxFixStaleness {
+            logger.info("Dropping stale fix (age=\(staleness)s)")
+            return false
+        }
+
+        if fix.horizontalAccuracyMeters > maxHorizontalAccuracyMeters {
+            logger.info("Dropping low-quality fix accuracy=\(fix.horizontalAccuracyMeters)")
+            return false
+        }
+
+        if let current = latestLocation {
+            // Only guard against wild jumps when timestamps are close.
+            let deltaTime = abs(fix.timestamp.timeIntervalSince(current.timestamp))
+            if deltaTime < 5 {
+                let jump = distanceBetween(current.coordinate, fix.coordinate)
+                if jump > maxJumpDistanceMeters {
+                    logger.info("Dropping implausible jump distance=\(jump)")
+                    return false
+                }
+            }
+        }
+
+        return true
+    }
+
+    private func recordSequence(_ sequence: Int) {
+        recentSequenceSet.insert(sequence)
+        recentSequenceOrder.append(sequence)
+        if recentSequenceOrder.count > recentSequenceCapacity {
+            if let removed = recentSequenceOrder.first {
+                recentSequenceOrder.removeFirst()
+                recentSequenceSet.remove(removed)
+            }
+        }
+    }
+
+    private func insertIntoHistory(_ fix: LocationFix) {
+        if locationHistory.isEmpty {
+            locationHistory = [fix]
+        } else if let index = locationHistory.firstIndex(where: { fix.timestamp > $0.timestamp }) {
+            locationHistory.insert(fix, at: index)
+        } else {
+            locationHistory.append(fix)
+        }
+
+        if locationHistory.count > maxHistoryCount {
+            locationHistory.removeLast(locationHistory.count - maxHistoryCount)
+        }
+    }
+
+    private func distanceBetween(_ lhs: LocationFix.Coordinate, _ rhs: LocationFix.Coordinate) -> Double {
+        let lhsLocation = CLLocation(latitude: lhs.latitude, longitude: lhs.longitude)
+        let rhsLocation = CLLocation(latitude: rhs.latitude, longitude: rhs.longitude)
+        return lhsLocation.distance(from: rhsLocation)
     }
 
     private func persistPerformanceSnapshot(from fix: LocationFix) {
@@ -482,6 +554,10 @@ public final class PetLocationManager: NSObject, ObservableObject {
         do {
             return try JSONDecoder().decode(LocationFix.self, from: data)
         } catch {
+            Task { @MainActor in
+                self.logger.error("Failed to decode LocationFix: \(error.localizedDescription, privacy: .public)")
+                self.signposter.emitEvent("FixDecodeError")
+            }
             return nil
         }
     }
