@@ -16,6 +16,7 @@
 		519FB2FDB97DAB928DFD0C8A /* style_and_conventions.md in Resources */ = {isa = PBXBuildFile; fileRef = 2EDC339950DF80E706265150 /* style_and_conventions.md */; };
 		52A406F92B56ACB6FD99F5E2 /* task_completion.md in Resources */ = {isa = PBXBuildFile; fileRef = E87868A8D5E1BC41DA20C38F /* task_completion.md */; };
 		55326249AA0D4F3CA6C7E836 /* PerformanceLiveActivityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D48AC02AC75EC0355F15551 /* PerformanceLiveActivityManager.swift */; };
+		3B4CC0D304FD44A6981B17D4 /* PhoneWatchConnectivityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 516B6FFB3B194EDB840E506B /* PhoneWatchConnectivityManager.swift */; };
 		5B7EA2421D64EF5B3BEE3B56 /* suggested_commands.md in Resources */ = {isa = PBXBuildFile; fileRef = 6937F500D1D896D66786F15A /* suggested_commands.md */; };
 		6A4889B958D5A146E4F8E308 /* pawWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 332C74C6C210BDC7E42FAB0B /* pawWatchApp.swift */; };
 		6D2CA5734974CC4CA01C8619 /* PawLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 014F16C4F88894AC98C61654 /* PawLiveActivity.swift */; };
@@ -25,6 +26,7 @@
 		6F425FF4E0BD3D78DF26C474 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 33AC2CD8AB3941DC48825948 /* Assets.xcassets */; };
 		7385D047883112C11BCEDD04 /* pawWatchFeature in Frameworks */ = {isa = PBXBuildFile; productRef = DA824215671097EEE51B44E5 /* pawWatchFeature */; };
 		7F122106E1C332C47E8721B7 /* ExtensionDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72D32CBFD23A6EE421063CBD /* ExtensionDelegate.swift */; };
+		8E9D6640E4F7B46C8F0E8361 /* PushTokenUploader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DF5C1B2A4E04E45A9F7667C /* PushTokenUploader.swift */; };
 		9BCB3457324E1118D1106880 /* pawWatchWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 741879409AD8DD4128B4DCC0 /* pawWatchWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		9E1123F0DFDBDE291D23E1AE /* project.yml in Resources */ = {isa = PBXBuildFile; fileRef = 45EFDDC895399F71255F9661 /* project.yml */; };
 		BFE171C459CD5760E7997CEE /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31CF20CA899DE2D203ABA5E0 /* ContentView.swift */; };
@@ -32,6 +34,20 @@
 		DE45C7EAE189D600449FB456 /* PerformanceMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0CA573AE81E9A7B705BD61F /* PerformanceMonitor.swift */; };
 		E575984C7A181CFECE73E9C1 /* pawWatchFeature in Frameworks */ = {isa = PBXBuildFile; productRef = D1DEC52533FBF1BEBDC06C9C /* pawWatchFeature */; };
 		EBD92BF7E3C90D2ED912EE97 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 6AAB458652C595976E7FA680 /* Assets.xcassets */; };
+		E5B0A00128D55F7DB6F5752E /* default.csv in Resources */ = {isa = PBXBuildFile; fileRef = E5A97F1A28D55F7CB6F5752E /* default.csv */; };
+		E5B0A00228D55F7DB6F5752E /* default.csv in Watch Resources */ = {isa = PBXBuildFile; fileRef = E5A97F1A28D55F7CB6F5752E /* default.csv */; };
+		E5B0A00328D55F7DB6F5752E /* default@2.6x.styl in Resources */ = {isa = PBXBuildFile; fileRef = E5A97F1B28D55F7CB6F5752E /* default@2.6x.styl */; };
+		E5B0A00428D55F7DB6F5752E /* default@2.6x.styl in Watch Resources */ = {isa = PBXBuildFile; fileRef = E5A97F1B28D55F7CB6F5752E /* default@2.6x.styl */; };
+		E5B0A00528D55F7DB6F5752E /* default@3.4x.styl in Resources */ = {isa = PBXBuildFile; fileRef = E5A97F1C28D55F7CB6F5752E /* default@3.4x.styl */; };
+		E5B0A00628D55F7DB6F5752E /* default@3.4x.styl in Watch Resources */ = {isa = PBXBuildFile; fileRef = E5A97F1C28D55F7CB6F5752E /* default@3.4x.styl */; };
+		E5B0A00728D55F7DB6F5752E /* default@4x.styl in Resources */ = {isa = PBXBuildFile; fileRef = E5A97F1D28D55F7CB6F5752E /* default@4x.styl */; };
+		E5B0A00828D55F7DB6F5752E /* default@4x.styl in Watch Resources */ = {isa = PBXBuildFile; fileRef = E5A97F1D28D55F7CB6F5752E /* default@4x.styl */; };
+		E5B0A00928D55F7DB6F5752E /* scene@2.6x.styl in Resources */ = {isa = PBXBuildFile; fileRef = E5A97F1E28D55F7CB6F5752E /* scene@2.6x.styl */; };
+		E5B0A00A28D55F7DB6F5752E /* scene@2.6x.styl in Watch Resources */ = {isa = PBXBuildFile; fileRef = E5A97F1E28D55F7CB6F5752E /* scene@2.6x.styl */; };
+		E5B0A00B28D55F7DB6F5752E /* scene@3.4x.styl in Resources */ = {isa = PBXBuildFile; fileRef = E5A97F1F28D55F7CB6F5752E /* scene@3.4x.styl */; };
+		E5B0A00C28D55F7DB6F5752E /* scene@3.4x.styl in Watch Resources */ = {isa = PBXBuildFile; fileRef = E5A97F1F28D55F7CB6F5752E /* scene@3.4x.styl */; };
+		E5B0A00D28D55F7DB6F5752E /* scene@4x.styl in Resources */ = {isa = PBXBuildFile; fileRef = E5A97F2028D55F7CB6F5752E /* scene@4x.styl */; };
+		E5B0A00E28D55F7DB6F5752E /* scene@4x.styl in Watch Resources */ = {isa = PBXBuildFile; fileRef = E5A97F2028D55F7CB6F5752E /* scene@4x.styl */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -78,11 +94,12 @@
 
 /* Begin PBXFileReference section */
 		014F16C4F88894AC98C61654 /* PawLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PawLiveActivity.swift; sourceTree = "<group>"; };
+		0DF5C1B2A4E04E45A9F7667C /* PushTokenUploader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushTokenUploader.swift; sourceTree = "<group>"; };
 		1185FDEB3EB169CEC8F81EAD /* PawWatchWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PawWatchWidget.swift; sourceTree = "<group>"; };
 		13F3BD75DEBE9DF7A1968141 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		19B7DB6CD8E04C1D8500CD39 /* WatchLocationProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchLocationProvider.swift; sourceTree = "<group>"; };
 		1DF64214C85F44163C41C191 /* tech_stack.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = tech_stack.md; sourceTree = "<group>"; };
-		24A9551A73A98AE2FB4AA8C3 /* pawWatch.xctestplan */ = {isa = PBXFileReference; path = pawWatch.xctestplan; sourceTree = "<group>"; };
+		24A9551A73A98AE2FB4AA8C3 /* pawWatch.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = pawWatch.xctestplan; sourceTree = "<group>"; };
 		2A7EA5BE218F55937A8E50D8 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		2EDC339950DF80E706265150 /* style_and_conventions.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = style_and_conventions.md; sourceTree = "<group>"; };
 		31CF20CA899DE2D203ABA5E0 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -90,6 +107,14 @@
 		33AC2CD8AB3941DC48825948 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		45EFDDC895399F71255F9661 /* project.yml */ = {isa = PBXFileReference; lastKnownFileType = text.yaml; path = project.yml; sourceTree = "<group>"; };
 		4D48AC02AC75EC0355F15551 /* PerformanceLiveActivityManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformanceLiveActivityManager.swift; sourceTree = "<group>"; };
+		E5A97F1A28D55F7CB6F5752E /* default.csv */ = {isa = PBXFileReference; lastKnownFileType = text; name = default.csv; path = "pawWatchPackage/Sources/pawWatchFeature/Resources/default.csv"; sourceTree = SOURCE_ROOT; };
+		E5A97F1B28D55F7CB6F5752E /* default@2.6x.styl */ = {isa = PBXFileReference; lastKnownFileType = text; name = "default@2.6x.styl"; path = "pawWatchPackage/Sources/pawWatchFeature/Resources/default@2.6x.styl"; sourceTree = SOURCE_ROOT; };
+		E5A97F1C28D55F7CB6F5752E /* default@3.4x.styl */ = {isa = PBXFileReference; lastKnownFileType = text; name = "default@3.4x.styl"; path = "pawWatchPackage/Sources/pawWatchFeature/Resources/default@3.4x.styl"; sourceTree = SOURCE_ROOT; };
+		E5A97F1D28D55F7CB6F5752E /* default@4x.styl */ = {isa = PBXFileReference; lastKnownFileType = text; name = "default@4x.styl"; path = "pawWatchPackage/Sources/pawWatchFeature/Resources/default@4x.styl"; sourceTree = SOURCE_ROOT; };
+		E5A97F1E28D55F7CB6F5752E /* scene@2.6x.styl */ = {isa = PBXFileReference; lastKnownFileType = text; name = "scene@2.6x.styl"; path = "pawWatchPackage/Sources/pawWatchFeature/Resources/scene@2.6x.styl"; sourceTree = SOURCE_ROOT; };
+		E5A97F1F28D55F7CB6F5752E /* scene@3.4x.styl */ = {isa = PBXFileReference; lastKnownFileType = text; name = "scene@3.4x.styl"; path = "pawWatchPackage/Sources/pawWatchFeature/Resources/scene@3.4x.styl"; sourceTree = SOURCE_ROOT; };
+		E5A97F2028D55F7CB6F5752E /* scene@4x.styl */ = {isa = PBXFileReference; lastKnownFileType = text; name = "scene@4x.styl"; path = "pawWatchPackage/Sources/pawWatchFeature/Resources/scene@4x.styl"; sourceTree = SOURCE_ROOT; };
+		516B6FFB3B194EDB840E506B /* PhoneWatchConnectivityManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneWatchConnectivityManager.swift; sourceTree = "<group>"; };
 		594D3B7268AF24EF28D0EA80 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		5A72CE480CD7EAA5D43AE206 /* pawWatchWatchWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = pawWatchWatchWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		6937F500D1D896D66786F15A /* suggested_commands.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = suggested_commands.md; sourceTree = "<group>"; };
@@ -98,9 +123,9 @@
 		741879409AD8DD4128B4DCC0 /* pawWatchWidgetExtension.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = pawWatchWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		88320EC8A33E9CB718EB307B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		950A0AD89D5233A618F6D2BF /* pawWatch Watch App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "pawWatch Watch App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
-		A516D3F21A55137C5D54F3DF /* pawWatchPackage */ = {isa = PBXFileReference; lastKnownFileType = folder; name = pawWatchPackage; path = pawWatchPackage; sourceTree = SOURCE_ROOT; };
+		A516D3F21A55137C5D54F3DF /* pawWatchPackage */ = {isa = PBXFileReference; lastKnownFileType = folder; path = pawWatchPackage; sourceTree = SOURCE_ROOT; };
 		C17C02071845B52C99D8AFAF /* pawWatchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = pawWatchApp.swift; sourceTree = "<group>"; };
-		D227868C2CFA425FAB450943 /* .gitignore */ = {isa = PBXFileReference; path = .gitignore; sourceTree = "<group>"; };
+		D227868C2CFA425FAB450943 /* .gitignore */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitignore; sourceTree = "<group>"; };
 		D8DF9D5B77E59B7AD1D4407E /* pawWatch.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = pawWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		E61FE777F5FFC112274AF121 /* PawActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PawActivityAttributes.swift; sourceTree = "<group>"; };
 		E87868A8D5E1BC41DA20C38F /* task_completion.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = task_completion.md; sourceTree = "<group>"; };
@@ -178,9 +203,24 @@
 		7252FCDD14CAE1AF69E9DAF6 /* LiveActivity */ = {
 			isa = PBXGroup;
 			children = (
+				0DF5C1B2A4E04E45A9F7667C /* PushTokenUploader.swift */,
 				4D48AC02AC75EC0355F15551 /* PerformanceLiveActivityManager.swift */,
 			);
 			path = LiveActivity;
+			sourceTree = "<group>";
+		};
+		E5A97F2128D55F7CB6F5752E /* LiquidGlass Placeholders */ = {
+			isa = PBXGroup;
+			children = (
+				E5A97F1A28D55F7CB6F5752E /* default.csv */,
+				E5A97F1B28D55F7CB6F5752E /* default@2.6x.styl */,
+				E5A97F1C28D55F7CB6F5752E /* default@3.4x.styl */,
+				E5A97F1D28D55F7CB6F5752E /* default@4x.styl */,
+				E5A97F1E28D55F7CB6F5752E /* scene@2.6x.styl */,
+				E5A97F1F28D55F7CB6F5752E /* scene@3.4x.styl */,
+				E5A97F2028D55F7CB6F5752E /* scene@4x.styl */,
+			);
+			name = "LiquidGlass Placeholders";
 			sourceTree = "<group>";
 		};
 		75B3FE4A8DA07E67838C107C /* pawWatch */ = {
@@ -190,6 +230,7 @@
 				13F3BD75DEBE9DF7A1968141 /* Info.plist */,
 				24A9551A73A98AE2FB4AA8C3 /* pawWatch.xctestplan */,
 				C17C02071845B52C99D8AFAF /* pawWatchApp.swift */,
+				516B6FFB3B194EDB840E506B /* PhoneWatchConnectivityManager.swift */,
 				F25D63EECB592294A5523E16 /* .serena */,
 				8F882A7C36947CE7088E5232 /* Sources */,
 			);
@@ -232,6 +273,7 @@
 				641C8612B8F5395917E56B9D /* pawWatchWatchWidget */,
 				7A20F52F68D77EC305D414FE /* pawWatchWidgetExtension */,
 				E6532C0AB8A77F10F8C60061 /* Products */,
+				E5A97F2128D55F7CB6F5752E /* LiquidGlass Placeholders */,
 			);
 			sourceTree = "<group>";
 		};
@@ -362,10 +404,10 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1630;
 				TargetAttributes = {
-					480178B48EFF87000F1C5AA1 = {
+					73B1D24D6D37160012C57894 = {
 						DevelopmentTeam = 78725QX6PZ;
 					};
-					73B1D24D6D37160012C57894 = {
+					480178B48EFF87000F1C5AA1 = {
 						DevelopmentTeam = 78725QX6PZ;
 					};
 					A28DD1D284D9078E992A8533 = {
@@ -407,6 +449,13 @@
 			buildActionMask = 2147483647;
 			files = (
 				6F425FF4E0BD3D78DF26C474 /* Assets.xcassets in Resources */,
+				E5B0A00228D55F7DB6F5752E /* default.csv in Watch Resources */,
+				E5B0A00428D55F7DB6F5752E /* default@2.6x.styl in Watch Resources */,
+				E5B0A00628D55F7DB6F5752E /* default@3.4x.styl in Watch Resources */,
+				E5B0A00828D55F7DB6F5752E /* default@4x.styl in Watch Resources */,
+				E5B0A00A28D55F7DB6F5752E /* scene@2.6x.styl in Watch Resources */,
+				E5B0A00C28D55F7DB6F5752E /* scene@3.4x.styl in Watch Resources */,
+				E5B0A00E28D55F7DB6F5752E /* scene@4x.styl in Watch Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -421,6 +470,13 @@
 				5B7EA2421D64EF5B3BEE3B56 /* suggested_commands.md in Resources */,
 				52A406F92B56ACB6FD99F5E2 /* task_completion.md in Resources */,
 				1E35A8CA6A62C816927084E9 /* tech_stack.md in Resources */,
+				E5B0A00128D55F7DB6F5752E /* default.csv in Resources */,
+				E5B0A00328D55F7DB6F5752E /* default@2.6x.styl in Resources */,
+				E5B0A00528D55F7DB6F5752E /* default@3.4x.styl in Resources */,
+				E5B0A00728D55F7DB6F5752E /* default@4x.styl in Resources */,
+				E5B0A00928D55F7DB6F5752E /* scene@2.6x.styl in Resources */,
+				E5B0A00B28D55F7DB6F5752E /* scene@3.4x.styl in Resources */,
+				E5B0A00D28D55F7DB6F5752E /* scene@4x.styl in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -439,8 +495,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				8E9D6640E4F7B46C8F0E8361 /* PushTokenUploader.swift in Sources */,
 				2651D2887F844B706C7E173B /* PawActivityAttributes.swift in Sources */,
 				55326249AA0D4F3CA6C7E836 /* PerformanceLiveActivityManager.swift in Sources */,
+				3B4CC0D304FD44A6981B17D4 /* PhoneWatchConnectivityManager.swift in Sources */,
 				0E3589B340742665FCB48483 /* pawWatchApp.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -632,7 +690,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 41;
+				CURRENT_PROJECT_VERSION = 43;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = 78725QX6PZ;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -652,7 +710,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.4;
-				MARKETING_VERSION = 1.0.41;
+				MARKETING_VERSION = 1.0.43;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -698,7 +756,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 41;
+				CURRENT_PROJECT_VERSION = 43;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = 78725QX6PZ;
 				ENABLE_NS_ASSERTIONS = NO;
@@ -712,7 +770,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.4;
-				MARKETING_VERSION = 1.0.41;
+				MARKETING_VERSION = 1.0.43;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -729,11 +787,15 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Config/pawWatch_Watch_App.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
+				DEVELOPMENT_TEAM = 78725QX6PZ;
 				ENABLE_PREVIEWS = YES;
 				INFOPLIST_FILE = "pawWatch Watch App/Info.plist";
 				PRODUCT_BUNDLE_IDENTIFIER = com.stonezone.pawWatch.watchkitapp;
 				PRODUCT_NAME = "pawWatch Watch App";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = watchos;
 				SKIP_INSTALL = NO;
 				SUPPORTS_MACCATALYST = NO;
@@ -749,11 +811,15 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Config/pawWatch_Watch_App.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
+				DEVELOPMENT_TEAM = 78725QX6PZ;
 				ENABLE_PREVIEWS = YES;
 				INFOPLIST_FILE = "pawWatch Watch App/Info.plist";
 				PRODUCT_BUNDLE_IDENTIFIER = com.stonezone.pawWatch.watchkitapp;
 				PRODUCT_NAME = "pawWatch Watch App";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = watchos;
 				SKIP_INSTALL = NO;
 				SUPPORTS_MACCATALYST = NO;
