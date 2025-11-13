@@ -1,37 +1,54 @@
-# pawWatch TODO
+# pawWatch Execution Plan — November 13, 2025
 
-## Current Status (Phase 9 — v1.0.41)
-- iOS→watch stop bridge delivered via WCSession (Live Activity stop action now ends watch tracking)
-- Release-only App Group entitlements wired for iOS app + widget; Debug builds remain entitlement-free
-- Documentation updated (TODO_UI + HANDOFF_STATUS) and Config/version bumped to 1.0.41
-- iOS + watch schemes build cleanly via raw `xcodebuild`
+This plan folds in every open item from `CURRENT_TODO.md` plus the outstanding connectivity/ingestion work we identified earlier. Nothing below removes or diminishes the UI you approved; visual changes will be limited to copy updates that clarify behavior.
 
-## Remaining Phases Before Test Readiness
+## 1. Source integrity & export hygiene
+1. Add a lint script that scans Swift sources for standalone `...` tokens (or any placeholder markers) and fails CI if found.
+2. Verify `LocationFix.swift`, `PetLocationManager.swift`, `WatchLocationProvider.swift`, `MeasurementDisplay.swift`, etc., contain full definitions with no placeholders; restore from git history if needed.
+3. Update the package export helper (`pawWatchFeatureSources.zip`) to always pull from the working tree so reviewers never see truncated files again.
 
-### Phase 10 — Push-Enabled Live Activity Updates
-- Add Release-only APS entitlements for iOS app + widget; keep Debug builds bare
-- Register and store APNs push tokens (App Group storage) and upload to backend
-- Handle push payloads to update `PawActivityAttributes` while the app is suspended
-- Schedule BackgroundTasks for token refresh + data sync; document payload schema
-- Refresh screenshots/test notes:
-  - Lock Screen Live Activity showing remote alert badge
-  - Dynamic Island compact + expanded layout with alert state
-  - Watch radial history view showing live sync status
-  - Include test notes covering APNs delivery (device suspended, watch confirmation)
-- Validation: Release `xcodebuild`, device push tests, watch stop-bridge regression
+## 2. Watch → iPhone ingestion hardening
+1. Introduce sequence-based deduplication in `PetLocationManager` using a small LRU of recent `LocationFix.sequence` values; drop duplicates across all transport paths.
+2. Enforce ordering by timestamp when appending to `locationHistory` (newest-first insert that respects actual capture time, not arrival order).
+3. Add basic quality gating: ignore fixes with horizontal accuracy worse than a configurable threshold or with implausible jumps relative to the previous fix.
+4. Cover the ingestion pipeline with unit tests (duplicates, out-of-order delivery, low-quality fixes) and keep the UI logic unchanged aside from cleaner data.
 
-### Phase 11 — Alert Routing & History Polish
-- Add push-confirmed alert routing (bi-directional acknowledgements between phone/watch)
-- Improve radial history persistence via App Group shared store
-- Expand stop actions with phone↔watch confirmations and UI badges
-- Capture updated documentation assets + QA cases
+## 3. Error observability for fix decoding & connectivity
+1. Replace silent `nil` returns in `decodeLocationFix(from:)` with structured logging + signposts; bubble repeated failures to the user-facing status pill.
+2. When interactive sends or file transfers fail, emit categorized errors (`communicationDegraded`, `phoneUnreachable`) via `WatchLocationProviderDelegate` so the UI can react without guesswork.
+3. Track decode/connectivity error counts in `PerformanceMonitor` for future diagnostics.
 
-### Phase 12 — Pre-Flight Testing & Packaging
-- Run end-to-end device walks (battery, GPS accuracy, connectivity) and log metrics
-- Finalize TestFlight provisioning profiles + CI secrets for push/App Group
-- Compile final screenshots, release notes, and HANDOFF package
-- Tag release (v1.0.42+), archive builds, and prep submission checklist
+## 4. Battery drain metric semantics
+1. In `PerformanceMonitor.recordBattery(level:)` (watch) and `PetLocationManager.persistPerformanceSnapshot` (phone), clamp readings to `[0, 1]` and treat rising battery levels as “no data” rather than negative drain.
+2. Smooth the per-hour estimate with an exponential moving average and expose both the instantaneous and smoothed values so the UI can distinguish “estimating” vs “stable”.
+3. Update any copy/tooltips referencing battery drain to reflect the new semantics (without altering layout/design).
 
-## Tracking
-- Keep `Config/version.json` staged with every code commit (per repo hook)
-- Update `documentation_archive/PawWatch_UI_Package/TODO_UI.md` and `docs/HANDOFF_STATUS.md` after each phase
+## 5. Trail history flexibility
+1. Promote `maxHistoryCount` to a user-configurable (or at least config-driven) value with a sensible ceiling to protect memory.
+2. Persist the chosen limit alongside other watch settings so advanced users can opt into longer trails without needing a rebuild.
+
+## 6. Location permission clarity
+1. Decide (and document) whether phone-side distance tracking is foreground-only. If so, update the status text to state that clearly when the app is backgrounded.
+2. If background distance alerts are desired, add the “Always” authorization path and background mode handling; otherwise, ensure we never imply a capability we don’t support.
+
+## 7. Performance monitoring alignment
+1. Make `PerformanceMonitor` the single abstraction for latency/battery metrics across watch and phone, eliminating the stub implementation and redundant logic inside `PetLocationManager`.
+2. Expose a read-only API for the phone UI to display the same metrics the watch is already tracking.
+
+## 8. Extended runtime configuration
+1. Replace the `PAWWATCH_ENABLE_EXTENDED_RUNTIME` environment flag with a capability check plus a persisted user/config toggle.
+2. Surface the toggle in the developer settings sheet so QA can verify extended runtime without editing schemes.
+
+## 9. Source completeness regression tests
+1. Add a unit test target that instantiates `LocationFix` ↔ `PetLocationManager` using the zipped package to ensure future exports remain compile-ready.
+2. Hook the lint/test steps into CI (and `make surf`) so regressions are caught automatically.
+
+## 10. Documentation & comms
+1. Once the above changes land, refresh `CURRENT_TODO.md` / reviewer notes so external reviewers know placeholders are gone and ingestion is hardened.
+2. Update README/hand-off docs to mention the new history limit setting, battery metric semantics, and extended runtime toggle.
+
+## Execution Notes
+- Version bump with every commit (per repo hook).
+- Keep UI visuals the same; only copy/tooltips/status text may change where explicitly noted.
+- After each major cluster (e.g., ingestion hardening, battery semantics), run `make surf` and capture logs under `logs/` for traceability.
+- When zipping sources for reviewers, attach the output of the new lint job to prove files are complete.
