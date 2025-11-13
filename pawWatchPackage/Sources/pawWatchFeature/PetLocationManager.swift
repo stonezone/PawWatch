@@ -557,6 +557,7 @@ public final class PetLocationManager: NSObject, ObservableObject {
             Task { @MainActor in
                 self.logger.error("Failed to decode LocationFix: \(error.localizedDescription, privacy: .public)")
                 self.signposter.emitEvent("FixDecodeError")
+                self.errorMessage = "Received invalid location data from Apple Watch."
             }
             return nil
         }
@@ -631,6 +632,11 @@ extension PetLocationManager: WCSessionDelegate {
             self.sessionReachabilityFlipCount += 1
             self.recomputeSessionSummary()
             self.persistSnapshotUsingLatestLocation()
+            if !isReachable {
+                self.errorMessage = "Apple Watch unreachable. Latest data may be delayed."
+            } else if self.errorMessage?.contains("unreachable") == true {
+                self.errorMessage = nil
+            }
         }
     }
 

@@ -254,7 +254,18 @@ final class WatchLocationManager: WatchLocationProviderDelegate {
 
         // Convert error to user-friendly message
         let friendlyMessage: String
-        if let clError = error as? CLError {
+        if let connectivity = error as? WatchConnectivityIssue {
+            switch connectivity {
+            case .sessionNotActivated:
+                friendlyMessage = "Waiting for iPhone session to activate…"
+            case .interactiveSendFailed:
+                friendlyMessage = "Live update failed; retrying soon."
+            case .fileEncodingFailed:
+                friendlyMessage = "Unable to queue update; will retry."
+            case .fileTransferFailed:
+                friendlyMessage = "Background transfer failed; retrying." 
+            }
+        } else if let clError = error as? CLError {
             switch clError.code {
             case .denied:
                 friendlyMessage = "Location access denied. Check Settings."

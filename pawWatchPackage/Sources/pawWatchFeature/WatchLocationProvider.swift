@@ -82,6 +82,26 @@ private enum TrackingMode: String {
     }
 }
 
+public enum WatchConnectivityIssue: LocalizedError {
+    case sessionNotActivated
+    case interactiveSendFailed(underlying: Error)
+    case fileEncodingFailed(underlying: Error)
+    case fileTransferFailed(underlying: Error)
+
+    var errorDescription: String? {
+        switch self {
+        case .sessionNotActivated:
+            return "WatchConnectivity session is not active."
+        case .interactiveSendFailed(let error):
+            return "Live update failed: \(error.localizedDescription)"
+        case .fileEncodingFailed(let error):
+            return "Unable to queue background update: \(error.localizedDescription)"
+        case .fileTransferFailed(let error):
+            return "Background transfer failed: \(error.localizedDescription)"
+        }
+    }
+}
+
 private enum ConnectivityLog {
     private static let logger = Logger(subsystem: "com.stonezone.pawwatch", category: "WatchConnectivity")
 #if DEBUG
@@ -600,6 +620,7 @@ public final class WatchLocationProvider: NSObject {
 
         guard wcSession.activationState == .activated else {
             ConnectivityLog.verbose("WCSession not activated; skipping transmit")
+            notifyConnectivityError(.sessionNotActivated)
             return
         }
 
@@ -616,6 +637,7 @@ public final class WatchLocationProvider: NSObject {
                     let payload: [String: Any] = ["latestFix": data]
                     wcSession.sendMessage(payload, replyHandler: nil) { [weak self] error in
                         ConnectivityLog.notice("Interactive send failed: \(error.localizedDescription)")
+                        self?.notifyConnectivityError(.interactiveSendFailed(underlying: error))
                         self?.queueBackgroundTransfer(for: fix)
                     }
                 } catch {
@@ -781,9 +803,13 @@ public final class WatchLocationProvider: NSObject {
             
             ConnectivityLog.verbose("Queued file transfer for seq=\(fix.sequence)")
         } catch {
-            Task { @MainActor in
-                delegate?.didFail(error)
-            }
+            notifyConnectivityError(.fileEncodingFailed(underlying: error))
+        }
+    }
+
+    private func notifyConnectivityError(_ issue: WatchConnectivityIssue) {
+        Task { @MainActor in
+            delegate?.didFail(issue)
         }
     }
 
@@ -1098,6 +1124,7 @@ extension WatchLocationProvider: WCSessionDelegate {
             
             if let error {
                 ConnectivityLog.error("File transfer failed: \(error.localizedDescription). Retrying…")
+                self.notifyConnectivityError(.fileTransferFailed(underlying: error))
                 self.queueBackgroundTransfer(for: record.fix)
             } else {
                 ConnectivityLog.verbose("File transfer completed successfully")
