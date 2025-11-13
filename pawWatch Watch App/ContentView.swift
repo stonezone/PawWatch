@@ -551,8 +551,6 @@ struct ContentView: View {
                         Label("History", systemImage: "clock.arrow.circlepath")
                     }
                     .buttonStyle(.bordered)
-
-                    smartStackHint
                 }
                 .padding(.vertical)
             }
@@ -654,6 +652,13 @@ struct ContentView: View {
             disengageLock()
         } else {
             locationManager.startTracking()
+            // Auto-engage lock mode when tracking starts (like water lock)
+            Task {
+                try? await Task.sleep(for: .milliseconds(500))
+                await MainActor.run {
+                    engageLockMode()
+                }
+            }
         }
     }
 

@@ -3,7 +3,7 @@ import ActivityKit
 import Foundation
 
 public struct PawActivityAttributes: ActivityAttributes {
-    public struct ContentState: Codable, Hashable {
+    public struct ContentState: Codable, Hashable, Sendable {
         public var latencyMs: Int
         public var batteryDrainPerHour: Double
         public var reachable: Bool
@@ -27,7 +27,7 @@ public struct PawActivityAttributes: ActivityAttributes {
 
     public init() { }
 
-    public enum AlertState: String, Codable, Hashable {
+    public enum AlertState: String, Codable, Hashable, Sendable {
         case highDrain
         case unreachable
     }

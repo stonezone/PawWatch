@@ -15,5 +15,9 @@
 	<array>
 		<string>group.com.stonezone.pawWatch</string>
 	</array>
+
+	<!-- Push notifications for Live Activity updates (Release builds only) -->
+	<key>aps-environment</key>
+	<string>development</string>
 </dict>
 </plist>
