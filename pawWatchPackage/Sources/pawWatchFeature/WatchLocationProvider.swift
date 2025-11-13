@@ -689,7 +689,7 @@ public final class WatchLocationProvider: NSObject {
     // MARK: - Lock state broadcast
 
     @MainActor
-    func setTrackerLocked(_ locked: Bool) {
+    public func setTrackerLocked(_ locked: Bool) {
         guard locked != isTrackerLocked else { return }
         isTrackerLocked = locked
         broadcastLockState()

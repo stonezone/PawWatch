@@ -11,7 +11,7 @@ public final class PerformanceMonitor {
     private var pendingMessages: [String: Date] = [:]
     private var lastBatteryLevel: Double = 1.0
     private var lastBatteryTimestamp: Date = Date()
-    private(set) var batteryDrainPerHour: Double = 0
+    public private(set) var batteryDrainPerHour: Double = 0
 
     private init() {
         WKInterfaceDevice.current().isBatteryMonitoringEnabled = true
