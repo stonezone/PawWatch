@@ -2,6 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>com.stonezone.pawWatch.activity-refresh</string>
+	</array>
 	<key>CFBundleDisplayName</key>
 	<string>pawWatch</string>
 	<key>CFBundleExecutable</key>
@@ -10,6 +14,10 @@
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 	<key>CFBundleName</key>
 	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -21,10 +29,6 @@
 			</array>
 		</dict>
 	</array>
-	<key>CFBundlePackageType</key>
-	<string>APPL</string>
-	<key>CFBundleShortVersionString</key>
-	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSApplicationCategoryType</key>
@@ -41,16 +45,32 @@
 	<string>pawWatch needs your location to calculate the distance between you and your pet wearing the Apple Watch.</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
+	<key>PAWWATCH_PUSH_API_KEY</key>
+	<string>$(PAWWATCH_PUSH_API_KEY)</string>
+	<key>PAWWATCH_PUSH_ENDPOINT</key>
+	<string>$(PAWWATCH_PUSH_ENDPOINT)</string>
+	<key>PAWWATCH_PUSH_ENVIRONMENT</key>
+	<string>$(PAWWATCH_PUSH_ENVIRONMENT)</string>
+	<key>PAWWATCH_PUSH_SIGNATURE_KEY</key>
+	<string>$(PAWWATCH_PUSH_SIGNATURE_KEY)</string>
+	<key>PAWWATCH_PUSH_UPLOADS_ENABLED</key>
+	<string>$(PAWWATCH_PUSH_UPLOADS_ENABLED)</string>
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<false/>
+		<key>UISceneConfigurations</key>
+		<dict>
+			<key>UIWindowSceneSessionRoleApplication</key>
+			<array/>
+		</dict>
+	</dict>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>fetch</string>
 		<string>processing</string>
 		<string>location</string>
 		<string>remote-notification</string>
-	</array>
-	<key>BGTaskSchedulerPermittedIdentifiers</key>
-	<array>
-		<string>com.stonezone.pawWatch.activity-refresh</string>
 	</array>
 	<key>UILaunchScreen</key>
 	<dict/>

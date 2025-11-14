@@ -18,7 +18,10 @@ A paired iOS + watchOS experience for real-time pet tracking. The iPhone app ren
 13. [License](#license)
 
 ## Highlights
-- **Live trail visualization** – `PetStatusCard`, `PetMapView`, and MapKit overlays show the latest fix, accuracy, and a 100-point breadcrumb trail.
+- **Live trail visualization** – `PetStatusCard`, `PetMapView`, and MapKit overlays show the latest fix, accuracy, and a user-configurable (50–500) breadcrumb trail persisted in shared defaults.
+- **Battery diagnostics** – `PerformanceMonitor` clamps readings to `[0, 1]`, exposes instantaneous vs EMA-smoothed drain metrics, and updates copy across the dashboard, widgets, and watch pills when values are still “estimating.”
+- **Extended runtime guard** – The watch app auto-detects `WKBackgroundModes` support and mirrors a persisted developer toggle so QA can enable extended runtime without editing schemes or environment variables.
+- **Stationary cadence control** – Developer settings tune idle heartbeats (30–60s) and full-fix bursts (90–300s) so the watch still proves liveness while stretching battery during bench tests.
 - **Watch-powered telemetry** – `WatchLocationProvider` keeps an HKWorkout alive, requests best accuracy GPS, and relays data via context, interactive messages, and file transfers.
 - **SPM-centric codebase** – All production Swift code lives in the `pawWatchFeature` Swift Package, so the app targets remain thin wrappers.
 - **Companion-first install** – The iOS build embeds `pawWatch Watch App.app` so sideloading the phone app automatically deploys the Watch app (ideal when Xcode cannot pair directly with a watch).
@@ -107,8 +110,9 @@ The Swift Package contains everything that is shared between the phone and watch
 |-----------|---------|
 | `ContentView` | Liquid Glass dashboard with pull-to-refresh and toolbar animations. |
 | `PetStatusCard` | Shows latest fix metadata, accuracy, battery, reachability state. |
-| `PetMapView` | MapKit 3D trail renderer (100 breadcrumb limit). |
-| `PetLocationManager` | `@Observable` bridge between WatchConnectivity, CoreLocation, and the UI. |
+| `PetMapView` | MapKit 3D trail renderer honoring the user-configurable 50–500 breadcrumb limit. |
+| `PetLocationManager` | `@Observable` bridge between WatchConnectivity, CoreLocation, and the UI that dedupes/out-of-order filters fixes and enforces the saved trail limit. |
+| `PerformanceMonitor` | Shared metrics engine that clamps battery readings, tracks instantaneous + EMA-smoothed drain, and feeds the dashboard/watch/widgets. |
 | `LocationFix` | Codable payload delivered over WatchConnectivity/file transfers. |
 | `WatchLocationProvider` | watchOS-only manager that starts HKWorkout sessions and pushes fixes upstream. |
 
@@ -116,6 +120,7 @@ Add dependencies by editing `pawWatchPackage/Package.swift`. Resources can be in
 
 ## Apple Watch Companion
 - Lives in `pawWatch Watch App/` and imports `pawWatchFeature` to access `WatchLocationProvider`, models, and shared UI.
+- Extended runtime support is gated by Info.plist `WKBackgroundModes` detection plus a persisted developer toggle surfaced in the QA/dev settings sheet so you can enable/disable the capability without editing schemes.
 - Handles GPS capture, HealthKit workout life cycle, and WatchConnectivity state.
 - Because the iOS target embeds the watch app (`pawWatch.app/Watch/pawWatch Watch App.app`), you can install the phone app via Xcode, Apple Configurator, or TestFlight and the Watch companion follows automatically.
 - When Xcode cannot talk to your physical watch, install the iOS build onto your phone first, then open the Watch app on iOS to finish deployment.

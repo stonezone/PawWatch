@@ -15,9 +15,9 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "F114C28D00A22C7F66E1F7E8"
-               BuildableName = "pawWatch.app"
-               BlueprintName = "pawWatch"
+               BlueprintIdentifier = "73B1D24D6D37160012C57894"
+               BuildableName = "pawWatch Watch App.app"
+               BlueprintName = "pawWatch Watch App"
                ReferencedContainer = "container:pawWatch.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -44,9 +44,9 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "F114C28D00A22C7F66E1F7E8"
-            BuildableName = "pawWatch.app"
-            BlueprintName = "pawWatch"
+            BlueprintIdentifier = "73B1D24D6D37160012C57894"
+            BuildableName = "pawWatch Watch App.app"
+            BlueprintName = "pawWatch Watch App"
             ReferencedContainer = "container:pawWatch.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
@@ -61,9 +61,9 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "F114C28D00A22C7F66E1F7E8"
-            BuildableName = "pawWatch.app"
-            BlueprintName = "pawWatch"
+            BlueprintIdentifier = "73B1D24D6D37160012C57894"
+            BuildableName = "pawWatch Watch App.app"
+            BlueprintName = "pawWatch Watch App"
             ReferencedContainer = "container:pawWatch.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>

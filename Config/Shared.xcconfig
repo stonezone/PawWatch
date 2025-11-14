@@ -24,6 +24,11 @@ TARGETED_DEVICE_FAMILY = 1
 GENERATE_INFOPLIST_FILE = NO
 INFOPLIST_FILE = pawWatch/Info.plist
 INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait
+PAWWATCH_PUSH_ENDPOINT = https://api.pawwatch.app/v1/push/register
+PAWWATCH_PUSH_API_KEY = __UNSET__
+PAWWATCH_PUSH_SIGNATURE_KEY = __UNSET__
+PAWWATCH_PUSH_ENVIRONMENT = __UNSET__
+PAWWATCH_PUSH_UPLOADS_ENABLED = NO
 
 // ==========================================
 // Code Signing

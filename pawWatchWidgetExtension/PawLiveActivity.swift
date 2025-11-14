@@ -19,7 +19,7 @@ struct PawLiveActivityWidget: Widget {
                     MetricLabel(title: "Latency", value: "\(context.state.latencyMs) ms")
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    MetricLabel(title: "Drain", value: String(format: "%.1f%%/h", context.state.batteryDrainPerHour))
+                    MetricLabel(title: "Drain", value: "\(context.state.formattedDrainSummary) %/h")
                 }
                 DynamicIslandExpandedRegion(.bottom) {
                     HStack(spacing: 12) {
@@ -68,7 +68,7 @@ private struct LiveActivityLockView: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 MetricLabel(title: "Latency", value: "\(state.latencyMs) ms")
-                MetricLabel(title: "Drain", value: String(format: "%.1f%% per hr", state.batteryDrainPerHour))
+                MetricLabel(title: "Drain", value: "\(state.formattedDrainSummary) %/h")
             }
             .font(.subheadline)
 
@@ -152,26 +152,34 @@ private struct AlertBadge: View {
     }
 }
 
+private extension PawActivityAttributes.ContentState {
+    var formattedDrainSummary: String {
+        let avg = max(0, batteryDrainPerHour)
+        let instant = max(0, instantBatteryDrainPerHour)
+        return String(format: "avg %.1f · inst %.1f", avg, instant)
+    }
+}
+
 // MARK: - Preview
 #if DEBUG
 @available(iOS 18.0, *)
 #Preview("Lock Screen") {
     LiveActivityLockView(
-        state: .init(latencyMs: 137, batteryDrainPerHour: 2.6, reachable: true)
+        state: .init(latencyMs: 137, batteryDrainPerHour: 2.6, instantBatteryDrainPerHour: 3.1, reachable: true)
     )
 }
 
 @available(iOS 18.0, *)
 #Preview("Lock Screen — High Drain") {
     LiveActivityLockView(
-        state: .init(latencyMs: 95, batteryDrainPerHour: 5.4, reachable: true, alert: .highDrain)
+        state: .init(latencyMs: 95, batteryDrainPerHour: 5.4, instantBatteryDrainPerHour: 8.2, reachable: true, alert: .highDrain)
     )
 }
 
 @available(iOS 18.0, *)
 #Preview("Lock Screen — Offline") {
     LiveActivityLockView(
-        state: .init(latencyMs: 0, batteryDrainPerHour: 1.1, reachable: false, alert: .unreachable)
+        state: .init(latencyMs: 0, batteryDrainPerHour: 1.1, instantBatteryDrainPerHour: 1.3, reachable: false, alert: .unreachable)
     )
 }
 #endif

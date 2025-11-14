@@ -32,19 +32,34 @@ public struct PetStatusCard: View {
     /// Location manager providing pet GPS data
     @EnvironmentObject private var locationManager: PetLocationManager
     let useMetricUnits: Bool
+    private let theme = LiquidGlassTheme.current
 
     // MARK: - Body
 
     public var body: some View {
-        VStack(spacing: 20) {
-            // Header
-            HStack {
-                Image(systemName: "location.fill")
-                    .font(.title2)
-                    .foregroundStyle(.blue.gradient)
+        VStack(spacing: 24) {
+            // Header with enhanced visual hierarchy
+            HStack(alignment: .center) {
+                ZStack {
+                    Circle()
+                        .fill(theme.accentPrimary.opacity(0.15))
+                        .frame(width: 44, height: 44)
 
-                Text("Pet Location")
-                    .font(.title2.bold())
+                    Image(systemName: "location.fill")
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(theme.accentPrimary.gradient)
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Pet Location")
+                        .font(.title3.bold())
+
+                    if let seconds = locationManager.secondsSinceLastUpdate {
+                        Text(timeAgoText(seconds))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
 
                 Spacer()
 
@@ -55,7 +70,7 @@ public struct PetStatusCard: View {
                 )
             }
 
-            // Coordinates
+            // Coordinates with improved layout
             if let location = locationManager.latestLocation {
                 CoordinatesRow(
                     latitude: location.coordinate.latitude,
@@ -65,9 +80,7 @@ public struct PetStatusCard: View {
                 NoDataView()
             }
 
-            Divider()
-
-            // Metadata grid
+            // Enhanced metadata grid
             if let location = locationManager.latestLocation {
                 let batteryValue = locationManager.watchBatteryFraction ?? location.batteryFraction
                 MetadataGrid(
@@ -79,12 +92,42 @@ public struct PetStatusCard: View {
                 )
             }
 
+            ForegroundDistanceNotice(message: locationManager.distanceUsageBlurb)
+
             // Error message
             if let error = locationManager.errorMessage {
                 ErrorBanner(message: error)
             }
         }
-        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: locationManager.latestLocation)
+        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: locationManager.latestLocation)
+    }
+
+    private func timeAgoText(_ seconds: TimeInterval) -> String {
+        if seconds < 60 {
+            return String(format: "%.0fs ago", seconds)
+        } else if seconds < 3600 {
+            return String(format: "%.0fm ago", seconds / 60)
+        } else {
+            return String(format: "%.1fh ago", seconds / 3600)
+        }
+    }
+}
+
+private struct ForegroundDistanceNotice: View {
+    let message: String
+
+    var body: some View {
+        Label {
+            Text(message)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        } icon: {
+            Image(systemName: "iphone.radiowaves.left.and.right")
+                .font(.caption)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
 
@@ -101,13 +144,22 @@ struct ConnectionStatusView: View {
                 .fill(statusColor.gradient)
                 .frame(width: 10, height: 10)
                 .shadow(color: statusColor.opacity(0.6), radius: 4)
+                .overlay(
+                    Circle()
+                        .strokeBorder(statusColor.opacity(0.3), lineWidth: 2)
+                        .blur(radius: 1)
+                )
 
             Text(statusText)
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
         }
-        .animation(.spring(response: 0.3), value: isConnected)
-        .animation(.spring(response: 0.3), value: isReachable)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(statusColor.opacity(0.1))
+        .clipShape(Capsule())
+        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: isConnected)
+        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: isReachable)
     }
 
     private var statusColor: Color {
@@ -125,32 +177,47 @@ struct ConnectionStatusView: View {
 
 // MARK: - Coordinates Row
 
-/// Displays latitude/longitude with copy-to-clipboard functionality.
+/// Displays latitude/longitude with improved visual hierarchy.
 struct CoordinatesRow: View {
     let latitude: Double
     let longitude: Double
 
     var body: some View {
-        HStack(spacing: 16) {
-            VStack(alignment: .leading, spacing: 4) {
+        HStack(spacing: 20) {
+            VStack(alignment: .leading, spacing: 6) {
                 Text("Latitude")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.tertiary)
+                    .textCase(.uppercase)
+                    .tracking(0.5)
+
                 Text(String(format: "%.6f°", latitude))
-                    .font(.system(.body, design: .monospaced).weight(.medium))
+                    .font(.system(.title3, design: .monospaced).weight(.semibold))
+                    .foregroundStyle(.primary)
             }
 
-            Spacer()
+            Divider()
+                .frame(height: 40)
+                .opacity(0.3)
 
-            VStack(alignment: .trailing, spacing: 4) {
+            VStack(alignment: .trailing, spacing: 6) {
                 Text("Longitude")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.tertiary)
+                    .textCase(.uppercase)
+                    .tracking(0.5)
+
                 Text(String(format: "%.6f°", longitude))
-                    .font(.system(.body, design: .monospaced).weight(.medium))
+                    .font(.system(.title3, design: .monospaced).weight(.semibold))
+                    .foregroundStyle(.primary)
             }
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, 16)
+        .padding(.horizontal, 20)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color.primary.opacity(0.03))
+        )
     }
 }
 
@@ -163,6 +230,7 @@ struct NoDataView: View {
             Image(systemName: "antenna.radiowaves.left.and.right.slash")
                 .font(.system(size: 48))
                 .foregroundStyle(.gray.gradient)
+                .symbolEffect(.pulse)
 
             Text("Waiting for GPS data...")
                 .font(.headline)
@@ -173,13 +241,13 @@ struct NoDataView: View {
                 .foregroundStyle(.tertiary)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 24)
+        .padding(.vertical, 32)
     }
 }
 
 // MARK: - Metadata Grid
 
-/// Grid showing accuracy, battery, time, and distance metrics.
+/// Grid showing accuracy, battery, time, and distance metrics with improved layout.
 struct MetadataGrid: View {
     let accuracy: Double
     let battery: Double
@@ -187,22 +255,32 @@ struct MetadataGrid: View {
     let distanceFromOwner: Double?
     let useMetricUnits: Bool
 
+    private let theme = LiquidGlassTheme.current
+
     var body: some View {
-        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
+        LazyVGrid(
+            columns: [
+                GridItem(.flexible(), spacing: 12),
+                GridItem(.flexible(), spacing: 12)
+            ],
+            spacing: 12
+        ) {
             // GPS Accuracy
             MetadataItem(
                 icon: "scope",
                 title: "Accuracy",
                 value: MeasurementDisplay.accuracy(accuracy, useMetric: useMetricUnits),
-                color: accuracyColor
+                color: accuracyColor,
+                isHighlighted: accuracy < 10
             )
 
             // Battery Level
             MetadataItem(
-                icon: "battery.100",
+                icon: batteryIcon,
                 title: "Battery",
                 value: String(format: "%.0f%%", battery * 100),
-                color: batteryColor
+                color: batteryColor,
+                isHighlighted: battery > 0.5
             )
 
             // Time Since Update
@@ -210,7 +288,8 @@ struct MetadataGrid: View {
                 icon: "clock.fill",
                 title: "Updated",
                 value: timeAgoText,
-                color: .blue
+                color: theme.accentPrimary,
+                isHighlighted: false
             )
 
             // Distance from Owner
@@ -218,7 +297,8 @@ struct MetadataGrid: View {
                 icon: "ruler.fill",
                 title: "Distance",
                 value: distanceText,
-                color: .purple
+                color: theme.accentSecondary,
+                isHighlighted: false
             )
         }
     }
@@ -237,6 +317,14 @@ struct MetadataGrid: View {
         if battery > 0.5 { return .green }
         if battery > 0.2 { return .yellow }
         return .red
+    }
+
+    /// Dynamic battery icon based on level
+    private var batteryIcon: String {
+        if battery > 0.75 { return "battery.100" }
+        if battery > 0.5 { return "battery.75" }
+        if battery > 0.25 { return "battery.50" }
+        return "battery.25"
     }
 
     /// Relative time string (e.g., "5s ago", "2m ago")
@@ -261,57 +349,95 @@ struct MetadataGrid: View {
 
 // MARK: - Metadata Item
 
-/// Individual metadata cell with icon, title, and value.
+/// Individual metadata cell with enhanced glass styling.
 struct MetadataItem: View {
     let icon: String
     let title: String
     let value: String
     let color: Color
+    let isHighlighted: Bool
 
     var body: some View {
-        VStack(spacing: 8) {
-            Image(systemName: icon)
-                .font(.title3)
-                .foregroundStyle(color.gradient)
+        VStack(spacing: 10) {
+            // Icon with gradient background
+            ZStack {
+                Circle()
+                    .fill(color.opacity(isHighlighted ? 0.2 : 0.12))
+                    .frame(width: 40, height: 40)
 
-            Text(title)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                Image(systemName: icon)
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(color.gradient)
+            }
 
-            Text(value)
-                .font(.headline)
-                .foregroundStyle(.primary)
+            VStack(spacing: 4) {
+                Text(title)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.tertiary)
+                    .textCase(.uppercase)
+                    .tracking(0.5)
+
+                Text(value)
+                    .font(.callout.weight(.bold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 12)
-        .background(color.opacity(0.1))
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .animation(.spring(response: 0.3), value: value) // Liquid animation on value change
+        .padding(.vertical, 16)
+        .padding(.horizontal, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(color.opacity(isHighlighted ? 0.08 : 0.04))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .strokeBorder(
+                            color.opacity(isHighlighted ? 0.3 : 0.15),
+                            lineWidth: 1
+                        )
+                )
+        )
+        .shadow(
+            color: color.opacity(isHighlighted ? 0.15 : 0.05),
+            radius: 8,
+            x: 0,
+            y: 4
+        )
+        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: value)
     }
 }
 
 // MARK: - Error Banner
 
-/// Error message banner with Liquid Glass effect.
+/// Error message banner with enhanced Liquid Glass effect.
 struct ErrorBanner: View {
     let message: String
 
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: "exclamationmark.triangle.fill")
+                .font(.title3)
                 .foregroundStyle(.orange.gradient)
 
             Text(message)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.primary)
+                .lineLimit(3)
+                .fixedSize(horizontal: false, vertical: true)
 
             Spacer()
         }
-        .padding(12)
-        .background(.orange.opacity(0.1))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .transition(.scale.combined(with: .opacity))
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(.orange.opacity(0.12))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .strokeBorder(.orange.opacity(0.3), lineWidth: 1)
+                )
+        )
+        .transition(.scale(scale: 0.95).combined(with: .opacity))
     }
 }
 #endif

@@ -4,26 +4,30 @@ import Foundation
 import os
 import pawWatchFeature
 
-private struct ActivityPushTokenStream: @unchecked Sendable {
+fileprivate struct ActivityPushTokenStream: @unchecked Sendable {
     let stream: Activity<PawActivityAttributes>.PushTokenUpdates
 }
 
 enum PerformanceLiveActivityManager {
     private static let logger = Logger(subsystem: "com.stonezone.pawwatch", category: "LiveActivity")
-    private static let highDrainThreshold: Double = 5.0
-    @MainActor private static var pushTokenTask: Task<Void, Never>?
+    private static let sustainedDrainThreshold: Double = 5.0
+    private static let instantDrainThreshold: Double = 8.0
 
     static func syncLiveActivity(with snapshot: PerformanceSnapshot) {
         guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
         let alert: PawActivityAttributes.AlertState? = {
             if snapshot.reachable == false { return .unreachable }
-            if snapshot.batteryDrainPerHour >= highDrainThreshold { return .highDrain }
+            if snapshot.batteryDrainPerHour >= sustainedDrainThreshold ||
+                snapshot.instantBatteryDrainPerHour >= instantDrainThreshold {
+                return .highDrain
+            }
             return nil
         }()
 
         let contentState = PawActivityAttributes.ContentState(
             latencyMs: snapshot.latencyMs,
             batteryDrainPerHour: snapshot.batteryDrainPerHour,
+            instantBatteryDrainPerHour: snapshot.instantBatteryDrainPerHour,
             reachable: snapshot.reachable,
             timestamp: snapshot.timestamp,
             alert: alert
@@ -31,7 +35,7 @@ enum PerformanceLiveActivityManager {
 
         Task {
             if let activity = Activity<PawActivityAttributes>.activities.first {
-                observePushTokens(for: activity)
+                await observePushTokens(for: activity)
                 await activity.update(using: contentState)
             } else {
                 do {
@@ -40,7 +44,7 @@ enum PerformanceLiveActivityManager {
                         contentState: contentState,
                         pushType: .token
                     )
-                    observePushTokens(for: activity)
+                    await observePushTokens(for: activity)
                 } catch {
                     logger.error("Failed to start live activity: \(error.localizedDescription, privacy: .public)")
                 }
@@ -50,43 +54,24 @@ enum PerformanceLiveActivityManager {
 
     static func endAllActivities() {
         Task {
-            await MainActor.run {
-                pushTokenTask?.cancel()
-                pushTokenTask = nil
-            }
             for activity in Activity<PawActivityAttributes>.activities {
                 await activity.end(using: activity.contentState, dismissalPolicy: .immediate)
             }
+            await LiveActivityPushCoordinator.shared.stopObservingTokens()
         }
     }
 
     static func applyRemote(contentState: PawActivityAttributes.ContentState) {
         Task {
             guard let activity = Activity<PawActivityAttributes>.activities.first else { return }
-            observePushTokens(for: activity)
+            await observePushTokens(for: activity)
             await activity.update(using: contentState)
         }
     }
 
-    private static func observePushTokens(for activity: Activity<PawActivityAttributes>) {
+    private static func observePushTokens(for activity: Activity<PawActivityAttributes>) async {
         let stream = ActivityPushTokenStream(stream: activity.pushTokenUpdates)
-        let activityID = activity.id
-        Task {
-            await MainActor.run {
-                pushTokenTask?.cancel()
-                pushTokenTask = nil
-            }
-
-            let observer = Task.detached(priority: .background) {
-                for await tokenData in stream.stream {
-                    await LiveActivityPushCoordinator.shared.store(tokenData, activityID: activityID)
-                }
-            }
-
-            await MainActor.run {
-                pushTokenTask = observer
-            }
-        }
+        await LiveActivityPushCoordinator.shared.observeTokens(stream: stream, activityID: activity.id)
     }
 }
 
@@ -120,12 +105,17 @@ actor LiveActivityPushCoordinator {
     private let defaults = UserDefaults(suiteName: PerformanceSnapshotStore.suiteName) ?? .standard
     private let activityTokenKey = "LiveActivity.PushTokens"
     private let apnsTokenKey = "LiveActivity.APNSToken"
+    private let lastUploadKey = "LiveActivity.PushTokens.LastUpload"
     private let logger = Logger(subsystem: "com.stonezone.pawwatch", category: "LiveActivityPush")
     private lazy var isoFormatter: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return formatter
     }()
+    private var pushTokenTask: Task<Void, Never>?
+    private var uploadTask: Task<Void, Never>?
+    private let uploader = PushTokenUploader()
+    private var retryAttempt = 0
 
     func store(_ tokenData: Data, activityID: Activity<PawActivityAttributes>.ID) {
         let token = hexString(from: tokenData)
@@ -138,13 +128,106 @@ actor LiveActivityPushCoordinator {
         ])
         defaults.set(tokens, forKey: activityTokenKey)
         logger.log("Stored Live Activity push token for activity \(activityID, privacy: .public)")
+        scheduleUpload()
     }
 
     func storeDeviceToken(_ data: Data) {
         let token = hexString(from: data)
         defaults.set(token, forKey: apnsTokenKey)
         logger.log("Stored APNs device token (length: \(token.count, privacy: .public) chars)")
+        scheduleUpload(immediate: true)
     }
+
+    fileprivate func observeTokens(stream: ActivityPushTokenStream, activityID: Activity<PawActivityAttributes>.ID) {
+        pushTokenTask?.cancel()
+        let actor = self
+        pushTokenTask = Task(priority: .background) { [stream, activityID] in
+            for await tokenData in stream.stream {
+                await actor.store(tokenData, activityID: activityID)
+            }
+        }
+    }
+
+    fileprivate func stopObservingTokens() {
+        pushTokenTask?.cancel()
+        pushTokenTask = nil
+    }
+
+    private func scheduleUpload(immediate: Bool = false) {
+        guard uploader.isEnabled else {
+            logger.notice("Push uploads disabled; skipping network call")
+            return
+        }
+        uploadTask?.cancel()
+        let delayNanoseconds = immediate ? 0 : Self.delayNanoseconds(for: retryAttempt)
+        uploadTask = Task(priority: .background) { [weak self, delayNanoseconds] in
+            guard let self else { return }
+            if delayNanoseconds > 0 {
+                try? await Task.sleep(nanoseconds: delayNanoseconds)
+            }
+            await self.uploadTokensIfPossible()
+        }
+    }
+
+    private func uploadTokensIfPossible() async {
+        guard uploader.isEnabled else { return }
+
+        guard let deviceToken = defaults.string(forKey: apnsTokenKey), !deviceToken.isEmpty else {
+            logger.notice("Skipping push upload: missing device token")
+            return
+        }
+
+        let tokens = currentActivityTokens()
+        guard !tokens.isEmpty else {
+            logger.notice("Skipping push upload: no live activity tokens yet")
+            return
+        }
+
+        do {
+            try await uploader.upload(deviceToken: deviceToken, activityTokens: tokens)
+            retryAttempt = 0
+            defaults.set(Date().timeIntervalSince1970, forKey: lastUploadKey)
+            logger.log("Uploaded \(tokens.count, privacy: .public) live activity token(s) to backend")
+        } catch is CancellationError {
+            logger.notice("Push token upload cancelled before completion")
+        } catch let error as PushTokenUploader.UploadError {
+            retryAttempt = min(retryAttempt + 1, Self.maxRetryAttempts)
+            switch error {
+            case let .serverRejected(status, body):
+                logger.error("Push token upload rejected (status: \(status, privacy: .public)) body: \(body ?? "<empty>", privacy: .public)")
+            default:
+                logger.error("Push token upload failed: \(error.localizedDescription, privacy: .public)")
+            }
+            scheduleUpload()
+        } catch {
+            retryAttempt = min(retryAttempt + 1, Self.maxRetryAttempts)
+            logger.error("Push token upload failed with unexpected error: \(error.localizedDescription, privacy: .public)")
+            scheduleUpload()
+        }
+    }
+
+    private func currentActivityTokens() -> [PushTokenUploadRequest.ActivityToken] {
+        guard let entries = defaults.array(forKey: activityTokenKey) as? [[String: Any]] else { return [] }
+        return entries.compactMap { entry in
+            guard let id = entry["activityId"] as? String,
+                  let token = entry["token"] as? String,
+                  let updatedAt = entry["updatedAt"] as? String else { return nil }
+            return PushTokenUploadRequest.ActivityToken(activityId: id, pushToken: token, updatedAt: updatedAt)
+        }
+    }
+
+    private static func delayNanoseconds(for attempt: Int) -> UInt64 {
+        let seconds: Double
+        if attempt <= 0 {
+            seconds = 2
+        } else {
+            let exponential = pow(2.0, Double(attempt)) * 2.0
+            seconds = min(exponential, 60)
+        }
+        return UInt64(seconds * 1_000_000_000)
+    }
+
+    private static let maxRetryAttempts = 6
 
     private func hexString(from data: Data) -> String {
         data.map { String(format: "%02x", $0) }.joined()
@@ -155,6 +238,7 @@ struct LiveActivityRemotePayload: Codable {
     struct State: Codable {
         var latencyMs: Int
         var batteryDrainPerHour: Double
+        var instantBatteryDrainPerHour: Double?
         var reachable: Bool
         var timestamp: Date
         var alert: PawActivityAttributes.AlertState?
@@ -163,6 +247,7 @@ struct LiveActivityRemotePayload: Codable {
             PawActivityAttributes.ContentState(
                 latencyMs: latencyMs,
                 batteryDrainPerHour: batteryDrainPerHour,
+                instantBatteryDrainPerHour: instantBatteryDrainPerHour,
                 reachable: reachable,
                 timestamp: timestamp,
                 alert: alert
@@ -187,6 +272,7 @@ enum LiveActivityPushHandler {
         let snapshot = PerformanceSnapshot(
             latencyMs: payload.state.latencyMs,
             batteryDrainPerHour: payload.state.batteryDrainPerHour,
+            instantBatteryDrainPerHour: payload.state.instantBatteryDrainPerHour ?? payload.state.batteryDrainPerHour,
             reachable: payload.state.reachable,
             timestamp: payload.state.timestamp
         )

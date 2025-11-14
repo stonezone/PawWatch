@@ -44,6 +44,49 @@ public enum TrackingMode: String, CaseIterable, Sendable {
     }
 }
 
+public enum IdleCadencePreset: String, CaseIterable, Identifiable, Sendable {
+    case balanced
+    case live
+    case conservative
+
+    public var id: String { rawValue }
+
+    public var displayName: String {
+        switch self {
+        case .balanced: return "Balanced"
+        case .live: return "Lab / Live"
+        case .conservative: return "Battery Saver"
+        }
+    }
+
+    public var heartbeatInterval: TimeInterval {
+        switch self {
+        case .balanced: return 30
+        case .live: return 15
+        case .conservative: return 60
+        }
+    }
+
+    public var fullFixInterval: TimeInterval {
+        switch self {
+        case .balanced: return 180
+        case .live: return 90
+        case .conservative: return 300
+        }
+    }
+
+    public var footnote: String {
+        switch self {
+        case .balanced:
+            return "Heartbeats every 30s, stationary fixes every 3m."
+        case .live:
+            return "Heartbeats every 15s, stationary fixes every 90s."
+        case .conservative:
+            return "Heartbeats every 60s, stationary fixes every 5m."
+        }
+    }
+}
+
 /// Observable manager for pet location data received from Apple Watch.
 ///
 /// Responsibilities:
@@ -107,10 +150,23 @@ public final class PetLocationManager: NSObject, ObservableObject {
 #endif
 
     public private(set) var sessionSummary = SessionSummary()
+    public private(set) var idleCadencePreset: IdleCadencePreset
+    public private(set) var watchIdleHeartbeatInterval: TimeInterval?
+    public private(set) var watchIdleFullFixInterval: TimeInterval?
 
     // MARK: - Constants
 
-    private let maxHistoryCount = 100 // Trail history limit
+    public static let trailHistoryLimitRange: ClosedRange<Int> = 50...500
+    public static let trailHistoryStep = 25
+    private static let defaultTrailHistoryLimit = 100
+
+    private let trailHistoryLimitKey = "TrailHistoryLimit"
+    private let runtimePreferenceKey = RuntimePreferenceKey.runtimeOptimizationsEnabled
+    private let idleCadenceKey = "IdleCadencePreset"
+    private let sharedDefaults: UserDefaults
+    public private(set) var trailHistoryLimit: Int
+    public private(set) var runtimeOptimizationsEnabled: Bool
+    public private(set) var watchSupportsExtendedRuntime: Bool = false
     private let recentSequenceCapacity = 512
     private let maxHorizontalAccuracyMeters: Double = 75
     private let maxFixStaleness: TimeInterval = 120
@@ -134,7 +190,6 @@ public final class PetLocationManager: NSObject, ObservableObject {
     @ObservationIgnored private var sessionSamples: [SessionSample] = []
     @ObservationIgnored private var sessionStartDate: Date?
     @ObservationIgnored private var sessionReachabilityFlipCount: Int = 0
-    private var lastBatterySample: (value: Double, timestamp: Date)?
     private let maxSessionSamples = 10_000
 
     // MARK: - Initialization
@@ -146,6 +201,20 @@ public final class PetLocationManager: NSObject, ObservableObject {
         self.session = WCSession.default
         #endif
         self.locationManager = CLLocationManager()
+        self.sharedDefaults = UserDefaults(suiteName: PerformanceSnapshotStore.suiteName) ?? .standard
+        let storedLimit = sharedDefaults.object(forKey: trailHistoryLimitKey) as? Int
+        self.trailHistoryLimit = storedLimit.map(Self.clampTrailHistoryLimit) ?? Self.defaultTrailHistoryLimit
+        let storedRuntime = sharedDefaults.object(forKey: runtimePreferenceKey) as? Bool
+        self.runtimeOptimizationsEnabled = storedRuntime ?? true
+
+        let storedPresetRaw = sharedDefaults.string(forKey: idleCadenceKey)
+        if let storedPresetRaw,
+           let storedPreset = IdleCadencePreset(rawValue: storedPresetRaw) {
+            self.idleCadencePreset = storedPreset
+        } else {
+            self.idleCadencePreset = .balanced
+        }
+        let needsDefaultIdlePreset = storedPresetRaw == nil
 
         super.init()
 
@@ -166,9 +235,19 @@ public final class PetLocationManager: NSObject, ObservableObject {
 
         // Setup CoreLocation for owner position
         locationManager.delegate = self
-        locationManager.desiredAccuracy = kCLLocationAccuracyBest
+        locationManager.desiredAccuracy = kCLLocationAccuracyNearestTenMeters
         locationManager.requestWhenInUseAuthorization()
         locationManager.startUpdatingLocation()
+
+        if storedLimit == nil {
+            persistTrailHistoryLimit(trailHistoryLimit)
+        }
+        if storedRuntime == nil {
+            persistRuntimePreference(runtimeOptimizationsEnabled)
+        }
+        if needsDefaultIdlePreset {
+            sharedDefaults.set(idleCadencePreset.rawValue, forKey: idleCadenceKey)
+        }
 
         refreshHealthAuthorizationState()
     }
@@ -195,6 +274,31 @@ public final class PetLocationManager: NSObject, ObservableObject {
     /// Battery level as percentage (0-100)
     public var batteryLevel: Double {
         latestLocation?.batteryFraction ?? 0.0
+    }
+
+    /// Adjusts and persists the number of fixes stored for the trail history.
+    public func updateTrailHistoryLimit(to newValue: Int) {
+        let clamped = Self.clampTrailHistoryLimit(newValue)
+        guard clamped != trailHistoryLimit else { return }
+        trailHistoryLimit = clamped
+        persistTrailHistoryLimit(clamped)
+        pruneHistoryIfNeeded()
+    }
+
+    /// Selects the idle cadence preset used for stationary heartbeats vs. full fixes.
+    public func setIdleCadencePreset(_ preset: IdleCadencePreset) {
+        guard preset != idleCadencePreset else { return }
+        idleCadencePreset = preset
+        sharedDefaults.set(preset.rawValue, forKey: idleCadenceKey)
+        sendIdleCadenceCommand(preset)
+    }
+
+    /// Persists and forwards the extended runtime preference to the watch.
+    public func setRuntimeOptimizationsEnabled(_ enabled: Bool) {
+        guard enabled != runtimeOptimizationsEnabled else { return }
+        runtimeOptimizationsEnabled = enabled
+        persistRuntimePreference(enabled)
+        sendRuntimePreferenceCommand(enabled)
     }
 
     /// GPS accuracy in meters (horizontal accuracy)
@@ -260,6 +364,55 @@ public final class PetLocationManager: NSObject, ObservableObject {
         #endif
     }
 
+    private func sendRuntimePreferenceCommand(_ enabled: Bool) {
+        #if canImport(WatchConnectivity)
+        guard session.activationState == .activated else { return }
+        let payload: [String: Any] = [
+            "action": "setRuntimeOptimizations",
+            "enabled": enabled
+        ]
+
+        if session.isReachable {
+            session.sendMessage(payload, replyHandler: nil) { error in
+                Task { @MainActor in
+                    self.errorMessage = "Failed to update runtime guard: \(error.localizedDescription)"
+                }
+            }
+        } else {
+            do {
+                try session.updateApplicationContext(payload)
+            } catch {
+                errorMessage = "Failed to queue runtime guard: \(error.localizedDescription)"
+            }
+        }
+        #endif
+    }
+
+    private func sendIdleCadenceCommand(_ preset: IdleCadencePreset) {
+        #if canImport(WatchConnectivity)
+        guard session.activationState == .activated else { return }
+        let payload: [String: Any] = [
+            "action": "setIdleCadence",
+            "heartbeatInterval": preset.heartbeatInterval,
+            "fullFixInterval": preset.fullFixInterval
+        ]
+
+        if session.isReachable {
+            session.sendMessage(payload, replyHandler: nil) { error in
+                Task { @MainActor in
+                    self.errorMessage = "Failed to update idle cadence: \(error.localizedDescription)"
+                }
+            }
+        } else {
+            do {
+                try session.updateApplicationContext(payload)
+            } catch {
+                errorMessage = "Failed to queue idle cadence: \(error.localizedDescription)"
+            }
+        }
+        #endif
+    }
+
     /// Opens system Settings for manual permission adjustment.
     public func openLocationSettings() {
         #if canImport(UIKit)
@@ -288,6 +441,11 @@ public final class PetLocationManager: NSObject, ObservableObject {
         default:
             return false
         }
+    }
+
+    /// Copy shown anywhere we remind users that distance relies on the foreground dashboard.
+    public var distanceUsageBlurb: String {
+        "Distance updates refresh while pawWatch stays open on your iPhone. Background alerts aren't supported yet."
     }
 
     #if canImport(HealthKit)
@@ -454,7 +612,7 @@ public final class PetLocationManager: NSObject, ObservableObject {
 
         insertIntoHistory(locationFix)
         appendSessionSample(locationFix)
-        persistPerformanceSnapshot(from: locationFix)
+        PerformanceMonitor.shared.recordRemoteFix(locationFix, watchReachable: isWatchReachable)
     }
 
     private func shouldAccept(_ fix: LocationFix) -> Bool {
@@ -509,9 +667,7 @@ public final class PetLocationManager: NSObject, ObservableObject {
             locationHistory.append(fix)
         }
 
-        if locationHistory.count > maxHistoryCount {
-            locationHistory.removeLast(locationHistory.count - maxHistoryCount)
-        }
+        pruneHistoryIfNeeded()
     }
 
     private func distanceBetween(_ lhs: LocationFix.Coordinate, _ rhs: LocationFix.Coordinate) -> Double {
@@ -520,33 +676,29 @@ public final class PetLocationManager: NSObject, ObservableObject {
         return lhsLocation.distance(from: rhsLocation)
     }
 
-    private func persistPerformanceSnapshot(from fix: LocationFix) {
-        let now = Date()
-        let latencyMs = max(1, Int(now.timeIntervalSince(fix.timestamp) * 1000))
-
-        var drainPerHour: Double = 0
-        if let lastSample = lastBatterySample {
-            let deltaPercent = (lastSample.value - fix.batteryFraction) * 100
-            let elapsed = fix.timestamp.timeIntervalSince(lastSample.timestamp) / 3600
-            if elapsed > 0 {
-                drainPerHour = deltaPercent / elapsed
-            }
-        }
-        lastBatterySample = (fix.batteryFraction, fix.timestamp)
-
-        let snapshot = PerformanceSnapshot(
-            latencyMs: latencyMs,
-            batteryDrainPerHour: drainPerHour,
-            reachable: isWatchReachable,
-            timestamp: now
-        )
-
-        PerformanceSnapshotStore.save(snapshot)
+    private func pruneHistoryIfNeeded() {
+        guard locationHistory.count > trailHistoryLimit else { return }
+        locationHistory.removeLast(locationHistory.count - trailHistoryLimit)
     }
 
-    private func persistSnapshotUsingLatestLocation() {
-        guard let fix = latestLocation else { return }
-        persistPerformanceSnapshot(from: fix)
+    private static func clampTrailHistoryLimit(_ value: Int) -> Int {
+        let lower = trailHistoryLimitRange.lowerBound
+        let upper = trailHistoryLimitRange.upperBound
+        return min(max(value, lower), upper)
+    }
+
+    private func persistTrailHistoryLimit(_ value: Int) {
+        sharedDefaults.set(value, forKey: trailHistoryLimitKey)
+    }
+
+    private func persistRuntimePreference(_ enabled: Bool) {
+        sharedDefaults.set(enabled, forKey: runtimePreferenceKey)
+    }
+
+    private func applyRuntimePreferenceFromWatch(_ enabled: Bool) {
+        guard enabled != runtimeOptimizationsEnabled else { return }
+        runtimeOptimizationsEnabled = enabled
+        persistRuntimePreference(enabled)
     }
 
     /// Decode a LocationFix from raw Data produced by the watch.
@@ -597,6 +749,10 @@ extension PetLocationManager: WCSessionDelegate {
                 self.isWatchReachable = isReachable
                 self.errorMessage = nil
                 self.logger.log("WCSession activated (reachable=\(isReachable, privacy: .public))")
+                if activationState == .activated {
+                    self.sendRuntimePreferenceCommand(self.runtimeOptimizationsEnabled)
+                    self.sendIdleCadenceCommand(self.idleCadencePreset)
+                }
             }
         }
     }
@@ -631,11 +787,15 @@ extension PetLocationManager: WCSessionDelegate {
             self.logger.log("Reachability changed: \(isReachable, privacy: .public)")
             self.sessionReachabilityFlipCount += 1
             self.recomputeSessionSummary()
-            self.persistSnapshotUsingLatestLocation()
+            if let latest = self.latestLocation {
+                PerformanceMonitor.shared.recordRemoteFix(latest, watchReachable: self.isWatchReachable)
+            }
             if !isReachable {
                 self.errorMessage = "Apple Watch unreachable. Latest data may be delayed."
             } else if self.errorMessage?.contains("unreachable") == true {
                 self.errorMessage = nil
+                self.sendRuntimePreferenceCommand(self.runtimeOptimizationsEnabled)
+                self.sendIdleCadenceCommand(self.idleCadencePreset)
             }
         }
     }
@@ -663,6 +823,10 @@ extension PetLocationManager: WCSessionDelegate {
         let modeRaw = applicationContext["trackingMode"] as? String
         let locked = applicationContext["lockState"] as? Bool
         let latest = applicationContext["latestFix"] as? Data
+        let runtimeEnabled = applicationContext["runtimeOptimizationsEnabled"] as? Bool
+        let runtimeCapable = applicationContext["supportsExtendedRuntime"] as? Bool
+        let idleHeartbeat = applicationContext["idleHeartbeatInterval"] as? Double
+        let idleFullFix = applicationContext["idleFullFixInterval"] as? Double
 
         Task { @MainActor in
             if let battery { self.watchBatteryFraction = battery }
@@ -673,6 +837,10 @@ extension PetLocationManager: WCSessionDelegate {
                 self.isWatchConnected = true
             }
             if let locked { self.isWatchLocked = locked }
+            if let runtimeEnabled { self.applyRuntimePreferenceFromWatch(runtimeEnabled) }
+            if let runtimeCapable { self.watchSupportsExtendedRuntime = runtimeCapable }
+            if let idleHeartbeat { self.watchIdleHeartbeatInterval = idleHeartbeat }
+            if let idleFullFix { self.watchIdleFullFixInterval = idleFullFix }
             if let latest {
                 self.isWatchConnected = true
                 self.handleLocationFixData(latest)

@@ -36,7 +36,7 @@ struct WatchWidgetRectangularView: View {
                     .foregroundStyle(.secondary)
                 Text("\(snapshot.latencyMs) ms")
                     .font(.caption.monospacedDigit())
-                Text(String(format: "Drain %.1f%%/h", snapshot.batteryDrainPerHour))
+                Text("Drain \(snapshot.formattedDrainSummary) %/h")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
@@ -56,7 +56,15 @@ struct WatchWidgetInlineView: View {
     let snapshot: PerformanceSnapshot
 
     var body: some View {
-        Text("\(snapshot.latencyMs)ms · \(String(format: "%.1f%%/h", snapshot.batteryDrainPerHour))")
+        Text("\(snapshot.latencyMs)ms · \(snapshot.formattedDrainSummary) %/h")
+    }
+}
+
+private extension PerformanceSnapshot {
+    var formattedDrainSummary: String {
+        let avg = max(0, batteryDrainPerHour)
+        let instant = max(0, instantBatteryDrainPerHour)
+        return String(format: "avg %.1f · inst %.1f", avg, instant)
     }
 }
 
@@ -75,13 +83,13 @@ struct PawWatchWidget: Widget {
 #if DEBUG
 @available(watchOS 10.0, *)
 #Preview("Rectangular") {
-    WatchWidgetRectangularView(snapshot: .init(latencyMs: 132, batteryDrainPerHour: 2.2, reachable: true))
+    WatchWidgetRectangularView(snapshot: .init(latencyMs: 132, batteryDrainPerHour: 2.2, instantBatteryDrainPerHour: 2.8, reachable: true))
         .previewContext(WidgetPreviewContext(family: .accessoryRectangular))
 }
 
 @available(watchOS 10.0, *)
 #Preview("Inline") {
-    WatchWidgetInlineView(snapshot: .init(latencyMs: 132, batteryDrainPerHour: 2.2, reachable: true))
+    WatchWidgetInlineView(snapshot: .init(latencyMs: 132, batteryDrainPerHour: 2.2, instantBatteryDrainPerHour: 2.8, reachable: true))
         .previewContext(WidgetPreviewContext(family: .accessoryInline))
 }
 #endif

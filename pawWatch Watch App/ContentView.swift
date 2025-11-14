@@ -68,8 +68,10 @@ final class WatchLocationManager: WatchLocationProviderDelegate {
     /// Snapshot of GPS latency (p95, ms)
     var gpsLatencyP95MS: Double = 0
 
-    /// Snapshot of observed battery drain per hour (%/hr)
+    /// Snapshot of smoothed battery drain per hour (%/hr)
     var batteryDrainPerHour: Double = 0
+    /// Most recent instantaneous drain reading (%/hr)
+    var batteryDrainPerHourInstant: Double = 0
 
     /// Cached snapshot so we can update reachability without new samples
     private var lastSavedSnapshot: PerformanceSnapshot?
@@ -216,7 +218,8 @@ final class WatchLocationManager: WatchLocationProviderDelegate {
     private func refreshPerformanceSnapshot() {
         gpsLatencyAverageMS = performanceMonitor.gpsAverage * 1000
         gpsLatencyP95MS = performanceMonitor.gpsP95 * 1000
-        batteryDrainPerHour = performanceMonitor.batteryDrainPerHour
+        batteryDrainPerHour = performanceMonitor.batteryDrainPerHourSmoothed
+        batteryDrainPerHourInstant = performanceMonitor.batteryDrainPerHourInstant
 
         let hasMetrics = gpsLatencyAverageMS > 0 || gpsLatencyP95MS > 0 || batteryDrainPerHour != 0 || lastSavedSnapshot != nil
         guard hasMetrics else { return }
@@ -231,9 +234,15 @@ final class WatchLocationManager: WatchLocationProviderDelegate {
             drain = last.batteryDrainPerHour
         }
 
+        var instant = batteryDrainPerHourInstant
+        if instant <= 0, let last = lastSavedSnapshot {
+            instant = last.instantBatteryDrainPerHour
+        }
+
         let snapshot = PerformanceSnapshot(
             latencyMs: max(1, latency),
             batteryDrainPerHour: drain,
+            instantBatteryDrainPerHour: max(0, instant),
             reachable: isPhoneReachable,
             timestamp: Date()
         )
@@ -368,7 +377,7 @@ struct ContentView: View {
 
     /// Location manager handling GPS tracking and phone relay
     @State private var locationManager = WatchLocationManager()
-    @AppStorage("watchBatteryOptimizationsEnabled") private var batteryOptimizationsEnabled = true
+    @AppStorage(RuntimePreferenceKey.runtimeOptimizationsEnabled) private var batteryOptimizationsEnabled = true
     @AppStorage("watchAutoLockEnabled") private var autoLockEnabled = true
     @State private var isTrackerLocked = false
     @State private var crownRotation: Double = 0
@@ -621,7 +630,8 @@ struct ContentView: View {
                             icon: "bolt.fill",
                             title: "Drain / hr",
                             value: formattedDrain(locationManager.batteryDrainPerHour),
-                            subtitle: batteryOptimizationsEnabled ? "Optimized" : "Performance",
+                            subtitle: "Inst " + formattedDrain(locationManager.batteryDrainPerHourInstant) +
+                                " · " + (batteryOptimizationsEnabled ? "Optimized" : "Performance"),
                             tint: batteryOptimizationsEnabled ? .green : .orange
                         )
                     }

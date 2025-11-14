@@ -88,7 +88,7 @@ public enum WatchConnectivityIssue: LocalizedError {
     case fileEncodingFailed(underlying: Error)
     case fileTransferFailed(underlying: Error)
 
-    var errorDescription: String? {
+    public var errorDescription: String? {
         switch self {
         case .sessionNotActivated:
             return "WatchConnectivity session is not active."
@@ -300,8 +300,9 @@ public final class WatchLocationProvider: NSObject {
     private let signposter = OSSignposter(subsystem: "com.stonezone.pawwatch", category: "WatchLocationProvider")
     private var trackingIntervalState: OSSignpostIntervalState?
     private let runtimeCoordinator = ExtendedRuntimeCoordinator()
-    private let supportsExtendedRuntime: Bool = {
-        ProcessInfo.processInfo.environment["PAWWATCH_ENABLE_EXTENDED_RUNTIME"] == "1"
+    private static let runtimePreferenceKey = RuntimePreferenceKey.runtimeOptimizationsEnabled
+    private lazy var supportsExtendedRuntime: Bool = {
+        RuntimeCapabilities.supportsExtendedRuntime
     }()
     
     /// Tracks last sequence number sent via application context to prevent duplicates
@@ -319,13 +320,17 @@ public final class WatchLocationProvider: NSObject {
     /// Original value: 10.0s - reduced to 0.5s for real-time pet tracking needs.
     private let contextPushInterval: TimeInterval = 0.5
 
-    /// When stationary, send updates less frequently to conserve WatchConnectivity bandwidth
-    /// while still maintaining reliable tracking confirmation.
-    private let stationaryUpdateInterval: TimeInterval = 45.0  // 45 seconds when stationary, normal battery
+    /// When stationary, send updates less frequently and rely on the cadence configured by the phone.
+    private var stationaryUpdateInterval: TimeInterval = 180.0
 
     /// Maximum time between any location updates, regardless of movement state.
-    /// This ensures the phone always knows tracking is active (heartbeat).
-    private let maxUpdateInterval: TimeInterval = 120.0  // 2 minutes maximum
+    private var maxUpdateInterval: TimeInterval = 180.0  // Default 3 minutes
+
+    /// Interval between battery-only heartbeat contexts when idle.
+    private var idleHeartbeatInterval: TimeInterval = 30.0
+
+    private static let idleHeartbeatDefaultsKey = "watchIdleHeartbeatInterval"
+    private static let idleFullFixDefaultsKey = "watchIdleFullFixInterval"
 
     /// Accuracy bypass threshold: When horizontal accuracy changes by more than 5 meters,
     /// immediately push application context regardless of time throttle. This ensures
@@ -353,7 +358,7 @@ public final class WatchLocationProvider: NSObject {
     /// Most recent fix, used to satisfy manual refresh requests from the phone.
     private let performanceMonitor = PerformanceMonitor.shared
     private var latestFix: LocationFix?
-    private var batteryOptimizationsEnabled = true
+    private var batteryOptimizationsEnabled = WatchLocationProvider.loadRuntimePreference()
     private var currentPreset: TrackingPreset = .aggressive
     private var isWorkoutRunning = false
     private var latestBatteryLevel: Double = 1.0
@@ -370,17 +375,44 @@ public final class WatchLocationProvider: NSObject {
     private let stationaryTimeThreshold: TimeInterval = 30
     private var lastTransmittedFixDate: Date = .distantPast
     private var lastThrottleAccuracy: Double = .infinity
+
+    private static func loadRuntimePreference() -> Bool {
+        let defaults = UserDefaults.standard
+        if defaults.object(forKey: runtimePreferenceKey) == nil {
+            defaults.set(true, forKey: runtimePreferenceKey)
+            defaults.synchronize()
+            return true
+        }
+        return defaults.bool(forKey: runtimePreferenceKey)
+    }
+
+    private func loadIdleCadenceDefaults() {
+        let defaults = UserDefaults.standard
+        let storedHeartbeat = defaults.double(forKey: Self.idleHeartbeatDefaultsKey)
+        let storedFullFix = defaults.double(forKey: Self.idleFullFixDefaultsKey)
+
+        if storedHeartbeat > 0, storedFullFix > 0 {
+            idleHeartbeatInterval = storedHeartbeat
+            stationaryUpdateInterval = storedFullFix
+            maxUpdateInterval = storedFullFix
+        } else {
+            idleHeartbeatInterval = 30.0
+            stationaryUpdateInterval = 180.0
+            maxUpdateInterval = 180.0
+        }
+    }
     
     // MARK: - Initialization
     
     public override init() {
         super.init()
+        loadIdleCadenceDefaults()
         locationManager.delegate = self
         encoder.outputFormatting = [.withoutEscapingSlashes]
         WKInterfaceDevice.current().isBatteryMonitoringEnabled = true
         runtimeCoordinator.isEnabled = supportsExtendedRuntime && batteryOptimizationsEnabled
         if !supportsExtendedRuntime {
-            logger.log("Extended runtime disabled (entitlement unavailable)")
+            logger.log("Extended runtime disabled (capability unavailable)")
         }
     }
     
@@ -417,6 +449,7 @@ public final class WatchLocationProvider: NSObject {
     public func setBatteryOptimizationsEnabled(_ enabled: Bool) {
         batteryOptimizationsEnabled = enabled
         runtimeCoordinator.isEnabled = supportsExtendedRuntime && enabled
+        persistRuntimePreference(enabled)
 
         if enabled {
             if supportsExtendedRuntime, isWorkoutRunning {
@@ -428,6 +461,21 @@ public final class WatchLocationProvider: NSObject {
             }
             applyPreset(.aggressive)
         }
+
+        sendBatteryHeartbeat()
+    }
+
+    private func persistRuntimePreference(_ enabled: Bool) {
+        UserDefaults.standard.set(enabled, forKey: Self.runtimePreferenceKey)
+    }
+
+    private func runtimeContextMetadata() -> [String: Any] {
+        [
+            "runtimeOptimizationsEnabled": batteryOptimizationsEnabled,
+            "supportsExtendedRuntime": supportsExtendedRuntime,
+            "idleHeartbeatInterval": idleHeartbeatInterval,
+            "idleFullFixInterval": stationaryUpdateInterval
+        ]
     }
     
     /// Stops location updates and ends the workout session.
@@ -764,10 +812,9 @@ public final class WatchLocationProvider: NSObject {
         
         do {
             let data = try encoder.encode(fix)
-            let context: [String: Any] = [
-                "latestFix": data
-            ]
-            
+            var context: [String: Any] = runtimeContextMetadata()
+            context["latestFix"] = data
+
             try wcSession.updateApplicationContext(context)
             ConnectivityLog.verbose("Updated application context with latest fix")
             
@@ -821,7 +868,8 @@ public final class WatchLocationProvider: NSObject {
             guard let self else { return }
             await MainActor.run { self.sendBatteryHeartbeat() }
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(120))
+                let interval = await MainActor.run { self.idleHeartbeatInterval }
+                try? await Task.sleep(for: .seconds(interval))
                 await MainActor.run { self.sendBatteryHeartbeat() }
             }
         }
@@ -836,16 +884,44 @@ public final class WatchLocationProvider: NSObject {
     private func sendBatteryHeartbeat() {
         guard wcSession.activationState == .activated else { return }
         do {
-            try wcSession.updateApplicationContext([
-                "batteryOnly": latestBatteryLevel,
-                "trackingMode": manualTrackingMode.rawValue,
-                "lockState": isTrackerLocked
-            ])
+            var context = runtimeContextMetadata()
+            context["batteryOnly"] = latestBatteryLevel
+            context["trackingMode"] = manualTrackingMode.rawValue
+            context["lockState"] = isTrackerLocked
+            try wcSession.updateApplicationContext(context)
             let avg = Int(self.performanceMonitor.gpsAverage * 1000)
-            logger.log("Heartbeat sent (battery=\(Int(self.latestBatteryLevel * 100))%, gpsAvg=\(avg)ms, drain=\(String(format: "%.1f", self.performanceMonitor.batteryDrainPerHour))%/h)")
+            let drainAvg = String(format: "%.1f", self.performanceMonitor.batteryDrainPerHour)
+            let drainInstant = String(format: "%.1f", self.performanceMonitor.batteryDrainPerHourInstant)
+            logger.log("Heartbeat sent (battery=\(Int(self.latestBatteryLevel * 100))%, gpsAvg=\(avg)ms, drainAvg=\(drainAvg)%/h, drainInst=\(drainInstant)%/h)")
         } catch {
             logger.error("Heartbeat update failed: \(error.localizedDescription)")
         }
+    }
+
+    @MainActor
+    private func applyIdleCadence(heartbeat rawHeartbeat: TimeInterval, fullFix rawFullFix: TimeInterval, persist: Bool = true) {
+        let heartbeat = max(15, min(300, rawHeartbeat))
+        let fullFix = max(60, min(600, rawFullFix))
+        idleHeartbeatInterval = heartbeat
+        stationaryUpdateInterval = fullFix
+        maxUpdateInterval = fullFix
+        lastTransmittedFixDate = .distantPast
+
+        if persist {
+            persistIdleCadence(heartbeat: heartbeat, fullFix: fullFix)
+        }
+
+        if batteryHeartbeatTask != nil {
+            startBatteryHeartbeat()
+        }
+
+        logger.log("Idle cadence updated (heartbeat=\(heartbeat)s, fullFix=\(fullFix)s)")
+    }
+
+    private func persistIdleCadence(heartbeat: TimeInterval, fullFix: TimeInterval) {
+        let defaults = UserDefaults.standard
+        defaults.set(heartbeat, forKey: Self.idleHeartbeatDefaultsKey)
+        defaults.set(fullFix, forKey: Self.idleFullFixDefaultsKey)
     }
 
     // MARK: - Adaptive throttling helpers
@@ -1048,6 +1124,27 @@ extension WatchLocationProvider: WCSessionDelegate {
                 return ["status": "mode-updated"]
             }
             return ["status": "mode-invalid"]
+        case "setRuntimeOptimizations":
+            guard let enabled = message["enabled"] as? Bool else {
+                return ["status": "runtime-invalid"]
+            }
+            Task { @MainActor in
+                self.setBatteryOptimizationsEnabled(enabled)
+                self.logger.log("Runtime optimizations toggled → \(enabled ? "enabled" : "disabled")")
+            }
+            return ["status": "runtime-updated", "enabled": enabled]
+        case "setIdleCadence":
+            guard
+                let heartbeat = message["heartbeatInterval"] as? Double,
+                let fullFix = message["fullFixInterval"] as? Double
+            else {
+                return ["status": "idle-invalid"]
+            }
+            Task { @MainActor in
+                self.applyIdleCadence(heartbeat: heartbeat, fullFix: fullFix)
+                self.sendBatteryHeartbeat()
+            }
+            return ["status": "idle-updated"]
         case "stop-tracking":
             scheduleRemoteStop()
             return ["status": "stop-requested"]
@@ -1089,6 +1186,18 @@ extension WatchLocationProvider: WCSessionDelegate {
         guard let action = applicationContext["action"] as? String else { return }
         if action == "stop-tracking" {
             scheduleRemoteStop()
+        } else if action == "setRuntimeOptimizations", let enabled = applicationContext["enabled"] as? Bool {
+            Task { @MainActor in
+                self.setBatteryOptimizationsEnabled(enabled)
+                self.logger.log("Runtime optimizations context applied (enabled=\(enabled))")
+            }
+        } else if action == "setIdleCadence",
+                  let heartbeat = applicationContext["heartbeatInterval"] as? Double,
+                  let fullFix = applicationContext["fullFixInterval"] as? Double {
+            Task { @MainActor in
+                self.applyIdleCadence(heartbeat: heartbeat, fullFix: fullFix)
+                self.logger.log("Idle cadence context applied (heartbeat=\(heartbeat)s, fullFix=\(fullFix)s)")
+            }
         }
     }
     

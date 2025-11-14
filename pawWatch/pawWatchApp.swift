@@ -19,6 +19,10 @@ struct pawWatchApp: App {
 #if canImport(ActivityKit)
         LiveActivityBootstrapper.shared.startIfNeeded()
 #endif
+#if canImport(WatchConnectivity)
+        // Initialize WatchConnectivity to receive data from Apple Watch
+        _ = PhoneWatchConnectivityManager.shared
+#endif
     }
 
     var body: some Scene {
