@@ -28,6 +28,7 @@
 		7F122106E1C332C47E8721B7 /* ExtensionDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72D32CBFD23A6EE421063CBD /* ExtensionDelegate.swift */; };
 		8E9D6640E4F7B46C8F0E8361 /* PushTokenUploader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DF5C1B2A4E04E45A9F7667C /* PushTokenUploader.swift */; };
 		9BCB3457324E1118D1106880 /* pawWatchWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 741879409AD8DD4128B4DCC0 /* pawWatchWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		F9A8D8A534A0F76300B4F1B1 /* pawWatch Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 950A0AD89D5233A618F6D2BF /* pawWatch Watch App.app */; };
 		9E1123F0DFDBDE291D23E1AE /* project.yml in Resources */ = {isa = PBXBuildFile; fileRef = 45EFDDC895399F71255F9661 /* project.yml */; };
 		BFE171C459CD5760E7997CEE /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31CF20CA899DE2D203ABA5E0 /* ContentView.swift */; };
 		CE68223DCCF237599C6ABF9C /* pawWatchFeature in Frameworks */ = {isa = PBXBuildFile; productRef = CC2F6242165D6F162A627F2C /* pawWatchFeature */; };
@@ -65,6 +66,13 @@
 			remoteGlobalIDString = A28DD1D284D9078E992A8533;
 			remoteInfo = pawWatchWidgetExtension;
 		};
+		F9A8D8A734A0F76300B4F1B1 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 5B295C316277830C19C95E54 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 73B1D24D6D37160012C57894;
+			remoteInfo = "pawWatch Watch App";
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -88,6 +96,17 @@
 				408C25FC9CC87986E932A535 /* pawWatchWatchWidget.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F9A8D8A634A0F76300B4F1B1 /* Embed Watch Content */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = Watch;
+			dstSubfolderSpec = 16;
+			files = (
+				F9A8D8A534A0F76300B4F1B1 /* pawWatch Watch App.app in Embed Watch Content */,
+			);
+			name = "Embed Watch Content";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXCopyFilesBuildPhase section */
@@ -381,11 +400,13 @@
 				A1DF51BD767A5A4EFAE51D46 /* Resources */,
 				81051F5D748EDF4D1C0F5945 /* Frameworks */,
 				1424C837BA38D618BC89D42B /* Embed Foundation Extensions */,
+				F9A8D8A634A0F76300B4F1B1 /* Embed Watch Content */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 				5598A49114AFB7EDB300369C /* PBXTargetDependency */,
+				F9A8D8A834A0F76300B4F1B1 /* PBXTargetDependency */,
 			);
 			name = pawWatch;
 			packageProductDependencies = (
@@ -536,6 +557,11 @@
 			isa = PBXTargetDependency;
 			target = A28DD1D284D9078E992A8533 /* pawWatchWidgetExtension */;
 			targetProxy = E8FC88E79384B52412B29575 /* PBXContainerItemProxy */;
+		};
+		F9A8D8A834A0F76300B4F1B1 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 73B1D24D6D37160012C57894 /* pawWatch Watch App */;
+			targetProxy = F9A8D8A734A0F76300B4F1B1 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
