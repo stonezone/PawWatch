@@ -69,6 +69,8 @@ logs/
 serena_logs.txt
 docs/_build/
 *.log
+documentation_archive.zip
+pawWatchFeatureSources.zip
 
 # =========================================
 # Configuration, caches, private folders

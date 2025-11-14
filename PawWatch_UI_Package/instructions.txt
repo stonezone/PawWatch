@@ -1,0 +1,168 @@
+Implementation Guide for PawWatch Liquid Glass Redesign
+
+This document outlines the steps required to implement the Liquid Glass redesign described in **TODO_UI.md** and illustrated by the provided mockup images.  It explains how to integrate new assets, create reusable glass components, refactor the existing views, and validate that the final user interface matches the design examples.  Follow the steps in order to minimise regressions.
+
+## Prerequisites
+
+* Review the analysis and phased plan in `TODO_UI.md`.  This document references specific files and line numbers in the existing repository and proposes new components and layouts.  Keep `TODO_UI.md` open while implementing.
+* Ensure you are using Xcode 26 or later with Swift 6.2 support.  The code relies on new Liquid Glass APIs available in iOS 26 and watchOS 26.
+* Copy the following assets into your Swift package’s `Resources/` directory:
+  * `GlassBackground.png` – translucent swirling blue/purple background.
+  * `GlassCardIcon.png` – frosted card with paw print.
+  * `iOS_Mockup.png` – example of the redesigned iOS dashboard.
+  * `watchOS_Mockup.png` – example of the redesigned watch dashboard.
+  Update `Package.swift` to process these resources:
+  ```swift
+  // Package.swift
+  .target(
+      name: "pawWatchFeature",
+      resources: [.process("Resources")]
+  ),
+  ```
+
+## Step 1 – Create Reusable Glass Components
+
+Implement the following SwiftUI components in a new file (e.g. `LiquidGlassComponents.swift`) within the `pawWatchFeature` package.  These wrappers encapsulate Liquid Glass materials and preserve existing state:
+
+```swift
+// LiquidGlassComponents.swift
+import SwiftUI
+
+// A reusable glass background that loads the included background image
+@available(iOS 26, *)
+public struct GlassBackground: View {
+    public init() {}
+    public var body: some View {
+        Image("GlassBackground")
+            .resizable()
+            .scaledToFill()
+            .ignoresSafeArea()
+    }
+}
+
+// A frosted glass card that adapts blur and shadow based on environment
+@available(iOS 26, *)
+public struct GlassCard<Content: View>: View {
+    private let content: Content
+    public init(@ViewBuilder content: () -> Content) { self.content = content() }
+    public var body: some View {
+        content
+            .padding(20)
+            .background(.liquidGlass(.system))
+            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .shadow(color: .black.opacity(0.1), radius: 20, x: 0, y: 10)
+    }
+}
+
+// A customised tab bar that shrinks on scroll (simplified example)
+@available(iOS 26, *)
+public struct LiquidGlassTabBar<Selection: Hashable>: View {
+    @Binding private var selection: Selection
+    private let items: [(icon: String, title: String, tag: Selection)]
+    private let onSelect: (Selection) -> Void
+    public init(selection: Binding<Selection>, items: [(icon: String, title: String, tag: Selection)], onSelect: @escaping (Selection) -> Void) {
+        self._selection = selection
+        self.items = items
+        self.onSelect = onSelect
+    }
+    public var body: some View {
+        HStack {
+            ForEach(items, id: \ .tag) { item in
+                Button {
+                    onSelect(item.tag)
+                } label: {
+                    VStack(spacing: 4) {
+                        Image(systemName: item.icon)
+                            .symbolVariant(selection == item.tag ? .fill : .none)
+                        Text(item.title)
+                            .font(.caption2)
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(selection == item.tag ? .blue : .secondary)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(.liquidGlass(.bar))
+        .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
+        .glassShadow(radius: 10, x: 0, y: 5)
+    }
+}
+```
+
+Provide fallback implementations using `.ultraThinMaterial` for earlier iOS versions so that the code compiles on iOS 18.  Wrap each `@available(iOS 26, *)` component with conditional compilation if necessary.
+
+## Step 2 – Replace Existing Views with Glass Wrappers
+
+Update your existing views to adopt the new components:
+
+1. **MainTabView** (in `MainTabView.swift`)
+   * Remove the custom `HStack` tab bar defined at lines 39–76【189382824657813†L39-L76】.
+   * Instantiate `LiquidGlassTabBar`, passing an array of (icon, title, tag) tuples matching your tabs.  Bind its selection to `selectedTab`.
+   * Wrap the TabView with `GlassBackground()` so the gradient background is replaced.
+
+2. **DashboardView**
+   * Remove the `LinearGradient` background【189382824657813†L115-L118】 and wrap the entire view in `GlassBackground()`.
+   * Wrap `PetStatusCard` and any other panels with `GlassCard`.  This preserves existing content while applying the new material.
+   * Use semantic colours and new font styles defined in iOS 26 (`.primaryAccent`, `.titleGlass`, etc.).
+
+3. **PetStatusCard**
+   * Move the core `VStack` into a `GlassCard` wrapper.  Replace hard‑coded colours with semantic roles (`.green`, `.orange`) and derive accent tints from Smart Tint.
+   * Update fonts to the new variable weights.  Use `.font(.titleGlass)`, `.font(.bodyGlass)`, and `.font(.captionGlass)` where appropriate.
+
+4. **PetMapView**
+   * Replace the coloured circle markers with custom views that load `GlassCardIcon.png`.  For example:
+     ```swift
+     struct PetMarkerView: View {
+         var body: some View {
+             Image("GlassCardIcon")
+                 .resizable()
+                 .scaledToFit()
+                 .frame(width: 48, height: 48)
+                 .clipShape(Circle())
+                 .shadow(radius: 8)
+         }
+     }
+     ```
+   * Consider applying a subtle glass halo behind the marker using `.background(.liquidGlass(.system))`.
+
+5. **HistoryView & SettingsView**
+   * Convert `List` and `Form` sections into `LazyVGrid` or `OrganicGrid` layouts, wrapped in `GlassCard`s.  Use separators implemented via glass borders rather than plain dividers.
+
+6. **Watch ContentView**
+   * Build a new watch dashboard view (`WatchDashboardView`) using `CircularFlow`, `OrbitalActionButton` and `GlassCard` components (examples in `TODO_UI.md`).  Keep the old view behind a version check for watchOS 25 and earlier.
+   * Use `Watch_Mockup.png` as a reference for the radial arrangement and sizing of elements.
+
+## Step 3 – Adopt Platform Features
+
+Follow Phase 3 of `TODO_UI.md` to integrate Live Activities, Smart Islands, Smart Stack hints and new hand gestures.  These features are beyond the scope of basic UI construction but are essential for a complete iOS 26/watchOS 26 experience.  Refer to Apple’s documentation for the `ActivityKit` and `SmartStack` APIs.
+
+## Step 4 – Validate the Implementation
+
+After implementing the above changes, perform the following validation checks to ensure the UI matches the design intent:
+
+1. **Visual parity** – Open the app on an iPhone 16 Pro Max and compare it against `iOS_Mockup.png`.  Ensure:
+   * The background uses the Liquid Glass image with frosted translucency.
+   * The pet status card matches the glass card appearance: rounded corners, appropriate shadow and blur, correct spacing.
+   * The map is framed within a glass card with subtle depth.
+   * The tab bar floats above the bottom edge, with icons and labels centred and a shrink/expand behaviour when scrolling.
+   * Text uses the system fonts and variable weights defined in iOS 26.
+
+2. **Circular adaptation** – On Apple Watch Ultra 3, compare the interface against `watchOS_Mockup.png`.  Verify:
+   * Content is arranged radially around the watch face using spherical layout.
+   * Buttons conform to the curve of the display and exhibit glass ripple feedback.
+   * The central glass card displays status information clearly with readable fonts.
+   * Colours are derived via radial tints and adapt to Always‑On mode.
+
+3. **Functionality** – Ensure that data flow and interaction remain intact:
+   * Pet location updates still arrive and draw the trail on the map.
+   * Watch connectivity is unaffected; starting and stopping tracking works correctly.
+   * Settings changes (metric/imperial units, notifications) persist and reflect in the UI.
+
+4. **Accessibility** – Enable VoiceOver and dynamic type.  Verify that all elements are reachable, labelled and adjust correctly to larger text sizes.  Test the Reduce Motion and Smart Contrast options and confirm that glass effects adapt gracefully.
+
+5. **Performance** – On devices supporting ProMotion and 90 Hz refresh, confirm that animations remain smooth and that battery usage does not spike.  Test in Low Power Mode to ensure glass effects gracefully degrade.
+
+Document any discrepancies and iteratively refine the UI until the visual and functional requirements are met.

@@ -53,9 +53,9 @@ This document audits the **PawWatch** iOS and watchOS companion apps against App
 - **Next:** Implement push-enabled Live Activity updates + entitlements rollout, and expand stop actions so the watch can confirm to the phone (and optionally sync screens) before moving to alert routing/push work.
 
 **Phase 10 — Push-Enabled Live Activities (2025-11-11 03:40 HST, v1.0.42 pending)**  
-- **Done:** Added Release-only `aps-environment` entitlements for the iOS app + widget, introduced `PawWatchAppDelegate` with BackgroundTasks scheduling, APNs registration, and silent push handling, and extended `PerformanceLiveActivityManager` with push-token observation + remote payload decoding so Live Activities update while the app is suspended; both iOS and watch schemes build cleanly via raw `xcodebuild`.  
-- **Risks:** Backend/token upload plumbing still needs to be wired (tokens currently live only in the App Group store), provisioning/TestFlight profiles must be regenerated with the new push capability, and refreshed screenshots/test notes (Lock Screen, Dynamic Island, watch radial view) are still outstanding.  
-- **Next:** Integrate the backend token upload/API contract, capture the required screenshots + QA notes, bump to v1.0.42, and proceed to Phase 11 (alert routing + history polish) once push delivery is validated on device/TestFlight.
+- **Done:** Added Release-only `aps-environment` entitlements for the iOS app + widget, introduced `PawWatchAppDelegate` with BackgroundTasks scheduling, APNs registration, and silent push handling, extended `PerformanceLiveActivityManager` with push-token observation + remote payload decoding, and wired a signed push-token uploader (endpoint overrides, HMAC header, exponential backoff, device context metadata) that is currently **gated via `PAWWATCH_PUSH_UPLOADS_ENABLED`** so Live Activities stay local until a backend is ready; both iOS and watch schemes build cleanly via raw `xcodebuild`.  
+- **Risks:** Backend/API key/HMAC still need to be provisioned (uploads remain OFF), provisioning/TestFlight profiles must be regenerated with the new push capability, and refreshed screenshots/test notes (Lock Screen, Dynamic Island, watch radial view) are still outstanding.  
+- **Next:** Finish hardware QA + screenshots, refresh provisioning/TestFlight, bump to v1.0.42, and flip the upload flag only when a backend exists (capture a device push log before moving to Phase 11 alert routing/history polish).
 
 ### Sources
 
