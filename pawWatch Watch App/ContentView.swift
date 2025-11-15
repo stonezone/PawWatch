@@ -13,7 +13,6 @@ import Observation
 import WatchKit
 @preconcurrency import WatchConnectivity
 import CoreLocation
-import pawWatchFeature
 
 // MARK: - Watch Location Manager
 
@@ -124,6 +123,9 @@ final class WatchLocationManager: WatchLocationProviderDelegate {
         // Start workout session and GPS streaming
         // Uses .other activity type for maximum update frequency
         locationProvider.startWorkoutAndStreaming(activity: .other)
+
+        // 🔍 DIAGNOSTIC: Check WCSession state after activation
+        diagnosePairingState()
 
         statusMessage = "Acquiring GPS..."
     }
@@ -354,6 +356,70 @@ final class WatchLocationManager: WatchLocationProviderDelegate {
         }
 
         refreshPerformanceSnapshot()
+    }
+
+    /// 🔍 DIAGNOSTIC: Comprehensive WCSession state diagnosis
+    /// Prints detailed pairing information to help troubleshoot connectivity issues
+    private func diagnosePairingState() {
+        print("\n" + String(repeating: "=", count: 60))
+        print("🔍 WATCH: WatchConnectivity Diagnostic Report")
+        print(String(repeating: "=", count: 60))
+
+        guard WCSession.isSupported() else {
+            print("❌ CRITICAL: WCSession is NOT SUPPORTED on this device")
+            print(String(repeating: "=", count: 60) + "\n")
+            return
+        }
+
+        let session = WCSession.default
+
+        // Activation State
+        let activationStateString: String
+        switch session.activationState {
+        case .notActivated:
+            activationStateString = "⚠️  NOT ACTIVATED (WCSession.activate() hasn't been called yet)"
+        case .inactive:
+            activationStateString = "⚠️  INACTIVE (Session was deactivated)"
+        case .activated:
+            activationStateString = "✅ ACTIVATED (Session is ready)"
+        @unknown default:
+            activationStateString = "❓ UNKNOWN (\(session.activationState.rawValue))"
+        }
+
+        print("📱 Activation State: \(activationStateString)")
+        print("   Raw Value: \(session.activationState.rawValue) (0=notActivated, 1=inactive, 2=activated)")
+
+        // Only check pairing details if activated (prevents crashes)
+        if session.activationState == .activated {
+            print("\n🔗 Connection Status:")
+            print("   isCompanionAppInstalled: \(session.isCompanionAppInstalled ? "✅ YES - iPhone app detected" : "❌ NO - iPhone app NOT detected")")
+            print("   isReachable: \(session.isReachable ? "✅ YES - Can send messages now" : "⚠️  NO - Phone sleeping or app backgrounded")")
+
+            print("\n📊 Session Properties:")
+            print("   hasContentPending: \(session.hasContentPending)")
+            print("   outstandingFileTransfers: \(session.outstandingFileTransfers.count)")
+            print("   outstandingUserInfoTransfers: \(session.outstandingUserInfoTransfers.count)")
+
+            // Critical error conditions
+            if !session.isCompanionAppInstalled {
+                print("\n❌ CRITICAL ERROR: iPhone app not detected by WatchConnectivity")
+                print("   → This is the most common issue!")
+                print("   → Solution: Delete BOTH apps, clean build, reinstall iOS app FIRST, then Watch app")
+            }
+
+            if !session.isReachable && session.isCompanionAppInstalled {
+                print("\n⚠️  WARNING: iPhone app installed but unreachable")
+                print("   → iPhone might be locked or app backgrounded")
+                print("   → Try: Wake iPhone → Open pawWatch app → Then start Watch tracking")
+            }
+        } else {
+            print("\n⚠️  Connection details unavailable until session activates")
+            print("   → WCSession.activate() should be called in WatchLocationProvider")
+            print("   → Check if startWorkoutAndStreaming() → configureWatchConnectivity() was called")
+        }
+
+        print(String(repeating: "=", count: 60))
+        print("End Diagnostic Report\n")
     }
 }
 
@@ -1157,3 +1223,4 @@ private struct WatchSettingsView: View {
         .navigationTitle("Settings")
     }
 }
+

@@ -10,12 +10,11 @@ import WatchConnectivity
 import OSLog
 import pawWatchFeature
 
-@MainActor
-final class PhoneWatchConnectivityManager: NSObject, ObservableObject {
-    static let shared = PhoneWatchConnectivityManager()
+final class PhoneWatchConnectivityManager: NSObject, ObservableObject, @unchecked Sendable {
+    nonisolated(unsafe) static let shared = PhoneWatchConnectivityManager()
 
-    @Published var isWatchReachable = false
-    @Published var lastReceivedFix: Date?
+    @MainActor @Published var isWatchReachable = false
+    @MainActor @Published var lastReceivedFix: Date?
 
     private let logger = Logger(subsystem: "com.stonezone.pawWatch", category: "PhoneWatchConnectivity")
     private var session: WCSession?
@@ -35,6 +34,12 @@ final class PhoneWatchConnectivityManager: NSObject, ObservableObject {
         session?.delegate = self
         session?.activate()
         logger.notice("WatchConnectivity session activating...")
+
+        // 🔍 DIAGNOSTIC: Schedule pairing check after activation completes
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(2))
+            self.diagnosePairingState()
+        }
     }
 }
 
@@ -46,6 +51,8 @@ extension PhoneWatchConnectivityManager: WCSessionDelegate {
         let reachable = session.isReachable
         let activationStateValue = activationState.rawValue
         let errorDescription = error?.localizedDescription
+        let isPaired = session.isPaired
+        let isWatchAppInstalled = session.isWatchAppInstalled
 
         Task { @MainActor [weak self] in
             guard let self else { return }
@@ -53,7 +60,18 @@ extension PhoneWatchConnectivityManager: WCSessionDelegate {
                 self.logger.error("WCSession activation failed: \(errorDescription, privacy: .public)")
             } else {
                 self.logger.notice("WCSession activated with state: \(activationStateValue)")
+                self.logger.notice("  isPaired: \(isPaired)")
+                self.logger.notice("  isWatchAppInstalled: \(isWatchAppInstalled)")
+                self.logger.notice("  isReachable: \(reachable)")
                 self.isWatchReachable = reachable
+
+                // Log critical issues
+                if !isPaired {
+                    self.logger.error("❌ CRITICAL: Watch not paired to iPhone")
+                }
+                if !isWatchAppInstalled {
+                    self.logger.error("❌ CRITICAL: Watch app not detected by WatchConnectivity")
+                }
             }
         }
     }
@@ -152,7 +170,9 @@ extension PhoneWatchConnectivityManager: WCSessionDelegate {
     }
 
     private func handleLocationFix(_ fix: LocationFix) {
-        lastReceivedFix = Date()
+        Task { @MainActor in
+            lastReceivedFix = Date()
+        }
         logger.notice("📍 Received location: lat=\(fix.coordinate.latitude), lon=\(fix.coordinate.longitude), acc=\(fix.horizontalAccuracyMeters)m")
 
         NotificationCenter.default.post(
@@ -160,6 +180,68 @@ extension PhoneWatchConnectivityManager: WCSessionDelegate {
             object: nil,
             userInfo: ["fix": fix]
         )
+    }
+
+    /// 🔍 DIAGNOSTIC: Comprehensive WCSession state diagnosis for iOS
+    private func diagnosePairingState() {
+        guard let session = session else {
+            logger.error("🔍 DIAGNOSTIC: WCSession is nil")
+            return
+        }
+
+        let separator = String(repeating: "=", count: 60)
+        logger.notice("\n\(separator, privacy: .public)")
+        logger.notice("🔍 iPhone: WatchConnectivity Diagnostic Report")
+        logger.notice("\(separator, privacy: .public)")
+
+        // Activation State
+        let activationStateString: String
+        switch session.activationState {
+        case .notActivated:
+            activationStateString = "⚠️  NOT ACTIVATED"
+        case .inactive:
+            activationStateString = "⚠️  INACTIVE"
+        case .activated:
+            activationStateString = "✅ ACTIVATED"
+        @unknown default:
+            activationStateString = "❓ UNKNOWN"
+        }
+
+        logger.notice("📱 Activation State: \(activationStateString)")
+        logger.notice("   Raw Value: \(session.activationState.rawValue)")
+
+        if session.activationState == .activated {
+            logger.notice("\n🔗 Pairing Status:")
+            logger.notice("   isPaired: \(session.isPaired ? "✅ YES" : "❌ NO")")
+            logger.notice("   isWatchAppInstalled: \(session.isWatchAppInstalled ? "✅ YES" : "❌ NO - Watch app NOT detected")")
+            logger.notice("   isReachable: \(session.isReachable ? "✅ YES" : "⚠️  NO")")
+
+            logger.notice("\n📊 Session Properties:")
+            logger.notice("   hasContentPending: \(session.hasContentPending)")
+            logger.notice("   outstandingFileTransfers: \(session.outstandingFileTransfers.count)")
+            logger.notice("   outstandingUserInfoTransfers: \(session.outstandingUserInfoTransfers.count)")
+            logger.notice("   receivedApplicationContext keys: \(session.receivedApplicationContext.keys.joined(separator: ", "))")
+            logger.notice("   applicationContext keys: \(session.applicationContext.keys.joined(separator: ", "))")
+
+            // Critical error conditions
+            if !session.isPaired {
+                logger.error("\n❌ CRITICAL: Watch not paired in Settings")
+            }
+
+            if !session.isWatchAppInstalled {
+                logger.error("\n❌ CRITICAL: Watch app NOT detected")
+                logger.error("   → Most common cause of connectivity failure")
+                logger.error("   → Solution: Delete both apps, clean build, reinstall Watch app FIRST")
+            }
+
+            if !session.isReachable && session.isWatchAppInstalled {
+                logger.notice("\n⚠️  Watch app installed but unreachable")
+                logger.notice("   → Watch might be sleeping or app not running")
+            }
+        }
+
+        logger.notice("\(separator, privacy: .public)")
+        logger.notice("End Diagnostic Report\n")
     }
 }
 
