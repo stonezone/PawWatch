@@ -35,20 +35,6 @@
                ReferencedContainer = "container:pawWatch.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
-         <BuildActionEntry
-            buildForTesting = "NO"
-            buildForRunning = "YES"
-            buildForProfiling = "YES"
-            buildForArchiving = "YES"
-            buildForAnalyzing = "YES">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "1D629B04B8ECCA9B95B29199"
-               BuildableName = "pawWatch Watch App Extension.appex"
-               BlueprintName = "pawWatch Watch App Extension"
-               ReferencedContainer = "container:pawWatch.xcodeproj">
-            </BuildableReference>
-         </BuildActionEntry>
       </BuildActionEntries>
    </BuildAction>
    <TestAction
