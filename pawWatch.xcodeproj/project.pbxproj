@@ -47,13 +47,6 @@
 			remoteGlobalIDString = 480178B48EFF87000F1C5AA1;
 			remoteInfo = pawWatchWatchWidget;
 		};
-		A20BB2CE5CD0C8F850BFE637 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 5B295C316277830C19C95E54 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 1D629B04B8ECCA9B95B29199;
-			remoteInfo = "pawWatch Watch App Extension";
-		};
 		B1070AC164DC453FB10D992C /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 5B295C316277830C19C95E54 /* Project object */;
@@ -100,7 +93,6 @@
 			dstSubfolderSpec = 13;
 			files = (
 				408C25FC9CC87986E932A535 /* pawWatchWatchWidget.appex in Embed Foundation Extensions */,
-				00209FC238A94D6A93553832 /* pawWatch Watch App Extension.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -373,7 +365,6 @@
 			);
 			dependencies = (
 				518C351029236D0CB6C57AA9 /* PBXTargetDependency */,
-				D2AEB02D708911E9F45BD6F0 /* PBXTargetDependency */,
 			);
 			name = "pawWatch Watch App";
 			packageProductDependencies = (
@@ -381,7 +372,7 @@
 			);
 			productName = "pawWatch Watch App";
 			productReference = 950A0AD89D5233A618F6D2BF /* pawWatch Watch App.app */;
-			productType = "com.apple.product-type.application";
+			productType = "com.apple.product-type.application.watchapp2";
 		};
 		A28DD1D284D9078E992A8533 /* pawWatchWidgetExtension */ = {
 			isa = PBXNativeTarget;
@@ -523,16 +514,10 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		363DE4F6A47BFA97E2BCE46A /* Sources */ = {
+363DE4F6A47BFA97E2BCE46A /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				4457202429A80574BBD9706B /* ContentView.swift in Sources */,
-				75ED6341147AB186643889BA /* ExtensionDelegate.swift in Sources */,
-				97070D39E8A7700AB6C4B30B /* PerformanceMonitor.swift in Sources */,
-				F0F7589193DA811ADCC8E7EC /* WatchGlassComponents.swift in Sources */,
-				6BC7CECA7E86308E58B44126 /* WatchLocationProvider.swift in Sources */,
-				4E2067C620F4329514434D73 /* pawWatchApp.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -545,10 +530,16 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		9B93ED7C11A21FD20C5C6EBA /* Sources */ = {
+9B93ED7C11A21FD20C5C6EBA /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				4457202429A80574BBD9706B /* ContentView.swift in Sources */,
+				75ED6341147AB186643889BA /* ExtensionDelegate.swift in Sources */,
+				97070D39E8A7700AB6C4B30B /* PerformanceMonitor.swift in Sources */,
+				F0F7589193DA811ADCC8E7EC /* WatchGlassComponents.swift in Sources */,
+				6BC7CECA7E86308E58B44126 /* WatchLocationProvider.swift in Sources */,
+				4E2067C620F4329514434D73 /* pawWatchApp.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -569,11 +560,6 @@
 			isa = PBXTargetDependency;
 			target = 73B1D24D6D37160012C57894 /* pawWatch Watch App */;
 			targetProxy = B1070AC164DC453FB10D992C /* PBXContainerItemProxy */;
-		};
-		D2AEB02D708911E9F45BD6F0 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 1D629B04B8ECCA9B95B29199 /* pawWatch Watch App Extension */;
-			targetProxy = A20BB2CE5CD0C8F850BFE637 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -749,7 +735,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 57;
+				CURRENT_PROJECT_VERSION = 58;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = 78725QX6PZ;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -769,7 +755,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.4;
-				MARKETING_VERSION = 1.0.57;
+				MARKETING_VERSION = 1.0.58;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -838,7 +824,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 57;
+				CURRENT_PROJECT_VERSION = 58;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = 78725QX6PZ;
 				ENABLE_NS_ASSERTIONS = NO;
@@ -852,7 +838,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.4;
-				MARKETING_VERSION = 1.0.57;
+				MARKETING_VERSION = 1.0.58;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
