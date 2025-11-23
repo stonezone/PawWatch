@@ -34,7 +34,5 @@
 	</array>
 	<key>WKCompanionAppBundleIdentifier</key>
 	<string>com.stonezone.pawWatch</string>
-	<key>WKWatchKitApp</key>
-	<true/>
 </dict>
 </plist>
