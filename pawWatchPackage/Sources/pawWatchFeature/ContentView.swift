@@ -16,10 +16,13 @@ import SwiftUI
 
 /// Entry point now delegates to `MainTabView`.
 public struct ContentView: View {
+    @EnvironmentObject private var locationManager: PetLocationManager
+
     public init() {}
 
     public var body: some View {
         MainTabView()
+            .environmentObject(locationManager)
     }
 }
 

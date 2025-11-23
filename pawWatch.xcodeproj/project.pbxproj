@@ -37,7 +37,6 @@
 		E71EEC3D0D018C9AF954AFF2 /* PushTokenUploader.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0AE3FD57AC103E0319C294D /* PushTokenUploader.swift */; };
 		EBD92BF7E3C90D2ED912EE97 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 6AAB458652C595976E7FA680 /* Assets.xcassets */; };
 		F0F7589193DA811ADCC8E7EC /* WatchGlassComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BF408780946BCECEC8F37D1 /* WatchGlassComponents.swift */; };
-		F1D4777D2AA712B2D8E1A116 /* PhoneWatchConnectivityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13EE8C24CBD2C6D499AC4F73 /* PhoneWatchConnectivityManager.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -111,7 +110,6 @@
 /* Begin PBXFileReference section */
 		014F16C4F88894AC98C61654 /* PawLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PawLiveActivity.swift; sourceTree = "<group>"; };
 		1185FDEB3EB169CEC8F81EAD /* PawWatchWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PawWatchWidget.swift; sourceTree = "<group>"; };
-		13EE8C24CBD2C6D499AC4F73 /* PhoneWatchConnectivityManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneWatchConnectivityManager.swift; sourceTree = "<group>"; };
 		13F3BD75DEBE9DF7A1968141 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		19B7DB6CD8E04C1D8500CD39 /* WatchLocationProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchLocationProvider.swift; sourceTree = "<group>"; };
 		1DF64214C85F44163C41C191 /* tech_stack.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = tech_stack.md; sourceTree = "<group>"; };
@@ -241,7 +239,6 @@
 				37EF2914E6FFB273E395FE89 /* pawWatch.entitlements */,
 				24A9551A73A98AE2FB4AA8C3 /* pawWatch.xctestplan */,
 				C17C02071845B52C99D8AFAF /* pawWatchApp.swift */,
-				13EE8C24CBD2C6D499AC4F73 /* PhoneWatchConnectivityManager.swift */,
 				F25D63EECB592294A5523E16 /* .serena */,
 				8F882A7C36947CE7088E5232 /* Sources */,
 			);
@@ -521,7 +518,6 @@
 			files = (
 				2651D2887F844B706C7E173B /* PawActivityAttributes.swift in Sources */,
 				55326249AA0D4F3CA6C7E836 /* PerformanceLiveActivityManager.swift in Sources */,
-				F1D4777D2AA712B2D8E1A116 /* PhoneWatchConnectivityManager.swift in Sources */,
 				E71EEC3D0D018C9AF954AFF2 /* PushTokenUploader.swift in Sources */,
 				0E3589B340742665FCB48483 /* pawWatchApp.swift in Sources */,
 			);
@@ -753,7 +749,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 56;
+				CURRENT_PROJECT_VERSION = 57;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = 78725QX6PZ;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -773,7 +769,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.4;
-				MARKETING_VERSION = 1.0.56;
+				MARKETING_VERSION = 1.0.57;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -842,7 +838,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 56;
+				CURRENT_PROJECT_VERSION = 57;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = 78725QX6PZ;
 				ENABLE_NS_ASSERTIONS = NO;
@@ -856,7 +852,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.4;
-				MARKETING_VERSION = 1.0.56;
+				MARKETING_VERSION = 1.0.57;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";

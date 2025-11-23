@@ -48,8 +48,9 @@ targets:
     platform: watchOS
     deploymentTarget: "11.0"
     sources:
-      - path: "pawWatch Watch App/Assets.xcassets"
-      - path: "pawWatch Watch App/Info.plist"
+      - path: "pawWatch Watch App"
+        excludes:
+          - "*.swift"
     dependencies:
       - package: pawWatchFeature
       - target: pawWatchWatchWidget

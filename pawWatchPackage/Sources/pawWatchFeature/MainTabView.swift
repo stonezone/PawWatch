@@ -7,7 +7,7 @@ public struct MainTabView: View {
         case dashboard, history, settings
     }
 
-    @StateObject private var locationManager = PetLocationManager()
+    @EnvironmentObject private var locationManager: PetLocationManager
     @AppStorage("useMetricUnits") private var useMetricUnits = true
     @State private var selectedTab: Tab = .dashboard
 

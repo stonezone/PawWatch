@@ -30,5 +30,13 @@
 		<key>NSExtensionPrincipalClass</key>
 		<string>$(PRODUCT_MODULE_NAME).ExtensionDelegate</string>
 	</dict>
+	<key>NSHealthShareUsageDescription</key>
+	<string>pawWatch reads Health data (like heart rate) to validate tracking sessions and safety.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>Allow pawWatch to record pet walks as workouts to keep the session alive and show activity trends.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Allow pawWatch to keep tracking your pet’s path when the watch app is not in the foreground.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>pawWatch needs location access on the watch to capture your pet’s path.</string>
 </dict>
 </plist>
