@@ -6,16 +6,12 @@
 	<array>
 		<string>com.stonezone.pawWatch.activity-refresh</string>
 	</array>
-	<key>CFBundleDisplayName</key>
-	<string>pawWatch</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 	<key>CFBundleName</key>
 	<string>$(PRODUCT_NAME)</string>
-	<key>CFBundlePackageType</key>
-	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleURLTypes</key>
@@ -31,20 +27,14 @@
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
-	<key>LSApplicationCategoryType</key>
-	<string>public.app-category.lifestyle</string>
 	<key>NSHealthShareUsageDescription</key>
-	<string>pawWatch uses Health data to display workout summaries from your pet's watch.</string>
+	<string>pawWatch reads Health data (like heart rate) to validate tracking sessions and safety.</string>
 	<key>NSHealthUpdateUsageDescription</key>
-	<string>pawWatch writes workout samples so the iPhone can mirror watch activity.</string>
+	<string>Allow pawWatch to record pet walks as workouts to keep the session alive and show activity trends.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>pawWatch needs continuous location access to track the distance to your pet even when the app is in the background.</string>
-	<key>NSLocationAlwaysUsageDescription</key>
-	<string>pawWatch requires always-on location access to maintain accurate distance tracking to your pet.</string>
+	<string>Allow pawWatch to stay updated on your pet's path when the app is not in the foreground.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>pawWatch needs your location to calculate the distance between you and your pet wearing the Apple Watch.</string>
-	<key>NSSupportsLiveActivities</key>
-	<true/>
+	<string>pawWatch needs location access to mirror your pet's position from the watch.</string>
 	<key>PAWWATCH_PUSH_API_KEY</key>
 	<string>$(PAWWATCH_PUSH_API_KEY)</string>
 	<key>PAWWATCH_PUSH_ENDPOINT</key>
@@ -62,7 +52,14 @@
 		<key>UISceneConfigurations</key>
 		<dict>
 			<key>UIWindowSceneSessionRoleApplication</key>
-			<array/>
+			<array>
+				<dict>
+					<key>UISceneConfigurationName</key>
+					<string>Default Configuration</string>
+					<key>UISceneDelegateClassName</key>
+					<string>pawWatch.SceneDelegate</string>
+				</dict>
+			</array>
 		</dict>
 	</dict>
 	<key>UIBackgroundModes</key>
@@ -74,15 +71,5 @@
 	</array>
 	<key>UILaunchScreen</key>
 	<dict/>
-	<key>UIRequiredDeviceCapabilities</key>
-	<array>
-		<string>location-services</string>
-		<string>gps</string>
-	</array>
-	<key>UISupportedInterfaceOrientations</key>
-	<array>
-		<string>UIInterfaceOrientationPortrait</string>
-		<string>UIInterfaceOrientationPortraitUpsideDown</string>
-	</array>
 </dict>
 </plist>

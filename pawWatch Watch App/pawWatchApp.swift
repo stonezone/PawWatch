@@ -20,11 +20,24 @@ struct pawWatch_Watch_App: App {
     /// Monitors transitions between active, inactive, and background states.
     @Environment(\.scenePhase) private var scenePhase
 
+    /// Shared location manager - initialized at app launch
+    /// This ensures WatchConnectivity is activated immediately,
+    /// allowing the iPhone to detect the Watch app
+    @State private var locationManager = WatchLocationManager()
+
     // MARK: - Body
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            ContentView(locationManager: locationManager)
+                .task {
+                    // Initialize connection status immediately on app launch
+                    locationManager.updateConnectionStatus()
+
+                    // Optional: Start tracking automatically if desired
+                    // Uncomment the line below to start tracking immediately
+                    // await locationManager.startTracking()
+                }
         }
         .onChange(of: scenePhase) { oldPhase, newPhase in
             handleScenePhaseChange(from: oldPhase, to: newPhase)
@@ -81,3 +94,4 @@ struct pawWatch_Watch_App: App {
         }
     }
 }
+

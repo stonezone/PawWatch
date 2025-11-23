@@ -366,6 +366,7 @@ public final class WatchLocationProvider: NSObject {
     private var forceImmediateSend = false
     private var batteryHeartbeatTask: Task<Void, Never>?
     private var isTrackerLocked = false
+    private var activationRetryTask: Task<Void, Never>?
 
     // MARK: - Adaptive throttling state
 
@@ -414,6 +415,12 @@ public final class WatchLocationProvider: NSObject {
         if !supportsExtendedRuntime {
             logger.log("Extended runtime disabled (capability unavailable)")
         }
+
+        // Initialize WatchConnectivity immediately on app launch
+        // This ensures the iPhone can detect the Watch app without waiting for user interaction
+        Task { @MainActor in
+            self.configureWatchConnectivity()
+        }
     }
     
     // MARK: - Public Methods
@@ -430,7 +437,9 @@ public final class WatchLocationProvider: NSObject {
     public func startWorkoutAndStreaming(activity: HKWorkoutActivityType = .other) {
         requestAuthorizationsIfNeeded()
         startWorkoutSession(activity: activity)
-        configureWatchConnectivity()
+        Task { @MainActor in
+            self.configureWatchConnectivity()
+        }
 
         applyPreset(.aggressive, force: true)
         locationManager.startUpdatingLocation()
@@ -487,6 +496,7 @@ public final class WatchLocationProvider: NSObject {
     /// - Application context throttle state
     /// - Active file transfers
     public func stop() {
+        activationRetryTask?.cancel()
         locationManager.stopUpdatingLocation()
 
         // Capture builder and session locally to avoid self reference issues
@@ -609,31 +619,63 @@ public final class WatchLocationProvider: NSObject {
     // MARK: - Private Methods - WatchConnectivity
     
     /// Configures and activates WatchConnectivity session for phone relay.
+    @MainActor
     private func configureWatchConnectivity() {
-        if WCSession.isSupported() {
-            ConnectivityLog.verbose("Activating WCSession")
-            wcSession.delegate = self
-            wcSession.activate()
-        } else {
+        print("🔍 configureWatchConnectivity() called")
+
+        // Prevent duplicate initialization when already activated
+        if wcSession.delegate != nil, wcSession.activationState == .activated {
+            print("⚠️ WCSession already configured and active, skipping duplicate initialization")
+            return
+        }
+
+        guard WCSession.isSupported() else {
+            print("❌ WCSession.isSupported() returned FALSE")
             ConnectivityLog.error("WatchConnectivity not supported on this device")
+            
+            // Send diagnostic to iPhone via application context
+            do {
+                try wcSession.updateApplicationContext([
+                    "diagnostic": "watch_not_supported",
+                    "timestamp": Date().timeIntervalSince1970
+                ])
+            } catch {
+                print("Failed to send diagnostic: \(error)")
+            }
+            return
+        }
+        
+        print("✅ WCSession.isSupported() returned TRUE")
+        print("📱 Setting delegate and activating session...")
+        
+        ConnectivityLog.verbose("Activating WCSession")
+        wcSession.delegate = self
+        wcSession.activate()
+        
+        print("✅ WCSession.activate() called successfully")
+        scheduleActivationRetry(reason: "initial-activation")
+        
+        // Send activation diagnostic to iPhone after session activates (see delegate)
+    }
+    
+    @MainActor
+    private func scheduleActivationRetry(reason: String, delay: TimeInterval = 2.0) {
+        activationRetryTask?.cancel()
+        activationRetryTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(delay))
+            guard let self else { return }
+            if self.wcSession.activationState != .activated {
+                ConnectivityLog.notice("Retrying WCSession.activate() (\(reason))")
+                self.wcSession.activate()
+            }
         }
     }
     
-    /// Publishes a location fix using triple-path WatchConnectivity strategy.
-    ///
-    /// Triple-path messaging strategy:
-    /// 1. Application Context: Always updated (0.5s throttle + accuracy bypass)
-    ///    - Works in background
-    ///    - Latest-only (overwrites previous)
-    ///    - Throttled to prevent overwhelming the system
-    /// 2. Interactive Message: Attempted first if phone is reachable
-    ///    - Foreground only
-    ///    - Immediate delivery
-    ///    - Falls back to file transfer on failure
-    /// 3. File Transfer: Used when phone not reachable or interactive fails
-    ///    - Works in background
-    ///    - Queued delivery
-    ///    - Guaranteed delivery (retries on failure)
+    /// Publishes a location fix using a lossless path:
+    /// 1. transferUserInfo (FIFO queue, survives background) for every fix
+    /// 2. sendMessage when reachable (fast path)
+    /// 3. transferFile as a background fallback when reachability is false or sendMessage fails
+    /// ApplicationContext is **not** used for fixes (latest-only would drop history).
     ///
     /// - Parameter fix: The location fix to publish
     private func publishFix(_ fix: LocationFix) {
@@ -649,13 +691,12 @@ public final class WatchLocationProvider: NSObject {
         let updateType = isHeartbeat ? "heartbeat" : "update"
         logger.debug("Publishing fix seq=\(fix.sequence) accuracy=\(fix.horizontalAccuracyMeters, privacy: .public) [\(updateType)]")
 
-        transmitFix(fix, includeContext: true, notifyDelegate: true)
+        transmitFix(fix, notifyDelegate: true)
     }
 
-    /// Sends the provided fix to the paired iPhone, optionally updating context or notifying delegate.
+    /// Sends the provided fix to the paired iPhone and enqueues background delivery.
     private func transmitFix(
         _ fix: LocationFix,
-        includeContext: Bool,
         notifyDelegate: Bool
     ) {
         if notifyDelegate {
@@ -672,9 +713,8 @@ public final class WatchLocationProvider: NSObject {
             return
         }
 
-        if includeContext {
-            updateApplicationContextWithFix(fix)
-        }
+        // Always enqueue lossless FIFO delivery
+        queueUserInfo(for: fix)
         
         if wcSession.isReachable {
             if shouldSendInteractive(for: fix) {
@@ -686,6 +726,7 @@ public final class WatchLocationProvider: NSObject {
                     wcSession.sendMessage(payload, replyHandler: nil) { [weak self] error in
                         ConnectivityLog.notice("Interactive send failed: \(error.localizedDescription)")
                         self?.notifyConnectivityError(.interactiveSendFailed(underlying: error))
+                        // If interactive fails, rely on userInfo + file transfer for recovery
                         self?.queueBackgroundTransfer(for: fix)
                     }
                 } catch {
@@ -778,53 +819,21 @@ public final class WatchLocationProvider: NSObject {
         }
     }
     
-    /// Updates WatchConnectivity application context with latest location fix.
-    ///
-    /// Throttling Logic:
-    /// - Skip if same sequence number already sent (prevents duplicates)
-    /// - Skip if less than 0.5s since last push AND accuracy change < 5m
-    /// - Always send if accuracy improved by 5m+ (bypass time throttle)
-    ///
-    /// The 0.5s throttle allows ~2Hz max rate while capturing all 1Hz Watch GPS fixes.
-    /// Accuracy bypass ensures critical GPS lock improvements are delivered immediately.
-    ///
-    /// - Parameter fix: The location fix to send via application context
-    private func updateApplicationContextWithFix(_ fix: LocationFix) {
-        guard wcSession.activationState == .activated, fileTransfersEnabled else { return }
-        
-        let now = Date()
-        
-        // Skip if same sequence already sent (duplicate prevention)
-        if lastContextSequence == fix.sequence {
-            return
-        }
-        
-        // Apply 0.5s throttle with accuracy bypass
-        // Skip update if:
-        // 1. Less than 0.5s since last push, AND
-        // 2. Accuracy change is less than 5m threshold
-        if let lastPush = lastContextPushDate,
-           now.timeIntervalSince(lastPush) < contextPushInterval,
-           let lastAccuracy = lastContextAccuracy,
-           abs(lastAccuracy - fix.horizontalAccuracyMeters) < contextAccuracyDelta {
-            return
-        }
-        
+    /// Queues a lossless FIFO payload via transferUserInfo.
+    private func queueUserInfo(for fix: LocationFix) {
+        guard wcSession.activationState == .activated else { return }
+
         do {
             let data = try encoder.encode(fix)
-            var context: [String: Any] = runtimeContextMetadata()
-            context["latestFix"] = data
-
-            try wcSession.updateApplicationContext(context)
-            ConnectivityLog.verbose("Updated application context with latest fix")
-            
-            // Update throttle state
-            lastContextSequence = fix.sequence
-            lastContextPushDate = now
-            lastContextAccuracy = fix.horizontalAccuracyMeters
+            let userInfo: [String: Any] = [
+                "latestFix": data,
+                "sequence": fix.sequence,
+                "timestamp": fix.timestamp.timeIntervalSince1970
+            ]
+            wcSession.transferUserInfo(userInfo)
+            ConnectivityLog.verbose("Queued userInfo transfer for seq=\(fix.sequence)")
         } catch {
-            ConnectivityLog.error("Failed to update application context: \(error.localizedDescription)")
-            // Non-fatal - other delivery paths will still work
+            ConnectivityLog.error("Failed to queue userInfo: \(error.localizedDescription)")
         }
     }
     
@@ -1007,6 +1016,18 @@ extension WatchLocationProvider: CLLocationManagerDelegate {
                 let latest = locations.last
             else { return }
             
+            // Thermal guard: back off if the device is overheating
+            if ProcessInfo.processInfo.thermalState == .serious || ProcessInfo.processInfo.thermalState == .critical {
+                self.logger.error("Thermal state \(ProcessInfo.processInfo.thermalState.rawValue) - stopping tracking to protect hardware")
+                self.locationManager.stopUpdatingLocation()
+                self.isWorkoutRunning = false
+                self.stopBatteryHeartbeat()
+                if self.supportsExtendedRuntime {
+                    self.runtimeCoordinator.updateTrackingState(isRunning: false)
+                }
+                return
+            }
+            
             let device = WKInterfaceDevice.current()
             let batteryLevel = device.batteryLevel >= 0 ? Double(device.batteryLevel) : latestBatteryLevel
             latestBatteryLevel = batteryLevel
@@ -1074,11 +1095,41 @@ extension WatchLocationProvider: WCSessionDelegate {
         activationDidCompleteWith activationState: WCSessionActivationState,
         error: Error?
     ) {
+        let stateValue = activationState.rawValue
+        let errorDesc = error?.localizedDescription
+        let isCompanionInstalled = session.isCompanionAppInstalled
+        
         Task { @MainActor [weak self] in
-            ConnectivityLog.verbose("WCSession activation completed with state=\(activationState.rawValue) error=\(error?.localizedDescription ?? "none")")
+            guard let self else { return }
+            
+            ConnectivityLog.verbose("WCSession activation completed with state=\(stateValue) error=\(errorDesc ?? "none")")
+            
+            // 🔍 DIAGNOSTIC: Send Watch activation status to iPhone
+            print("🔍 Watch WCSession activated: state=\(stateValue)")
+            print("   isCompanionAppInstalled: \(isCompanionInstalled)")
+            print("   error: \(errorDesc ?? "none")")
+            
+            // Send diagnostic to iPhone via application context
+            let diagnostic: [String: Any] = [
+                "diagnostic": "watch_activated",
+                "activationState": stateValue,
+                "isCompanionAppInstalled": isCompanionInstalled,
+                "timestamp": Date().timeIntervalSince1970,
+                "error": errorDesc ?? "none"
+            ]
+            
+            do {
+                try session.updateApplicationContext(diagnostic)
+                print("✅ Sent activation diagnostic to iPhone")
+            } catch {
+                print("❌ Failed to send activation diagnostic: \(error)")
+            }
             
             if let error {
-                self?.delegate?.didFail(error)
+                self.delegate?.didFail(error)
+                self.scheduleActivationRetry(reason: "activation-error")
+            } else if !isCompanionInstalled {
+                self.scheduleActivationRetry(reason: "companion-missing")
             }
         }
     }
@@ -1106,7 +1157,7 @@ extension WatchLocationProvider: WCSessionDelegate {
                     self.forceImmediateSend = true
                 }
                 if let fix = self.latestFix {
-                    self.transmitFix(fix, includeContext: false, notifyDelegate: false)
+                    self.transmitFix(fix, notifyDelegate: false)
                 } else {
                     self.locationManager.requestLocation()
                 }

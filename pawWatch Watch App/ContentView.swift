@@ -442,7 +442,8 @@ struct ContentView: View {
     // MARK: - State Properties
 
     /// Location manager handling GPS tracking and phone relay
-    @State private var locationManager = WatchLocationManager()
+    /// Passed in from the App level to ensure immediate WatchConnectivity initialization
+    let locationManager: WatchLocationManager
     @AppStorage(RuntimePreferenceKey.runtimeOptimizationsEnabled) private var batteryOptimizationsEnabled = true
     @AppStorage("watchAutoLockEnabled") private var autoLockEnabled = true
     @State private var isTrackerLocked = false
@@ -471,6 +472,18 @@ struct ContentView: View {
         .onAppear {
             locationManager.setBatteryOptimizationsEnabled(batteryOptimizationsEnabled)
             locationManager.updateConnectionStatus()
+            
+            // 🔍 DIAGNOSTIC: Print WCSession state on appear
+            if WCSession.isSupported() {
+                let session = WCSession.default
+                print("\n🔍 [WATCH APPEAR] WCSession.isSupported = true")
+                print("   activationState: \(session.activationState.rawValue)")
+                print("   isCompanionAppInstalled: \(session.isCompanionAppInstalled)")
+                print("   isReachable: \(session.isReachable)")
+                print()
+            } else {
+                print("❌ [WATCH APPEAR] WCSession.isSupported = FALSE")
+            }
         }
         .onChange(of: batteryOptimizationsEnabled) { _, newValue in
             locationManager.setBatteryOptimizationsEnabled(newValue)
@@ -1008,16 +1021,6 @@ private struct RadialRing<Content: View>: View {
     }
 }
 
-// MARK: - Glass Helpers
-
-private struct WatchGlassBackground: View {
-    var body: some View {
-        AngularGradient(gradient: Gradient(colors: [.blue.opacity(0.4), .purple.opacity(0.3), .black.opacity(0.6)]), center: .center)
-            .ignoresSafeArea()
-            .blur(radius: 35)
-    }
-}
-
 private struct GlassPill<Content: View>: View {
     @ViewBuilder var content: Content
 
@@ -1194,7 +1197,7 @@ private extension ContentView {
 // MARK: - Preview
 
 #Preview {
-    ContentView()
+    ContentView(locationManager: WatchLocationManager())
 }
 
 // MARK: - Settings View
@@ -1223,4 +1226,3 @@ private struct WatchSettingsView: View {
         .navigationTitle("Settings")
     }
 }
-

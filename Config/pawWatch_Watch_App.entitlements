@@ -2,26 +2,19 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- Location Services -->
-	<key>com.apple.security.personal-information.location</key>
-	<true/>
-	
-	<!-- HealthKit Capability -->
+	<key>com.apple.developer.associated-domains</key>
+	<array/>
 	<key>com.apple.developer.healthkit</key>
 	<true/>
 	<key>com.apple.developer.healthkit.access</key>
 	<array>
 		<string>health-records</string>
 	</array>
-
-	<!-- WatchConnectivity -->
+	<key>com.apple.developer.healthkit.background-delivery</key>
+	<true/>
 	<key>com.apple.security.application-groups</key>
 	<array>
 		<string>group.com.stonezone.pawWatch</string>
 	</array>
-	
-	<!-- Background Modes -->
-	<key>com.apple.developer.associated-domains</key>
-	<array/>
 </dict>
 </plist>

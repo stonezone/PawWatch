@@ -42,6 +42,9 @@ struct WatchWidgetRectangularView: View {
             }
             Spacer(minLength: 0)
         }
+        .containerBackground(for: .widget) {
+            Color.clear
+        }
     }
 
     private var statusIndicator: some View {
@@ -57,6 +60,9 @@ struct WatchWidgetInlineView: View {
 
     var body: some View {
         Text("\(snapshot.latencyMs)ms · \(snapshot.formattedDrainSummary) %/h")
+            .containerBackground(for: .widget) {
+                Color.clear
+            }
     }
 }
 
