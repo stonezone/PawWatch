@@ -13,6 +13,7 @@ import WatchKit
 
 @main
 struct pawWatch_Watch_App: App {
+    @WKApplicationDelegateAdaptor(PawWatchAppDelegate.self) var appDelegate
 
     // MARK: - Properties
 
@@ -94,4 +95,3 @@ struct pawWatch_Watch_App: App {
         }
     }
 }
-
