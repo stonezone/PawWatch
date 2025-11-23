@@ -632,16 +632,6 @@ public final class WatchLocationProvider: NSObject {
         guard WCSession.isSupported() else {
             print("❌ WCSession.isSupported() returned FALSE")
             ConnectivityLog.error("WatchConnectivity not supported on this device")
-            
-            // Send diagnostic to iPhone via application context
-            do {
-                try wcSession.updateApplicationContext([
-                    "diagnostic": "watch_not_supported",
-                    "timestamp": Date().timeIntervalSince1970
-                ])
-            } catch {
-                print("Failed to send diagnostic: \(error)")
-            }
             return
         }
         
@@ -713,35 +703,28 @@ public final class WatchLocationProvider: NSObject {
             return
         }
 
-        // Always enqueue lossless FIFO delivery
-        queueUserInfo(for: fix)
-        
-        if wcSession.isReachable {
-            if shouldSendInteractive(for: fix) {
-                do {
-                    let data = try encoder.encode(fix)
-                    ConnectivityLog.verbose("Sending interactive message (\(data.count) bytes)")
+        // Encode once, reuse for all transports
+        guard let data = try? encoder.encode(fix) else {
+            ConnectivityLog.error("Failed to encode fix")
+            Task { @MainActor in delegate?.didFail(WatchConnectivityIssue.fileEncodingFailed(underlying: CocoaError(.coderInvalidValue))) }
+            return
+        }
 
-                    let payload: [String: Any] = ["latestFix": data]
-                    wcSession.sendMessage(payload, replyHandler: nil) { [weak self] error in
-                        ConnectivityLog.notice("Interactive send failed: \(error.localizedDescription)")
-                        self?.notifyConnectivityError(.interactiveSendFailed(underlying: error))
-                        // If interactive fails, rely on userInfo + file transfer for recovery
-                        self?.queueBackgroundTransfer(for: fix)
-                    }
-                } catch {
-                    ConnectivityLog.error("Failed to encode fix for interactive message: \(error.localizedDescription)")
-                    Task { @MainActor in
-                        delegate?.didFail(error)
-                    }
-                    queueBackgroundTransfer(for: fix)
-                }
-            } else {
-                ConnectivityLog.verbose("Skipping interactive send (debounced)")
+        let sendBackground: () -> Void = { [weak self] in
+            self?.sendBackground(data: data, fix: fix)
+        }
+
+        if wcSession.isReachable, shouldSendInteractive(for: fix) {
+            ConnectivityLog.verbose("Sending interactive message (\(data.count) bytes)")
+            let payload: [String: Any] = ["latestFix": data]
+            wcSession.sendMessage(payload, replyHandler: nil) { [weak self] error in
+                ConnectivityLog.notice("Interactive send failed: \(error.localizedDescription)")
+                self?.notifyConnectivityError(.interactiveSendFailed(underlying: error))
+                sendBackground()
             }
         } else {
-            ConnectivityLog.verbose("Phone unreachable; queuing file transfer")
-            queueBackgroundTransfer(for: fix)
+            ConnectivityLog.verbose("Phone unreachable or debounced; queuing background transfer")
+            sendBackground()
         }
     }
 
@@ -835,6 +818,18 @@ public final class WatchLocationProvider: NSObject {
         } catch {
             ConnectivityLog.error("Failed to queue userInfo: \(error.localizedDescription)")
         }
+    }
+
+    /// Sends background delivery using transferUserInfo with pre-encoded data.
+    private func sendBackground(data: Data, fix: LocationFix) {
+        guard wcSession.activationState == .activated else { return }
+        let userInfo: [String: Any] = [
+            "latestFix": data,
+            "sequence": fix.sequence,
+            "timestamp": fix.timestamp.timeIntervalSince1970
+        ]
+        wcSession.transferUserInfo(userInfo)
+        ConnectivityLog.verbose("Queued userInfo transfer for seq=\(fix.sequence)")
     }
     
     /// Queues a location fix for background file transfer to the phone.

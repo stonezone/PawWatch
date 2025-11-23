@@ -604,9 +604,14 @@ public final class PetLocationManager: NSObject, ObservableObject {
             latestLocation = locationFix
         }
 
-        lastUpdateTime = Date()
+        let previousUpdate = lastUpdateTime
+        lastUpdateTime = fix.timestamp
         errorMessage = nil
-        watchBatteryFraction = locationFix.batteryFraction
+        if let lastUpdate = previousUpdate {
+            if locationFix.timestamp >= lastUpdate { watchBatteryFraction = locationFix.batteryFraction }
+        } else {
+            watchBatteryFraction = locationFix.batteryFraction
+        }
         logger.debug("Received fix accuracy=\(locationFix.horizontalAccuracyMeters, privacy: .public)")
         signposter.emitEvent("FixReceived")
 
@@ -623,8 +628,7 @@ public final class PetLocationManager: NSObject, ObservableObject {
 
         let staleness = Date().timeIntervalSince(fix.timestamp)
         if staleness > maxFixStaleness {
-            logger.info("Dropping stale fix (age=\(staleness)s)")
-            return false
+            logger.info("Received historical fix (age=\(staleness)s) - accepting for trail")
         }
 
         if fix.horizontalAccuracyMeters > maxHorizontalAccuracyMeters {
