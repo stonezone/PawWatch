@@ -605,10 +605,12 @@ public final class PetLocationManager: NSObject, ObservableObject {
         }
 
         let previousUpdate = lastUpdateTime
-        lastUpdateTime = fix.timestamp
+        lastUpdateTime = locationFix.timestamp
         errorMessage = nil
         if let lastUpdate = previousUpdate {
-            if locationFix.timestamp >= lastUpdate { watchBatteryFraction = locationFix.batteryFraction }
+            if locationFix.timestamp >= lastUpdate {
+                watchBatteryFraction = locationFix.batteryFraction
+            }
         } else {
             watchBatteryFraction = locationFix.batteryFraction
         }
