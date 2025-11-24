@@ -820,6 +820,23 @@ extension PetLocationManager: WCSessionDelegate {
         }
     }
 
+    /// Received queued user info from Apple Watch (FIFO background delivery).
+    ///
+    /// This is the primary path for fixes sent via `transferUserInfo` while the
+    /// phone app is unreachable or suspended. Every fix the watch queues
+    /// offline must be surfaced here when connectivity is restored.
+    nonisolated public func session(
+        _ session: WCSession,
+        didReceiveUserInfo userInfo: [String : Any]
+    ) {
+        guard let data = userInfo["latestFix"] as? Data else { return }
+
+        Task { @MainActor in
+            self.isWatchConnected = true
+        }
+        handleLocationFixData(data)
+    }
+
     /// Received application context from Apple Watch (guaranteed delivery).
     nonisolated public func session(
         _ session: WCSession,

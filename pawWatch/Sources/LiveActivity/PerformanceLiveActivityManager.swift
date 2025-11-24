@@ -34,14 +34,15 @@ enum PerformanceLiveActivityManager {
         )
 
         Task {
+            let content = ActivityContent(state: contentState, staleDate: nil)
             if let activity = Activity<PawActivityAttributes>.activities.first {
                 await observePushTokens(for: activity)
-                await activity.update(using: contentState)
+                await activity.update(content)
             } else {
                 do {
                     let activity = try Activity<PawActivityAttributes>.request(
                         attributes: PawActivityAttributes(),
-                        contentState: contentState,
+                        content: content,
                         pushType: .token
                     )
                     await observePushTokens(for: activity)
@@ -55,7 +56,7 @@ enum PerformanceLiveActivityManager {
     static func endAllActivities() {
         Task {
             for activity in Activity<PawActivityAttributes>.activities {
-                await activity.end(using: activity.contentState, dismissalPolicy: .immediate)
+                await activity.end(activity.content, dismissalPolicy: .immediate)
             }
             await LiveActivityPushCoordinator.shared.stopObservingTokens()
         }
@@ -65,7 +66,8 @@ enum PerformanceLiveActivityManager {
         Task {
             guard let activity = Activity<PawActivityAttributes>.activities.first else { return }
             await observePushTokens(for: activity)
-            await activity.update(using: contentState)
+            let content = ActivityContent(state: contentState, staleDate: nil)
+            await activity.update(content)
         }
     }
 

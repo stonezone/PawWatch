@@ -45,8 +45,8 @@ pawWatch transforms a spare Apple Watch into a comprehensive pet health and safe
 **Required Versions:**
 - iOS 26.0+ (iPhone)
 - watchOS 26.0+ (Apple Watch)
-- Xcode 17.0+
-- Swift 6.0+
+- Xcode 26.0+ (unified version numbering with iOS)
+- Swift 6.2.1+
 
 **Technology Stack:**
 - SwiftUI (100% of UI—no UIKit)

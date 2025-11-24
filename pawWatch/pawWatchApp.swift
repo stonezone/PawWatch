@@ -15,6 +15,11 @@ import UserNotifications
 struct pawWatchApp: App {
     @UIApplicationDelegateAdaptor(PawWatchAppDelegate.self) private var appDelegate
 
+    /// Single shared PetLocationManager instance for the entire app lifetime.
+    /// This guarantees that WCSession.delegate is configured as soon as the
+    /// app launches, including background activations for queued transfers.
+    @StateObject private var locationManager = PetLocationManager()
+
     init() {
 #if canImport(ActivityKit)
         LiveActivityBootstrapper.shared.startIfNeeded()
@@ -24,7 +29,7 @@ struct pawWatchApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .environmentObject(PetLocationManager())
+                .environmentObject(locationManager)
                 .onOpenURL { url in
                     guard url.scheme == "pawwatch" else { return }
                     switch url.host?.lowercased() {
