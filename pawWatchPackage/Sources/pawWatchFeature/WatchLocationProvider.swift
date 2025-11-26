@@ -320,14 +320,17 @@ public final class WatchLocationProvider: NSObject {
     /// Original value: 10.0s - reduced to 0.5s for real-time pet tracking needs.
     private let contextPushInterval: TimeInterval = 0.5
 
-    /// When stationary, send updates less frequently and rely on the cadence configured by the phone.
-    private var stationaryUpdateInterval: TimeInterval = 180.0
+    /// When stationary, send updates at reduced but still frequent rate for pet tracking.
+    /// 45s ensures owner gets location confirmations even when pet isn't moving.
+    private var stationaryUpdateInterval: TimeInterval = 45.0
 
     /// Maximum time between any location updates, regardless of movement state.
-    private var maxUpdateInterval: TimeInterval = 180.0  // Default 3 minutes
+    /// HARD CAP at 60s - for pet tracking, updates must be at least every minute.
+    private var maxUpdateInterval: TimeInterval = 60.0
 
     /// Interval between battery-only heartbeat contexts when idle.
-    private var idleHeartbeatInterval: TimeInterval = 30.0
+    /// 15s ensures connectivity is confirmed frequently during active tracking.
+    private var idleHeartbeatInterval: TimeInterval = 15.0
 
     private static let idleHeartbeatDefaultsKey = "watchIdleHeartbeatInterval"
     private static let idleFullFixDefaultsKey = "watchIdleFullFixInterval"
@@ -365,6 +368,7 @@ public final class WatchLocationProvider: NSObject {
     private var manualTrackingMode: TrackingMode = .auto
     private var forceImmediateSend = false
     private var batteryHeartbeatTask: Task<Void, Never>?
+    private var minUpdateWatchdogTask: Task<Void, Never>?
     private var isTrackerLocked = false
     private var activationRetryTask: Task<Void, Never>?
 
@@ -415,11 +419,13 @@ public final class WatchLocationProvider: NSObject {
         if storedHeartbeat > 0, storedFullFix > 0 {
             idleHeartbeatInterval = storedHeartbeat
             stationaryUpdateInterval = storedFullFix
-            maxUpdateInterval = storedFullFix
+            // Cap maxUpdateInterval at 60s for pet safety even if stored value is higher
+            maxUpdateInterval = min(storedFullFix, 60.0)
         } else {
-            idleHeartbeatInterval = 30.0
-            stationaryUpdateInterval = 180.0
-            maxUpdateInterval = 180.0
+            // Pet tracking defaults: frequent updates are critical
+            idleHeartbeatInterval = 15.0
+            stationaryUpdateInterval = 45.0
+            maxUpdateInterval = 60.0
         }
     }
     
@@ -472,6 +478,7 @@ public final class WatchLocationProvider: NSObject {
             runtimeCoordinator.updateTrackingState(isRunning: true)
         }
         startBatteryHeartbeat()
+        startMinUpdateWatchdog()
 
         trackingIntervalState = signposter.beginInterval("TrackingSession")
         logger.log("Workout tracking started with optimizations=\(self.batteryOptimizationsEnabled, privacy: .public)")
@@ -574,6 +581,7 @@ public final class WatchLocationProvider: NSObject {
         }
         isWorkoutRunning = false
         stopBatteryHeartbeat()
+        stopMinUpdateWatchdog()
         logger.log("Workout tracking stopped")
     }
     
@@ -914,6 +922,50 @@ public final class WatchLocationProvider: NSObject {
         batteryHeartbeatTask = nil
     }
 
+    // MARK: - Minimum Update Watchdog
+
+    /// Starts the minimum update watchdog timer to guarantee at least one update per minute.
+    /// This catches edge cases where normal update flow might stall.
+    private func startMinUpdateWatchdog() {
+        minUpdateWatchdogTask?.cancel()
+        minUpdateWatchdogTask = Task { [weak self] in
+            while !Task.isCancelled {
+                // Check every 30 seconds
+                try? await Task.sleep(for: .seconds(30))
+                guard let self else { return }
+                await MainActor.run {
+                    self.checkAndForceUpdateIfStale()
+                }
+            }
+        }
+    }
+
+    private func stopMinUpdateWatchdog() {
+        minUpdateWatchdogTask?.cancel()
+        minUpdateWatchdogTask = nil
+    }
+
+    /// If no update has been sent in 60+ seconds, force a location request.
+    @MainActor
+    private func checkAndForceUpdateIfStale() {
+        guard isWorkoutRunning else { return }
+
+        let timeSinceLast = Date().timeIntervalSince(lastTransmittedFixDate)
+        let threshold: TimeInterval = manualTrackingMode == .emergency ? 10.0 : 60.0
+
+        if timeSinceLast >= threshold {
+            logger.notice("Watchdog triggered: \(Int(timeSinceLast))s since last update, forcing refresh")
+
+            // If we have a recent fix, transmit it
+            if let fix = latestFix, Date().timeIntervalSince(fix.timestamp) < 120 {
+                transmitFix(fix, notifyDelegate: false)
+            } else {
+                // Request fresh location
+                locationManager.requestLocation()
+            }
+        }
+    }
+
     @MainActor
     private func sendBatteryHeartbeat() {
         guard wcSession.activationState == .activated else { return }
@@ -934,11 +986,16 @@ public final class WatchLocationProvider: NSObject {
 
     @MainActor
     private func applyIdleCadence(heartbeat rawHeartbeat: TimeInterval, fullFix rawFullFix: TimeInterval, persist: Bool = true) {
-        let heartbeat = max(15, min(300, rawHeartbeat))
-        let fullFix = max(60, min(600, rawFullFix))
+        // Clamp heartbeat between 5s (emergency) and 300s
+        // Allow 5s for emergency mode aggressive cadence
+        let heartbeat = max(5, min(300, rawHeartbeat))
+        // Clamp fullFix between 10s (emergency) and 600s for stationary interval
+        let fullFix = max(10, min(600, rawFullFix))
         idleHeartbeatInterval = heartbeat
         stationaryUpdateInterval = fullFix
-        maxUpdateInterval = fullFix
+        // CRITICAL: Cap maxUpdateInterval at 60s for pet safety regardless of fullFix setting
+        // For pet tracking, we MUST get at least one update per minute to prevent losing track
+        maxUpdateInterval = min(fullFix, 60.0)
         lastTransmittedFixDate = .distantPast
 
         if persist {
@@ -949,7 +1006,7 @@ public final class WatchLocationProvider: NSObject {
             startBatteryHeartbeat()
         }
 
-        logger.log("Idle cadence updated (heartbeat=\(heartbeat)s, fullFix=\(fullFix)s)")
+        logger.log("Idle cadence updated (heartbeat=\(heartbeat)s, fullFix=\(fullFix)s, maxUpdate=\(self.maxUpdateInterval)s)")
     }
 
     private func persistIdleCadence(heartbeat: TimeInterval, fullFix: TimeInterval) {
@@ -981,7 +1038,18 @@ public final class WatchLocationProvider: NSObject {
         let now = Date()
         let timeSinceLast = now.timeIntervalSince(lastTransmittedFixDate)
 
-        // Priority 1: Always send if we've exceeded max heartbeat interval
+        // Priority 0: EMERGENCY MODE - always update every 5s regardless of state
+        // Pet safety is paramount in emergency mode
+        if manualTrackingMode == .emergency {
+            if timeSinceLast >= 5.0 {
+                lastTransmittedFixDate = now
+                lastThrottleAccuracy = location.horizontalAccuracy
+                return false
+            }
+            return true
+        }
+
+        // Priority 1: Always send if we've exceeded max heartbeat interval (60s cap)
         if timeSinceLast >= maxUpdateInterval {
             lastTransmittedFixDate = now
             lastThrottleAccuracy = location.horizontalAccuracy
@@ -999,13 +1067,13 @@ public final class WatchLocationProvider: NSObject {
         // Priority 3: Apply throttle interval based on battery and movement state
         let throttleInterval: TimeInterval
         if batteryLevel <= 0.10 {
-            // Critical battery: 5 seconds regardless of movement
+            // Critical battery: 5 seconds regardless of movement (still frequent for pet safety)
             throttleInterval = 5.0
         } else if batteryLevel <= 0.20 {
             // Low battery: 3 seconds when moving, 5 seconds when stationary
             throttleInterval = isStationary ? 5.0 : 3.0
         } else if isStationary {
-            // Normal battery, stationary: use stationary interval (45s)
+            // Normal battery, stationary: use stationary interval (45s default)
             throttleInterval = stationaryUpdateInterval
         } else {
             // Normal battery, moving: high frequency (0.5s)
@@ -1257,9 +1325,26 @@ extension WatchLocationProvider: WCSessionDelegate {
             if let modeRaw = message["mode"] as? String,
                let newMode = TrackingMode(rawValue: modeRaw) {
                 Task { @MainActor in
+                    let previousMode = self.manualTrackingMode
                     self.manualTrackingMode = newMode
-                    self.forceImmediateSend = newMode == .emergency
-                    self.logger.log("Tracking mode set to \(newMode.rawValue)")
+                    self.forceImmediateSend = true  // Always force immediate on mode change
+                    self.logger.log("Tracking mode changed: \(previousMode.rawValue) → \(newMode.rawValue)")
+
+                    // Emergency mode: apply aggressive cadence (5s heartbeat, 10s full fix)
+                    if newMode == .emergency {
+                        self.applyIdleCadence(heartbeat: 5.0, fullFix: 10.0, persist: false)
+                    } else if previousMode == .emergency {
+                        // Exiting emergency: restore normal cadence
+                        self.applyIdleCadence(heartbeat: 15.0, fullFix: 45.0, persist: false)
+                    }
+
+                    // Immediately transmit current location or request fresh one
+                    if let fix = self.latestFix, Date().timeIntervalSince(fix.timestamp) < 30 {
+                        self.transmitFix(fix, notifyDelegate: false)
+                    } else {
+                        self.locationManager.requestLocation()
+                    }
+
                     self.sendBatteryHeartbeat()
                 }
                 return ["status": "mode-updated"]

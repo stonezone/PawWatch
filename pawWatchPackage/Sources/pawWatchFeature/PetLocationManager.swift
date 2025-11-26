@@ -425,22 +425,34 @@ public final class PetLocationManager: NSObject, ObservableObject {
 
     /// Update the desired tracking mode and inform the watch
     public func setTrackingMode(_ mode: TrackingMode) {
+        let previousMode = trackingMode
         trackingMode = mode
         #if canImport(WatchConnectivity)
         guard session.activationState == .activated else { return }
-        let payload: [String: Any] = ["action": "setMode", "mode": mode.rawValue]
+        
+        // Send mode change first
+        let modePayload: [String: Any] = ["action": "setMode", "mode": mode.rawValue]
         if session.isReachable {
-            session.sendMessage(payload, replyHandler: nil) { error in
+            session.sendMessage(modePayload, replyHandler: nil) { error in
                 Task { @MainActor in
                     self.errorMessage = "Failed to send mode: \(error.localizedDescription)"
                 }
             }
         } else {
             do {
-                try session.updateApplicationContext(payload)
+                try session.updateApplicationContext(modePayload)
             } catch {
                 errorMessage = "Failed to cache mode: \(error.localizedDescription)"
             }
+        }
+        
+        // Emergency mode: send aggressive cadence (5s heartbeat, 10s full fix)
+        // This ensures watch updates extremely frequently when pet may be lost
+        if mode == .emergency {
+            sendEmergencyCadence()
+        } else if previousMode == .emergency {
+            // Exiting emergency: restore user's selected preset
+            sendIdleCadenceCommand(idleCadencePreset)
         }
         #endif
     }
@@ -491,6 +503,34 @@ public final class PetLocationManager: NSObject, ObservableObject {
                 errorMessage = "Failed to queue idle cadence: \(error.localizedDescription)"
             }
         }
+        #endif
+    }
+
+    /// Sends aggressive cadence for emergency mode: 5s heartbeat, 10s full fix.
+    /// Used when pet may be lost - maximum update frequency regardless of battery impact.
+    private func sendEmergencyCadence() {
+        #if canImport(WatchConnectivity)
+        guard session.activationState == .activated else { return }
+        let payload: [String: Any] = [
+            "action": "setIdleCadence",
+            "heartbeatInterval": 5.0,
+            "fullFixInterval": 10.0
+        ]
+
+        if session.isReachable {
+            session.sendMessage(payload, replyHandler: nil) { error in
+                Task { @MainActor in
+                    self.logger.error("Failed to set emergency cadence: \(error.localizedDescription, privacy: .public)")
+                }
+            }
+        } else {
+            do {
+                try session.updateApplicationContext(payload)
+            } catch {
+                logger.error("Failed to queue emergency cadence: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+        logger.notice("Emergency cadence sent: 5s heartbeat, 10s full fix")
         #endif
     }
 
