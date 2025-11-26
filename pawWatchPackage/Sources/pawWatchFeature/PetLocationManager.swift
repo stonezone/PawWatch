@@ -109,6 +109,17 @@ public enum IdleCadencePreset: String, CaseIterable, Identifiable, Sendable {
 @Observable
 public final class PetLocationManager: NSObject, ObservableObject {
 
+    // MARK: - Shared Instance for Background Access
+
+    /// Shared instance set by the app on launch for background task access.
+    /// Call `PetLocationManager.setShared(_:)` from your app's init.
+    public private(set) nonisolated(unsafe) static var shared: PetLocationManager?
+
+    /// Set the shared instance (call from app initialization)
+    public static func setShared(_ manager: PetLocationManager) {
+        shared = manager
+    }
+
     // MARK: - Published State
 
     /// Most recent GPS fix from Apple Watch (nil if no data received)
@@ -334,6 +345,44 @@ public final class PetLocationManager: NSObject, ObservableObject {
         )
         #else
         errorMessage = "WatchConnectivity not available"
+        #endif
+    }
+
+    /// Request location update for background refresh (uses application context if not reachable).
+    /// Returns true if request was sent, false if WatchConnectivity unavailable.
+    @discardableResult
+    public func requestBackgroundUpdate() -> Bool {
+        #if canImport(WatchConnectivity)
+        guard session.activationState == .activated else {
+            logger.notice("Background update skipped: WCSession not activated")
+            return false
+        }
+
+        let payload: [String: Any] = [
+            "action": "requestLocation",
+            "background": true,
+            "timestamp": Date().timeIntervalSince1970
+        ]
+
+        if isWatchReachable {
+            // Watch is immediately reachable - send direct message
+            session.sendMessage(payload, replyHandler: nil) { [logger] error in
+                logger.error("Background location request failed: \(error.localizedDescription, privacy: .public)")
+            }
+            logger.info("Background location requested via direct message")
+        } else {
+            // Queue via application context for delivery when watch wakes
+            do {
+                try session.updateApplicationContext(payload)
+                logger.info("Background location requested via application context")
+            } catch {
+                logger.error("Failed to queue background location request: \(error.localizedDescription, privacy: .public)")
+                return false
+            }
+        }
+        return true
+        #else
+        return false
         #endif
     }
 

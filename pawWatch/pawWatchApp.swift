@@ -18,9 +18,14 @@ struct pawWatchApp: App {
     /// Single shared PetLocationManager instance for the entire app lifetime.
     /// This guarantees that WCSession.delegate is configured as soon as the
     /// app launches, including background activations for queued transfers.
-    @StateObject private var locationManager = PetLocationManager()
+    @StateObject private var locationManager: PetLocationManager
 
     init() {
+        // Create and register the shared location manager
+        let manager = PetLocationManager()
+        _locationManager = StateObject(wrappedValue: manager)
+        PetLocationManager.setShared(manager)
+
 #if canImport(ActivityKit)
         LiveActivityBootstrapper.shared.startIfNeeded()
 #endif
@@ -131,17 +136,17 @@ final class PawWatchAppDelegate: NSObject, UIApplicationDelegate {
     }
 }
 
-final class BackgroundRefreshScheduler {
+final class BackgroundRefreshScheduler: @unchecked Sendable {
     private let identifier = "com.stonezone.pawWatch.activity-refresh"
     private let logger = Logger(subsystem: "com.stonezone.pawWatch", category: "BackgroundRefresh")
 
     func register() {
-        BGTaskScheduler.shared.register(forTaskWithIdentifier: identifier, using: nil) { task in
+        BGTaskScheduler.shared.register(forTaskWithIdentifier: identifier, using: nil) { [self] task in
             guard let refreshTask = task as? BGAppRefreshTask else {
                 task.setTaskCompleted(success: false)
                 return
             }
-            self.handle(refreshTask)
+            handle(refreshTask)
         }
     }
 
@@ -150,22 +155,69 @@ final class BackgroundRefreshScheduler {
         request.earliestBeginDate = Date(timeIntervalSinceNow: 15 * 60)
         do {
             try BGTaskScheduler.shared.submit(request)
+            logger.info("Background refresh scheduled for ~15 minutes")
         } catch {
             logger.error("Failed to schedule background refresh: \(error.localizedDescription, privacy: .public)")
         }
     }
 
     private func handle(_ task: BGAppRefreshTask) {
+        logger.info("Background refresh task started")
+
+        // Schedule next refresh immediately
         schedule()
+
         task.expirationHandler = { [logger] in
-            logger.error("Background refresh expired before completion")
-            task.setTaskCompleted(success: false)
+            logger.warning("Background refresh expired before completion")
         }
 
+        // Request location from watch via WCSession directly (simpler, no actor issues)
+        var success = requestWatchLocation()
+
+        // Sync Live Activity if available
         if let snapshot = PerformanceSnapshotStore.load() {
             PerformanceLiveActivityManager.syncLiveActivity(with: snapshot)
+            success = true
         }
-        task.setTaskCompleted(success: true)
+
+        logger.info("Background refresh completed: \(success, privacy: .public)")
+        task.setTaskCompleted(success: success)
+    }
+
+    /// Request location update from watch using WCSession directly.
+    private func requestWatchLocation() -> Bool {
+        #if canImport(WatchConnectivity)
+        let session = WCSession.default
+        guard session.activationState == .activated else {
+            logger.notice("WCSession not activated for background refresh")
+            return false
+        }
+
+        let payload: [String: Any] = [
+            "action": "requestLocation",
+            "background": true,
+            "timestamp": Date().timeIntervalSince1970
+        ]
+
+        if session.isReachable {
+            session.sendMessage(payload, replyHandler: nil) { [logger] error in
+                logger.error("Background location request failed: \(error.localizedDescription, privacy: .public)")
+            }
+            logger.info("Background location requested via direct message")
+            return true
+        } else {
+            do {
+                try session.updateApplicationContext(payload)
+                logger.info("Background location requested via application context")
+                return true
+            } catch {
+                logger.error("Failed to queue background request: \(error.localizedDescription, privacy: .public)")
+                return false
+            }
+        }
+        #else
+        return false
+        #endif
     }
 }
 
