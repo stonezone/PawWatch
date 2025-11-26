@@ -349,6 +349,7 @@ struct SettingsView: View {
     @AppStorage("trackingMode") private var trackingModeRaw = TrackingMode.auto.rawValue
     @Binding private var useMetricUnits: Bool
     @State private var showDeveloperSheet = false
+    @State private var showAdvanced = false
 
     init(useMetricUnits: Binding<Bool>) {
         self._useMetricUnits = useMetricUnits
@@ -359,21 +360,28 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Settings")
                     .font(.system(size: 28, weight: .bold, design: .rounded))
-                Text("Fine-tune alerts & tracking")
+                Text("Customize your experience")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
             .padding(.top, 32)
 
-            settingsCard(title: "General") {
-                Toggle("Enable Notifications", isOn: $notificationsEnabled)
-                Toggle("Use Metric Units", isOn: $useMetricUnits)
-                Text(useMetricUnits ? "Kilometers & meters" : "Miles & feet")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                }
+            // MARK: - Connection Status Card (Visual)
+            ConnectionStatusCard()
 
-                settingsCard(title: "Tracking Mode") {
+            // MARK: - Quick Settings
+            settingsCard(title: "Quick Settings") {
+                Toggle("Notifications", isOn: $notificationsEnabled)
+                Toggle("Metric Units", isOn: $useMetricUnits)
+            }
+
+            // MARK: - Tracking
+            settingsCard(title: "Tracking") {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Mode")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.secondary)
+
                     Picker("Mode", selection: Binding(
                         get: { TrackingMode(rawValue: trackingModeRaw) ?? .auto },
                         set: { trackingModeRaw = $0.rawValue }
@@ -388,145 +396,113 @@ struct SettingsView: View {
                             locationManager.setTrackingMode(mode)
                         }
                     }
+                }
 
-                    Button("Request Fresh Location") {
-                        locationManager.requestUpdate(force: true)
-                    }
-                    .disabled(!locationManager.isWatchReachable)
+                Divider().opacity(0.3)
 
-                    if let battery = locationManager.watchBatteryFraction {
-                        SettingRow(title: "Watch Battery", value: String(format: "%.0f%%", battery * 100))
+                Stepper(
+                    value: Binding(
+                        get: { locationManager.trailHistoryLimit },
+                        set: { locationManager.updateTrailHistoryLimit(to: $0) }
+                    ),
+                    in: PetLocationManager.trailHistoryLimitRange,
+                    step: PetLocationManager.trailHistoryStep
+                ) {
+                    HStack {
+                        Text("Trail History")
+                        Spacer()
+                        Text("\(locationManager.trailHistoryLimit)")
+                            .font(.system(.body, design: .monospaced).weight(.semibold))
+                            .foregroundStyle(.secondary)
                     }
                 }
 
-                settingsCard(title: "Trail History") {
-                    Stepper(
-                        value: Binding(
-                            get: { locationManager.trailHistoryLimit },
-                            set: { locationManager.updateTrailHistoryLimit(to: $0) }
-                        ),
-                        in: PetLocationManager.trailHistoryLimitRange,
-                        step: PetLocationManager.trailHistoryStep
-                    ) {
-                        HStack {
-                            Text("Stored Fixes")
-                            Spacer()
-                            Text("\(locationManager.trailHistoryLimit)")
-                                .font(.system(.body, design: .monospaced).weight(.semibold))
-                        }
-                    }
-
-                    Text("Higher limits draw more memory but keep longer breadcrumb trails.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                Button {
+                    locationManager.requestUpdate(force: true)
+                } label: {
+                    Label("Request Fresh Location", systemImage: "location.fill")
+                        .frame(maxWidth: .infinity)
                 }
+                .buttonStyle(.borderedProminent)
+                .disabled(!locationManager.isWatchReachable)
+            }
 
-                settingsCard(title: "Permissions") {
-                    SettingRow(title: "iPhone Location", value: locationManager.locationPermissionDescription)
+            // MARK: - Permissions (Simplified)
+            if locationManager.needsLocationPermissionAction || locationManager.needsHealthPermissionAction {
+                settingsCard(title: "Permissions Needed") {
                     if locationManager.needsLocationPermissionAction {
-                        Button("Open Settings") { locationManager.openLocationSettings() }
-                            .font(.caption)
-                    }
-
-                    SettingRow(
-                        title: "Watch Status",
-                        value: locationManager.isWatchConnected ? (locationManager.isWatchReachable ? "Connected" : "Paired") : "Disconnected"
-                    )
-
-                    if locationManager.isWatchConnected {
-                        SettingRow(
-                            title: "Tracker Lock",
-                            value: locationManager.isWatchLocked ? "Locked" : "Unlocked"
-                        )
-                        if locationManager.isWatchLocked {
-                            Text("Unlock on the watch by rotating the Digital Crown.")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
+                        HStack {
+                            Image(systemName: "location.slash.fill")
+                                .foregroundStyle(.orange)
+                            Text("Location access required")
+                                .font(.callout)
+                            Spacer()
+                            Button("Fix") { locationManager.openLocationSettings() }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
                         }
                     }
 
-                    Text(locationManager.distanceUsageBlurb)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .padding(.top, 4)
-                }
-
-                settingsCard(title: "HealthKit") {
-                    SettingRow(title: "Workout Access", value: locationManager.workoutPermissionDescription)
-                    SettingRow(title: "Heart Rate", value: locationManager.heartPermissionDescription)
-                    Button("Request Health Access") {
-                        locationManager.requestHealthAuthorization()
-                    }
-                    .disabled(!locationManager.canRequestHealthAuthorization)
                     if locationManager.needsHealthPermissionAction {
-                        Text("Grant Health permissions to keep background tracking alive.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
-                settingsCard(title: "Session Summary") {
-                    let summary = locationManager.sessionSummary
-                    SettingRow(title: "Fixes", value: "\(summary.fixCount)")
-                    SettingRow(title: "Avg Interval", value: formatSeconds(summary.averageIntervalSec))
-                    SettingRow(title: "Median Accuracy", value: formatMeters(summary.medianAccuracy))
-                    SettingRow(title: "P90 Accuracy", value: formatMeters(summary.p90Accuracy))
-                    SettingRow(title: "Max Accuracy", value: formatMeters(summary.maxAccuracy))
-                    SettingRow(title: "Reachability Flips", value: "\(summary.reachabilityChanges)")
-                    if summary.durationSec > 0 {
-                        SettingRow(title: "Duration", value: formatDuration(summary.durationSec))
-                    }
-                    if !summary.presetCounts.isEmpty {
-                        ForEach(summary.presetCounts.sorted(by: { $0.key < $1.key }), id: \.key) { preset, count in
-                            SettingRow(title: "Preset \(preset.capitalized)", value: "\(count)")
+                        HStack {
+                            Image(systemName: "heart.slash.fill")
+                                .foregroundStyle(.orange)
+                            Text("HealthKit access needed")
+                                .font(.callout)
+                            Spacer()
+                            Button("Fix") { locationManager.requestHealthAuthorization() }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                                .disabled(!locationManager.canRequestHealthAuthorization)
                         }
                     }
-
-                    if let exportURL = locationManager.sessionShareURL() {
-                        ShareLink(item: exportURL) {
-                            Label("Export CSV", systemImage: "square.and.arrow.up")
-                        }
-                    } else {
-                        Text("No samples captured yet.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Button("Reset Session Stats", role: .destructive) {
-                        locationManager.resetSessionStats()
-                    }
                 }
+            }
 
-                settingsCard(title: "About") {
-                    SettingRow(title: "Version", value: appVersion)
-                    SettingRow(title: "Build Date", value: buildDate)
-                }
-
-                settingsCard(title: "Developer Tools") {
-                    SettingRow(
-                        title: "Extended Runtime",
-                        value: locationManager.runtimeOptimizationsEnabled ? "Enabled" : "Disabled"
-                    )
-
-                    if !locationManager.watchSupportsExtendedRuntime {
-                        Text("Waiting for watch handshake to confirm extended runtime availability.")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Button("Open Developer Settings") {
-                        showDeveloperSheet = true
-                    }
-                    .buttonStyle(.bordered)
-                }
-
-                if let error = locationManager.errorMessage {
-                    settingsCard(title: "Alerts") {
+            // MARK: - Error Alert
+            if let error = locationManager.errorMessage {
+                GlassCard(cornerRadius: 16, padding: 14) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.title3)
+                            .foregroundStyle(.orange)
                         Text(error)
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.primary)
+                        Spacer()
                     }
                 }
+            }
+
+            // MARK: - Advanced Section (Collapsible)
+            DisclosureGroup(isExpanded: $showAdvanced) {
+                VStack(spacing: 14) {
+                    // Session Stats
+                    sessionStatsSection
+
+                    // HealthKit Details
+                    healthKitSection
+
+                    // Developer Tools
+                    developerSection
+
+                    // About
+                    aboutSection
+                }
+                .padding(.top, 8)
+            } label: {
+                HStack {
+                    Image(systemName: "gearshape.2.fill")
+                        .foregroundStyle(.secondary)
+                    Text("Advanced")
+                        .font(.headline)
+                }
+            }
+            .padding(16)
+            .background(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(.ultraThinMaterial)
+            )
 
             Spacer(minLength: 32)
         }
@@ -535,6 +511,226 @@ struct SettingsView: View {
                 .environmentObject(locationManager)
         }
     }
+
+    // MARK: - Connection Status Card
+    @ViewBuilder
+    private func ConnectionStatusCard() -> some View {
+        GlassCard(cornerRadius: 24, padding: 20) {
+            HStack(spacing: 16) {
+                // Watch icon with status
+                ZStack {
+                    Circle()
+                        .fill(connectionColor.opacity(0.15))
+                        .frame(width: 56, height: 56)
+
+                    Image(systemName: "applewatch")
+                        .font(.title)
+                        .foregroundStyle(connectionColor.gradient)
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(connectionTitle)
+                        .font(.headline)
+
+                    Text(connectionSubtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    if let battery = locationManager.watchBatteryFraction {
+                        HStack(spacing: 4) {
+                            Image(systemName: batteryIcon(for: battery))
+                                .font(.caption2)
+                                .foregroundStyle(batteryColor(for: battery))
+                            Text(String(format: "%.0f%%", battery * 100))
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
+                Spacer()
+
+                // Status indicator
+                Circle()
+                    .fill(connectionColor.gradient)
+                    .frame(width: 12, height: 12)
+                    .shadow(color: connectionColor.opacity(0.5), radius: 4)
+            }
+        }
+    }
+
+    private var connectionColor: Color {
+        if !locationManager.isWatchConnected { return .red }
+        if !locationManager.isWatchReachable { return .orange }
+        return .green
+    }
+
+    private var connectionTitle: String {
+        if !locationManager.isWatchConnected { return "Watch Disconnected" }
+        if !locationManager.isWatchReachable { return "Watch Paired" }
+        return "Watch Connected"
+    }
+
+    private var connectionSubtitle: String {
+        if !locationManager.isWatchConnected { return "Open Watch app to connect" }
+        if !locationManager.isWatchReachable { return "Waiting for active session" }
+        if locationManager.isWatchLocked { return "Tracker locked on watch" }
+        return "Tracking active"
+    }
+
+    private func batteryIcon(for level: Double) -> String {
+        if level > 0.75 { return "battery.100" }
+        if level > 0.5 { return "battery.75" }
+        if level > 0.25 { return "battery.50" }
+        return "battery.25"
+    }
+
+    private func batteryColor(for level: Double) -> Color {
+        if level > 0.5 { return .green }
+        if level > 0.2 { return .yellow }
+        return .red
+    }
+
+    // MARK: - Session Stats Section
+    @ViewBuilder
+    private var sessionStatsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Session Stats")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            let summary = locationManager.sessionSummary
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                StatCell(title: "Fixes", value: "\(summary.fixCount)")
+                StatCell(title: "Avg Interval", value: formatSeconds(summary.averageIntervalSec))
+                StatCell(title: "Median Acc", value: formatMeters(summary.medianAccuracy))
+                StatCell(title: "Duration", value: formatDuration(summary.durationSec))
+            }
+
+            HStack {
+                if let exportURL = locationManager.sessionShareURL() {
+                    ShareLink(item: exportURL) {
+                        Label("Export", systemImage: "square.and.arrow.up")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+
+                Spacer()
+
+                Button("Reset", role: .destructive) {
+                    locationManager.resetSessionStats()
+                }
+                .font(.caption)
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+        }
+        .padding(12)
+        .background(Color.primary.opacity(0.03), in: RoundedRectangle(cornerRadius: 12))
+    }
+
+    // MARK: - HealthKit Section
+    @ViewBuilder
+    private var healthKitSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("HealthKit")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            HStack {
+                Image(systemName: "figure.run")
+                    .foregroundStyle(.pink)
+                Text("Workout: \(locationManager.workoutPermissionDescription)")
+                    .font(.caption)
+            }
+
+            HStack {
+                Image(systemName: "heart.fill")
+                    .foregroundStyle(.red)
+                Text("Heart Rate: \(locationManager.heartPermissionDescription)")
+                    .font(.caption)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(Color.primary.opacity(0.03), in: RoundedRectangle(cornerRadius: 12))
+    }
+
+    // MARK: - Developer Section
+    @ViewBuilder
+    private var developerSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Developer")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            HStack {
+                Text("Extended Runtime")
+                    .font(.caption)
+                Spacer()
+                Text(locationManager.runtimeOptimizationsEnabled ? "Enabled" : "Disabled")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Button("Open Developer Settings") {
+                showDeveloperSheet = true
+            }
+            .font(.caption)
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(Color.primary.opacity(0.03), in: RoundedRectangle(cornerRadius: 12))
+    }
+
+    // MARK: - About Section
+    @ViewBuilder
+    private var aboutSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("About")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            HStack {
+                Text("Version")
+                    .font(.caption)
+                Spacer()
+                Text(appVersion)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(Color.primary.opacity(0.03), in: RoundedRectangle(cornerRadius: 12))
+    }
+}
+
+// MARK: - Stat Cell
+private struct StatCell: View {
+    let title: String
+    let value: String
+
+    var body: some View {
+        VStack(spacing: 2) {
+            Text(value)
+                .font(.callout.weight(.semibold))
+            Text(title)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+        .background(Color.primary.opacity(0.03), in: RoundedRectangle(cornerRadius: 8))
+    }
+}
+
+// MARK: - SettingsView Helpers
+private extension SettingsView {
 
     private func settingsCard<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
         GlassCard(cornerRadius: 20, padding: 16) {
