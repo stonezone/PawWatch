@@ -368,6 +368,26 @@ public final class WatchLocationProvider: NSObject {
     private var isTrackerLocked = false
     private var activationRetryTask: Task<Void, Never>?
 
+    // MARK: - Resilience Properties
+
+    /// Task for debouncing reachability changes (prevents UI churn from Bluetooth flapping)
+    private var reachabilityDebounceTask: Task<Void, Never>?
+
+    /// Last known reachability state for debounce comparison
+    private var lastReportedReachability: Bool?
+
+    /// Debounce interval for reachability changes (seconds)
+    private let reachabilityDebounceInterval: TimeInterval = 2.5
+
+    /// Task for auto-restarting workout session after unexpected termination
+    private var workoutRestartTask: Task<Void, Never>?
+
+    /// Tracks whether tracking was intentionally stopped (vs unexpected termination)
+    private var isIntentionallyStopped = false
+
+    /// Current thermal degradation level (0 = normal, 1 = degraded, 2 = stopped)
+    private var thermalDegradationLevel = 0
+
     // MARK: - Adaptive throttling state
 
     private var lastKnownLocation: CLLocation?
@@ -435,6 +455,9 @@ public final class WatchLocationProvider: NSObject {
     ///
     /// - Parameter activity: The workout activity type (default: .other for max update frequency)
     public func startWorkoutAndStreaming(activity: HKWorkoutActivityType = .other) {
+        // Reset intentional stop flag for new tracking session
+        isIntentionallyStopped = false
+        thermalDegradationLevel = 0
         requestAuthorizationsIfNeeded()
         startWorkoutSession(activity: activity)
         Task { @MainActor in
@@ -496,7 +519,14 @@ public final class WatchLocationProvider: NSObject {
     /// - Application context throttle state
     /// - Active file transfers
     public func stop() {
+        // Mark as intentional stop to prevent auto-restart
+        isIntentionallyStopped = true
+        workoutRestartTask?.cancel()
+        workoutRestartTask = nil
+        reachabilityDebounceTask?.cancel()
+        reachabilityDebounceTask = nil
         activationRetryTask?.cancel()
+        thermalDegradationLevel = 0
         locationManager.stopUpdatingLocation()
 
         // Capture builder and session locally to avoid self reference issues
@@ -1011,16 +1041,48 @@ extension WatchLocationProvider: CLLocationManagerDelegate {
                 let latest = locations.last
             else { return }
             
-            // Thermal guard: back off if the device is overheating
-            if ProcessInfo.processInfo.thermalState == .serious || ProcessInfo.processInfo.thermalState == .critical {
-                self.logger.error("Thermal state \(ProcessInfo.processInfo.thermalState.rawValue) - stopping tracking to protect hardware")
-                self.locationManager.stopUpdatingLocation()
-                self.isWorkoutRunning = false
-                self.stopBatteryHeartbeat()
-                if self.supportsExtendedRuntime {
-                    self.runtimeCoordinator.updateTrackingState(isRunning: false)
+            // Thermal guard: graceful degradation before hard stop
+            let thermalState = ProcessInfo.processInfo.thermalState
+            if thermalState == .critical {
+                // Critical: must stop to protect hardware
+                if self.thermalDegradationLevel < 2 {
+                    self.thermalDegradationLevel = 2
+                    self.logger.error("Thermal CRITICAL - stopping tracking to protect hardware")
+                    self.isIntentionallyStopped = true  // Prevent auto-restart during thermal event
+                    self.locationManager.stopUpdatingLocation()
+                    self.isWorkoutRunning = false
+                    self.stopBatteryHeartbeat()
+                    if self.supportsExtendedRuntime {
+                        self.runtimeCoordinator.updateTrackingState(isRunning: false)
+                    }
                 }
                 return
+            } else if thermalState == .serious {
+                // Serious: degrade to saver mode (reduced frequency/accuracy)
+                if self.thermalDegradationLevel < 1 {
+                    self.thermalDegradationLevel = 1
+                    self.logger.warning("Thermal SERIOUS - degrading to saver mode")
+                    self.applyPreset(.saver, force: true)
+                }
+                // Continue processing but at reduced rate
+            } else if self.thermalDegradationLevel > 0 {
+                // Thermal recovered - restore normal operation
+                self.logger.log("Thermal recovered - restoring normal operation")
+                self.thermalDegradationLevel = 0
+                self.isIntentionallyStopped = false
+                // Restore preset based on current battery level
+                if self.batteryOptimizationsEnabled {
+                    let battery = self.latestBatteryLevel
+                    if battery < 0.1 {
+                        self.applyPreset(.saver)
+                    } else if battery < 0.2 {
+                        self.applyPreset(.balanced)
+                    } else {
+                        self.applyPreset(.aggressive)
+                    }
+                } else {
+                    self.applyPreset(.aggressive)
+                }
             }
             
             let device = WKInterfaceDevice.current()
@@ -1129,13 +1191,46 @@ extension WatchLocationProvider: WCSessionDelegate {
         }
     }
     
-    /// Handles changes in phone reachability status.
+    /// Handles changes in phone reachability status with debouncing.
+    ///
+    /// Uses a 2.5-second debounce to prevent UI churn from Bluetooth flapping.
+    /// Only propagates changes when reachability stabilizes.
     ///
     /// - Parameter session: The WatchConnectivity session
     nonisolated public func sessionReachabilityDidChange(_ session: WCSession) {
-        ConnectivityLog.verbose("Reachability changed → reachable: \(session.isReachable)")
+        let newReachability = session.isReachable
+        ConnectivityLog.verbose("Reachability changed → reachable: \(newReachability)")
         Task { @MainActor [weak self] in
-            self?.delegate?.didUpdateReachability(session.isReachable)
+            self?.handleReachabilityChange(newReachability)
+        }
+    }
+
+    /// Debounces reachability changes to prevent rapid state flipping.
+    @MainActor
+    private func handleReachabilityChange(_ isReachable: Bool) {
+        // Cancel any pending debounce
+        reachabilityDebounceTask?.cancel()
+
+        // If this is the same as last reported, ignore
+        if let lastReported = lastReportedReachability, lastReported == isReachable {
+            return
+        }
+
+        // Schedule debounced update
+        reachabilityDebounceTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(self?.reachabilityDebounceInterval ?? 2.5))
+            guard let self, !Task.isCancelled else { return }
+
+            // Verify reachability hasn't changed during debounce period
+            let currentReachability = self.wcSession.isReachable
+            if currentReachability == isReachable {
+                self.lastReportedReachability = isReachable
+                self.logger.log("Reachability stabilized: \(isReachable ? "reachable" : "unreachable")")
+                self.delegate?.didUpdateReachability(isReachable)
+            } else {
+                // Reachability flipped during debounce - restart debounce with new value
+                self.handleReachabilityChange(currentReachability)
+            }
         }
     }
     
@@ -1309,6 +1404,9 @@ extension WatchLocationProvider: HKWorkoutSessionDelegate {
     ) {
         Task { @MainActor [weak self] in
             guard let self else { return }
+
+            self.logger.log("Workout session state: \(fromState.rawValue) → \(toState.rawValue)")
+
             guard toState == .ended || toState == .stopped else { return }
 
             if let builder = self.workoutBuilder {
@@ -1328,6 +1426,40 @@ extension WatchLocationProvider: HKWorkoutSessionDelegate {
                     }
                 }
             }
+
+            // Auto-restart workout session if not intentionally stopped
+            // This handles unexpected session termination (timeout, system interruption)
+            if !self.isIntentionallyStopped && self.isWorkoutRunning {
+                self.logger.log("Workout session ended unexpectedly - scheduling auto-restart")
+                self.scheduleWorkoutRestart()
+            }
+        }
+    }
+
+    /// Schedules an automatic restart of the workout session after unexpected termination.
+    /// Uses a 3-second delay to allow system resources to settle.
+    @MainActor
+    private func scheduleWorkoutRestart() {
+        workoutRestartTask?.cancel()
+        workoutRestartTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(3))
+            guard let self, !Task.isCancelled else { return }
+            guard !self.isIntentionallyStopped else {
+                self.logger.log("Auto-restart cancelled - tracking was intentionally stopped")
+                return
+            }
+
+            self.logger.log("Auto-restarting workout session")
+
+            // Clear old session references
+            self.workoutSession = nil
+            self.workoutBuilder = nil
+
+            // Restart the workout session
+            self.startWorkoutSession(activity: .other)
+            self.locationManager.startUpdatingLocation()
+
+            self.logger.log("Workout session auto-restart complete")
         }
     }
     
