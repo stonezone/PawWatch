@@ -261,6 +261,38 @@ public final class PetLocationManager: NSObject, ObservableObject {
         }
 
         refreshHealthAuthorizationState()
+
+        // Attempt CloudKit recovery if no local data
+        Task { [weak self] in
+            await self?.recoverFromCloudKitIfNeeded()
+        }
+    }
+
+    /// Attempt to recover location data from CloudKit if local data is missing.
+    private func recoverFromCloudKitIfNeeded() async {
+        guard latestLocation == nil else { return }
+
+        // Check iCloud availability first
+        guard await CloudKitLocationSync.shared.checkAccountStatus() else {
+            logger.notice("CloudKit unavailable for recovery")
+            return
+        }
+
+        // Attempt to restore last known location
+        if let recoveredLocation = await CloudKitLocationSync.shared.loadLocation() {
+            // Only use if not too stale (within last 24 hours)
+            let age = Date().timeIntervalSince(recoveredLocation.timestamp)
+            if age < 24 * 60 * 60 {
+                await MainActor.run {
+                    self.latestLocation = recoveredLocation
+                    self.watchBatteryFraction = recoveredLocation.batteryFraction
+                    self.lastUpdateTime = recoveredLocation.timestamp
+                    self.logger.info("Recovered location from CloudKit (age: \(Int(age))s)")
+                }
+            } else {
+                logger.notice("CloudKit location too stale (age: \(Int(age))s)")
+            }
+        }
     }
 
     // MARK: - Public API
@@ -669,6 +701,11 @@ public final class PetLocationManager: NSObject, ObservableObject {
         insertIntoHistory(locationFix)
         appendSessionSample(locationFix)
         PerformanceMonitor.shared.recordRemoteFix(locationFix, watchReachable: isWatchReachable)
+
+        // Sync to CloudKit for offline recovery (fire and forget)
+        Task.detached {
+            await CloudKitLocationSync.shared.saveLocation(locationFix)
+        }
     }
 
     private func shouldAccept(_ fix: LocationFix) -> Bool {
