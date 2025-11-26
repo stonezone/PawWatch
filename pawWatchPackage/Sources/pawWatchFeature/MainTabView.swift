@@ -279,16 +279,17 @@ struct DashboardView: View {
 private struct DashboardHeader: View {
     @Binding var isRefreshing: Bool
     let onRefresh: () -> Void
+    private let theme = LiquidGlassTheme.current
 
     var body: some View {
         HStack(alignment: .center) {
             HStack(spacing: 12) {
-                // App icon placeholder
+                // App icon with theme gradient
                 ZStack {
                     Circle()
                         .fill(
                             LinearGradient(
-                                colors: [.blue.opacity(0.8), .cyan.opacity(0.6)],
+                                colors: theme.accentGradient,
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             )
@@ -316,15 +317,19 @@ private struct DashboardHeader: View {
                     Circle()
                         .fill(.ultraThinMaterial)
                         .frame(width: 44, height: 44)
+                        .overlay(
+                            Circle()
+                                .strokeBorder(theme.chromeStrokeSubtle, lineWidth: 1)
+                        )
 
                     Image(systemName: "arrow.clockwise")
                         .font(.body.weight(.semibold))
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(theme.accentPrimary)
                         .rotationEffect(.degrees(isRefreshing ? 360 : 0))
                         .animation(
                             isRefreshing
                                 ? .linear(duration: 1).repeatForever(autoreverses: false)
-                                : .spring(response: 0.35, dampingFraction: 0.8),
+                                : theme.springStandard,
                             value: isRefreshing
                         )
                 }
@@ -337,8 +342,10 @@ private struct DashboardHeader: View {
 // MARK: - Onboarding Card
 
 private struct OnboardingCard: View {
+    private let theme = LiquidGlassTheme.current
+
     var body: some View {
-        GlassCard(cornerRadius: 24, padding: 24) {
+        GlassCard(cornerRadius: theme.cornerRadiusCard, padding: 24) {
             VStack(spacing: 20) {
                 ZStack {
                     Circle()
@@ -368,7 +375,7 @@ private struct OnboardingCard: View {
 
                 HStack(spacing: 8) {
                     Image(systemName: "1.circle.fill")
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(theme.accentPrimary)
                     Text("Open Watch app")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -376,7 +383,7 @@ private struct OnboardingCard: View {
                     Spacer()
 
                     Image(systemName: "2.circle.fill")
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(theme.accentPrimary)
                     Text("Tap Start")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -390,8 +397,10 @@ private struct OnboardingCard: View {
 // MARK: - Waiting For Data Card
 
 private struct WaitingForDataCard: View {
+    private let theme = LiquidGlassTheme.current
+
     var body: some View {
-        GlassCard(cornerRadius: 24, padding: 20) {
+        GlassCard(cornerRadius: theme.cornerRadiusCard, padding: 20) {
             HStack(spacing: 16) {
                 ZStack {
                     Circle()
@@ -493,6 +502,7 @@ private struct QuickStatItem: View {
     let icon: String
     let value: String
     let color: Color
+    private let theme = LiquidGlassTheme.current
 
     var body: some View {
         VStack(spacing: 6) {
@@ -508,10 +518,10 @@ private struct QuickStatItem: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 12)
         .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: theme.cornerRadiusSmall, style: .continuous)
                 .fill(.ultraThinMaterial)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    RoundedRectangle(cornerRadius: theme.cornerRadiusSmall, style: .continuous)
                         .strokeBorder(color.opacity(0.2), lineWidth: 1)
                 )
         )
@@ -558,9 +568,10 @@ private struct LiveStatusBadge: View {
 private struct CoordinatesCard: View {
     let latitude: Double
     let longitude: Double
+    private let theme = LiquidGlassTheme.current
 
     var body: some View {
-        GlassCard(cornerRadius: 20, padding: 16) {
+        GlassCard(cornerRadius: theme.cornerRadiusCard - 4, padding: 16) {
             HStack(spacing: 0) {
                 VStack(alignment: .leading, spacing: 4) {
                     Label("Latitude", systemImage: "arrow.up")
@@ -597,18 +608,19 @@ private struct CoordinatesCard: View {
 private struct TrailSummaryCard: View {
     let count: Int
     let limit: Int
+    private let theme = LiquidGlassTheme.current
 
     var body: some View {
-        GlassCard(cornerRadius: 18, padding: 14) {
+        GlassCard(cornerRadius: theme.cornerRadiusButton, padding: 14) {
             HStack(spacing: 12) {
                 ZStack {
                     Circle()
-                        .fill(.blue.opacity(0.12))
+                        .fill(theme.accentPrimary.opacity(0.12))
                         .frame(width: 40, height: 40)
 
                     Image(systemName: "point.3.connected.trianglepath.dotted")
                         .font(.body.weight(.semibold))
-                        .foregroundStyle(.blue.gradient)
+                        .foregroundStyle(theme.accentPrimary.gradient)
                 }
 
                 VStack(alignment: .leading, spacing: 2) {
@@ -625,12 +637,12 @@ private struct TrailSummaryCard: View {
                 // Progress indicator
                 ZStack {
                     Circle()
-                        .stroke(Color.blue.opacity(0.2), lineWidth: 3)
+                        .stroke(theme.accentPrimary.opacity(0.2), lineWidth: 3)
                         .frame(width: 32, height: 32)
 
                     Circle()
                         .trim(from: 0, to: min(1, Double(count) / Double(limit)))
-                        .stroke(Color.blue.gradient, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                        .stroke(theme.accentPrimary.gradient, style: StrokeStyle(lineWidth: 3, lineCap: .round))
                         .frame(width: 32, height: 32)
                         .rotationEffect(.degrees(-90))
 
@@ -647,6 +659,7 @@ private struct TrailSummaryCard: View {
 
 private struct ForegroundNotice: View {
     let message: String
+    private let theme = LiquidGlassTheme.current
 
     var body: some View {
         HStack(spacing: 8) {
@@ -662,7 +675,7 @@ private struct ForegroundNotice: View {
         .padding(.vertical, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: theme.cornerRadiusSmall - 4, style: .continuous)
                 .fill(Color.primary.opacity(0.03))
         )
     }
@@ -672,6 +685,7 @@ private struct ForegroundNotice: View {
 
 private struct DashboardErrorBanner: View {
     let message: String
+    private let theme = LiquidGlassTheme.current
 
     var body: some View {
         HStack(spacing: 12) {
@@ -688,10 +702,10 @@ private struct DashboardErrorBanner: View {
         }
         .padding(14)
         .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: theme.cornerRadiusSmall - 2, style: .continuous)
                 .fill(.orange.opacity(0.1))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    RoundedRectangle(cornerRadius: theme.cornerRadiusSmall - 2, style: .continuous)
                         .strokeBorder(.orange.opacity(0.25), lineWidth: 1)
                 )
         )
