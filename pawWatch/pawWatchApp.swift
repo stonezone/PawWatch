@@ -127,12 +127,21 @@ final class PawWatchAppDelegate: NSObject, UIApplicationDelegate {
         didReceiveRemoteNotification userInfo: [AnyHashable : Any],
         fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
     ) {
+        // Handle location request push (silent push for watch location update)
+        if BackgroundLocationPushHandler.handle(userInfo: userInfo) {
+            backgroundScheduler.schedule()
+            completionHandler(.newData)
+            return
+        }
+
+        // Handle Live Activity push
         if LiveActivityPushHandler.handle(userInfo: userInfo) {
             backgroundScheduler.schedule()
             completionHandler(.newData)
-        } else {
-            completionHandler(.noData)
+            return
         }
+
+        completionHandler(.noData)
     }
 }
 
@@ -238,5 +247,59 @@ enum PushRegistrationController {
                 UIApplication.shared.registerForRemoteNotifications()
             }
         }
+    }
+}
+
+// MARK: - Silent Push Location Request Handler
+
+/// Handles silent push notifications requesting location updates from watch.
+/// Push payload format: { "aps": { "content-available": 1 }, "action": "request-location" }
+enum BackgroundLocationPushHandler {
+    private static let logger = Logger(subsystem: "com.stonezone.pawWatch", category: "LocationPush")
+
+    /// Handle incoming push notification, returns true if this was a location request.
+    static func handle(userInfo: [AnyHashable: Any]) -> Bool {
+        guard let action = userInfo["action"] as? String,
+              action == "request-location" else {
+            return false
+        }
+
+        logger.info("Silent push received: requesting watch location")
+        return requestWatchLocation()
+    }
+
+    private static func requestWatchLocation() -> Bool {
+        #if canImport(WatchConnectivity)
+        let session = WCSession.default
+        guard session.activationState == .activated else {
+            logger.notice("WCSession not activated for push-triggered refresh")
+            return false
+        }
+
+        let payload: [String: Any] = [
+            "action": "requestLocation",
+            "pushTriggered": true,
+            "timestamp": Date().timeIntervalSince1970
+        ]
+
+        if session.isReachable {
+            session.sendMessage(payload, replyHandler: nil) { error in
+                logger.error("Push location request failed: \(error.localizedDescription, privacy: .public)")
+            }
+            logger.info("Push-triggered location requested via direct message")
+            return true
+        } else {
+            do {
+                try session.updateApplicationContext(payload)
+                logger.info("Push-triggered location requested via application context")
+                return true
+            } catch {
+                logger.error("Failed to queue push location request: \(error.localizedDescription, privacy: .public)")
+                return false
+            }
+        }
+        #else
+        return false
+        #endif
     }
 }
