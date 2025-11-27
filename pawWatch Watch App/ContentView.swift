@@ -11,8 +11,8 @@
 import SwiftUI
 import Observation
 import WatchKit
-@preconcurrency import WatchConnectivity
 import CoreLocation
+import pawWatchFeature
 
 // MARK: - Content View
 
@@ -63,18 +63,6 @@ struct ContentView: View {
         .onAppear {
             locationManager.setBatteryOptimizationsEnabled(batteryOptimizationsEnabled)
             locationManager.updateConnectionStatus()
-            
-            // 🔍 DIAGNOSTIC: Print WCSession state on appear
-            if WCSession.isSupported() {
-                let session = WCSession.default
-                print("\n🔍 [WATCH APPEAR] WCSession.isSupported = true")
-                print("   activationState: \(session.activationState.rawValue)")
-                print("   isCompanionAppInstalled: \(session.isCompanionAppInstalled)")
-                print("   isReachable: \(session.isReachable)")
-                print()
-            } else {
-                print("❌ [WATCH APPEAR] WCSession.isSupported = FALSE")
-            }
         }
         .onChange(of: batteryOptimizationsEnabled) { _, newValue in
             locationManager.setBatteryOptimizationsEnabled(newValue)
@@ -626,16 +614,9 @@ private struct GlassPill<Content: View>: View {
 private struct GlassSkeleton: View {
     let height: CGFloat
     var body: some View {
-        TimelineView(.animation) { context in
-            let phase = context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 1)
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(.thinMaterial.opacity(0.5))
-                .overlay(
-                    LinearGradient(colors: [.clear, .white.opacity(0.5), .clear], startPoint: .leading, endPoint: .trailing)
-                        .offset(x: CGFloat(phase) * 60 - 30)
-                )
-                .frame(height: height)
-        }
+        RoundedRectangle(cornerRadius: 12, style: .continuous)
+            .fill(.ultraThinMaterial.opacity(0.3))
+            .frame(height: height)
     }
 }
 

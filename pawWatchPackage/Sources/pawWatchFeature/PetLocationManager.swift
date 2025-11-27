@@ -112,12 +112,28 @@ public final class PetLocationManager: NSObject, ObservableObject {
     // MARK: - Shared Instance for Background Access
 
     /// Shared instance set by the app on launch for background task access.
-    /// Call `PetLocationManager.setShared(_:)` from your app's init.
-    public private(set) nonisolated(unsafe) static var shared: PetLocationManager?
+    /// CRITICAL FIX: Using MainActor isolation to ensure thread safety
+    /// Since PetLocationManager is @MainActor, this is safe
+    @MainActor
+    private static var _shared: PetLocationManager?
+
+    /// Thread-safe access to the shared instance (async)
+    public static var shared: PetLocationManager? {
+        get async {
+            await MainActor.run { _shared }
+        }
+    }
+
+    /// Thread-safe shared instance getter for MainActor contexts (sync)
+    @MainActor
+    public static var sharedSync: PetLocationManager? {
+        get { _shared }
+    }
 
     /// Set the shared instance (call from app initialization)
+    @MainActor
     public static func setShared(_ manager: PetLocationManager) {
-        shared = manager
+        _shared = manager
     }
 
     // MARK: - Published State
@@ -233,10 +249,11 @@ public final class PetLocationManager: NSObject, ObservableObject {
         self.locationAuthorizationStatus = locationManager.authorizationStatus
 
         // Setup WatchConnectivity
+        // CRITICAL FIX: Defer activation until after super.init() completes
         #if canImport(WatchConnectivity)
         if WCSession.isSupported() {
             session.delegate = self
-            session.activate()
+            // Activation moved to end of init
         } else {
             errorMessage = "WatchConnectivity not supported on this device"
         }
@@ -248,7 +265,8 @@ public final class PetLocationManager: NSObject, ObservableObject {
         locationManager.delegate = self
         locationManager.desiredAccuracy = kCLLocationAccuracyNearestTenMeters
         locationManager.requestWhenInUseAuthorization()
-        locationManager.startUpdatingLocation()
+        // CRITICAL FIX: Don't start updating until authorization is granted
+        // startUpdatingLocation() will be called in locationManagerDidChangeAuthorization
 
         if storedLimit == nil {
             persistTrailHistoryLimit(trailHistoryLimit)
@@ -266,6 +284,13 @@ public final class PetLocationManager: NSObject, ObservableObject {
         Task { [weak self] in
             await self?.recoverFromCloudKitIfNeeded()
         }
+
+        // CRITICAL FIX: Activate WCSession after init completes
+        #if canImport(WatchConnectivity)
+        if WCSession.isSupported() {
+            session.activate()
+        }
+        #endif
     }
 
     /// Attempt to recover location data from CloudKit if local data is missing.
@@ -364,8 +389,8 @@ public final class PetLocationManager: NSObject, ObservableObject {
         }
 
         // Send request message to Watch
-        var message: [String: Any] = ["action": "requestLocation"]
-        if force { message["force"] = true }
+        var message: [String: Any] = [ConnectivityConstants.action: ConnectivityConstants.requestLocation]
+        if force { message[ConnectivityConstants.force] = true }
         session.sendMessage(
             message,
             replyHandler: nil,
@@ -391,9 +416,9 @@ public final class PetLocationManager: NSObject, ObservableObject {
         }
 
         let payload: [String: Any] = [
-            "action": "requestLocation",
-            "background": true,
-            "timestamp": Date().timeIntervalSince1970
+            ConnectivityConstants.action: ConnectivityConstants.requestLocation,
+            ConnectivityConstants.background: true,
+            ConnectivityConstants.timestamp: Date().timeIntervalSince1970
         ]
 
         if isWatchReachable {
@@ -417,6 +442,29 @@ public final class PetLocationManager: NSObject, ObservableObject {
         return false
         #endif
     }
+    
+    /// Sends a stop command to the Watch.
+    public func sendStopCommand() {
+        #if canImport(WatchConnectivity)
+        guard session.activationState == .activated else { return }
+        let payload: [String: Any] = [ConnectivityConstants.action: ConnectivityConstants.stopTracking]
+        
+        if session.isReachable {
+            session.sendMessage(payload, replyHandler: nil) { error in
+                Task { @MainActor in
+                    self.logger.error("Failed to send stop command: \(error.localizedDescription)")
+                }
+            }
+        } else {
+            do {
+                try session.updateApplicationContext(payload)
+                logger.notice("Queued stop command via application context")
+            } catch {
+                logger.error("Failed to queue stop command: \(error.localizedDescription)")
+            }
+        }
+        #endif
+    }
 
     /// Request iPhone location permission again.
     public func requestLocationPermission() {
@@ -431,7 +479,10 @@ public final class PetLocationManager: NSObject, ObservableObject {
         guard session.activationState == .activated else { return }
         
         // Send mode change first
-        let modePayload: [String: Any] = ["action": "setMode", "mode": mode.rawValue]
+        let modePayload: [String: Any] = [
+            ConnectivityConstants.action: ConnectivityConstants.setMode,
+            ConnectivityConstants.mode: mode.rawValue
+        ]
         if session.isReachable {
             session.sendMessage(modePayload, replyHandler: nil) { error in
                 Task { @MainActor in
@@ -461,8 +512,8 @@ public final class PetLocationManager: NSObject, ObservableObject {
         #if canImport(WatchConnectivity)
         guard session.activationState == .activated else { return }
         let payload: [String: Any] = [
-            "action": "setRuntimeOptimizations",
-            "enabled": enabled
+            ConnectivityConstants.action: ConnectivityConstants.setRuntimeOptimizations,
+            ConnectivityConstants.enabled: enabled
         ]
 
         if session.isReachable {
@@ -485,9 +536,9 @@ public final class PetLocationManager: NSObject, ObservableObject {
         #if canImport(WatchConnectivity)
         guard session.activationState == .activated else { return }
         let payload: [String: Any] = [
-            "action": "setIdleCadence",
-            "heartbeatInterval": preset.heartbeatInterval,
-            "fullFixInterval": preset.fullFixInterval
+            ConnectivityConstants.action: ConnectivityConstants.setIdleCadence,
+            ConnectivityConstants.heartbeatInterval: preset.heartbeatInterval,
+            ConnectivityConstants.fullFixInterval: preset.fullFixInterval
         ]
 
         if session.isReachable {
@@ -512,9 +563,9 @@ public final class PetLocationManager: NSObject, ObservableObject {
         #if canImport(WatchConnectivity)
         guard session.activationState == .activated else { return }
         let payload: [String: Any] = [
-            "action": "setIdleCadence",
-            "heartbeatInterval": 5.0,
-            "fullFixInterval": 10.0
+            ConnectivityConstants.action: ConnectivityConstants.setIdleCadence,
+            ConnectivityConstants.heartbeatInterval: 5.0,
+            ConnectivityConstants.fullFixInterval: 10.0
         ]
 
         if session.isReachable {
@@ -937,7 +988,7 @@ extension PetLocationManager: WCSessionDelegate {
         _ session: WCSession,
         didReceiveMessage message: [String: Any]
     ) {
-        if let data = message["latestFix"] as? Data {
+        if let data = message[ConnectivityConstants.latestFix] as? Data {
             Task { @MainActor in
                 self.isWatchConnected = true
                 self.isWatchReachable = true
@@ -955,7 +1006,7 @@ extension PetLocationManager: WCSessionDelegate {
         _ session: WCSession,
         didReceiveUserInfo userInfo: [String : Any]
     ) {
-        guard let data = userInfo["latestFix"] as? Data else { return }
+        guard let data = userInfo[ConnectivityConstants.latestFix] as? Data else { return }
 
         Task { @MainActor in
             self.isWatchConnected = true
@@ -968,14 +1019,14 @@ extension PetLocationManager: WCSessionDelegate {
         _ session: WCSession,
         didReceiveApplicationContext applicationContext: [String: Any]
     ) {
-        let battery = applicationContext["batteryOnly"] as? Double
-        let modeRaw = applicationContext["trackingMode"] as? String
-        let locked = applicationContext["lockState"] as? Bool
-        let latest = applicationContext["latestFix"] as? Data
-        let runtimeEnabled = applicationContext["runtimeOptimizationsEnabled"] as? Bool
-        let runtimeCapable = applicationContext["supportsExtendedRuntime"] as? Bool
-        let idleHeartbeat = applicationContext["idleHeartbeatInterval"] as? Double
-        let idleFullFix = applicationContext["idleFullFixInterval"] as? Double
+        let battery = applicationContext[ConnectivityConstants.batteryOnly] as? Double
+        let modeRaw = applicationContext[ConnectivityConstants.trackingMode] as? String
+        let locked = applicationContext[ConnectivityConstants.lockState] as? Bool
+        let latest = applicationContext[ConnectivityConstants.latestFix] as? Data
+        let runtimeEnabled = applicationContext[ConnectivityConstants.runtimeOptimizationsEnabled] as? Bool
+        let runtimeCapable = applicationContext[ConnectivityConstants.supportsExtendedRuntime] as? Bool
+        let idleHeartbeat = applicationContext[ConnectivityConstants.idleHeartbeatInterval] as? Double
+        let idleFullFix = applicationContext[ConnectivityConstants.idleFullFixInterval] as? Double
 
         Task { @MainActor in
             if let battery { self.watchBatteryFraction = battery }

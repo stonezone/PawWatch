@@ -103,7 +103,9 @@ struct GlassCard<Content: View>: View {
     }
 
     var body: some View {
-        if #available(iOS 26, *),
+        // WORKAROUND: iOS 26 beta .glassEffect() causes Metal rendering crashes
+        // Disabled until iOS 26 stabilizes
+        if false, #available(iOS 26, *),
            LiquidGlassAssets.shared.isReady,
            !ProcessInfo.processInfo.arguments.contains("LIQUID_GLASS_FALLBACK") {
             // iOS 26/watchOS 26: Use native Liquid Glass API with depth-aware shadows
@@ -227,7 +229,8 @@ struct LiquidGlassTabBar<Selection: Hashable>: View {
     }
 
     var body: some View {
-        if #available(iOS 26, *),
+        // WORKAROUND: iOS 26 beta .glassEffect() causes Metal rendering crashes
+        if false, #available(iOS 26, *),
            LiquidGlassAssets.shared.isReady,
            !ProcessInfo.processInfo.arguments.contains("LIQUID_GLASS_FALLBACK") {
             // iOS 26/watchOS 26: Enhanced native glass effect with depth

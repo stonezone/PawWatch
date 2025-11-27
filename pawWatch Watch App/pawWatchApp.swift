@@ -24,7 +24,13 @@ struct pawWatch_Watch_App: App {
     /// Shared location manager - initialized at app launch
     /// This ensures WatchConnectivity is activated immediately,
     /// allowing the iPhone to detect the Watch app
-    @State private var locationManager = WatchLocationManager()
+    /// CRITICAL FIX: Using lazy initialization to prevent recreation
+    @State private var locationManager: WatchLocationManager
+
+    init() {
+        // Initialize once to prevent recreation during scene phase changes
+        _locationManager = State(initialValue: WatchLocationManager())
+    }
 
     // MARK: - Body
 

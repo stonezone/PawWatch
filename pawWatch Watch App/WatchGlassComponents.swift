@@ -60,36 +60,21 @@ enum StatusCondition {
 
 // MARK: - Circular Background
 
-/// Optimized background for circular watch displays with radial gradients.
+/// Optimized background for circular watch displays with simplified gradients.
 struct WatchGlassBackground: View {
     private let theme = WatchGlassTheme.current
 
     var body: some View {
         ZStack {
-            // Radial gradient optimized for circular display
-            RadialGradient(
+            // Simplified linear gradient for performance
+            LinearGradient(
                 colors: [
-                    Color(red: 0.12, green: 0.18, blue: 0.28),
                     Color(red: 0.08, green: 0.14, blue: 0.24),
-                    Color.black.opacity(0.8)
+                    Color.black.opacity(0.9)
                 ],
-                center: .center,
-                startRadius: 0,
-                endRadius: 120
+                startPoint: .top,
+                endPoint: .bottom
             )
-
-            // Angular accent for depth
-            AngularGradient(
-                gradient: Gradient(colors: [
-                    Color.blue.opacity(0.3),
-                    Color.purple.opacity(0.2),
-                    Color.black.opacity(0.5),
-                    Color.blue.opacity(0.3)
-                ]),
-                center: .center
-            )
-            .blur(radius: 40)
-            .opacity(0.6)
         }
         .ignoresSafeArea()
     }

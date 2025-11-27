@@ -75,7 +75,7 @@ public struct PetMapView: View {
                 }
             }
         }
-        .mapStyle(.standard(elevation: .realistic))
+        .mapStyle(.standard(elevation: .flat)) // Use flat to avoid iOS 26 Metal multisampling crash
         .mapControls {
             MapUserLocationButton()
             MapCompass()

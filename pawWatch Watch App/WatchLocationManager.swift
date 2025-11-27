@@ -10,8 +10,8 @@
 import SwiftUI
 import Observation
 import WatchKit
-@preconcurrency import WatchConnectivity
 import CoreLocation
+import pawWatchFeature
 
 /// Manages GPS tracking using WatchLocationProvider and relays location data to iPhone.
 ///
@@ -271,7 +271,9 @@ final class WatchLocationManager: WatchLocationProviderDelegate {
             case .fileEncodingFailed:
                 friendlyMessage = "Unable to queue update; will retry."
             case .fileTransferFailed:
-                friendlyMessage = "Background transfer failed; retrying." 
+                friendlyMessage = "Background transfer failed; retrying."
+            case .locationAuthorizationDenied:
+                friendlyMessage = "Location permission required. Enable in Settings."
             }
         } else if let clError = error as? CLError {
             switch clError.code {
@@ -310,45 +312,12 @@ final class WatchLocationManager: WatchLocationProviderDelegate {
     /// Updates connection status display based on WCSession state.
     /// Only checks status after session has been activated by WatchLocationProvider.
     func updateConnectionStatus() {
-        guard WCSession.isSupported() else {
-            connectionStatus = "Not supported"
-            isPhoneReachable = false
-            return
-        }
+        isPhoneReachable = locationProvider.isReachable
+        connectionStatus = isPhoneReachable ? "iPhone Connected" : "iPhone Unreachable"
 
-        let session = WCSession.default
-        
-        // Don't access session properties until it's been activated
-        // This prevents crashes when session is accessed too early
-        guard session.activationState != .notActivated else {
-            connectionStatus = "Initializing..."
-            isPhoneReachable = false
-            return
-        }
-        
-        let activationState: String
-        switch session.activationState {
-        case .notActivated:
-            activationState = "Not Active"
-        case .inactive:
-            activationState = "Inactive"
-        case .activated:
-            activationState = "Active"
-        @unknown default:
-            activationState = "Unknown"
-        }
-
-        isPhoneReachable = session.isReachable
-
-        if session.activationState == .activated {
-            connectionStatus = isPhoneReachable ? "iPhone Connected" : "iPhone Unreachable"
-        } else {
-            connectionStatus = activationState
-        }
-
-        if !session.isCompanionAppInstalled {
+        if !locationProvider.isCompanionAppInstalled {
             statusMessage = "Install or launch pawWatch on iPhone"
-        } else if isTracking, !session.isReachable, currentFix == nil {
+        } else if isTracking, !isPhoneReachable, currentFix == nil {
             statusMessage = "Waiting for iPhone to connect…"
         }
 
@@ -359,60 +328,24 @@ final class WatchLocationManager: WatchLocationProviderDelegate {
     /// Prints detailed pairing information to help troubleshoot connectivity issues
     private func diagnosePairingState() {
         print("\n" + String(repeating: "=", count: 60))
-        print("🔍 WATCH: WatchConnectivity Diagnostic Report")
+        print("🔍 WATCH: Connectivity Diagnostic Report")
         print(String(repeating: "=", count: 60))
 
-        guard WCSession.isSupported() else {
-            print("❌ CRITICAL: WCSession is NOT SUPPORTED on this device")
-            print(String(repeating: "=", count: 60) + "\n")
-            return
+        print("🔗 Connection Status:")
+        print("   isCompanionAppInstalled: \(locationProvider.isCompanionAppInstalled ? "✅ YES - iPhone app detected" : "❌ NO - iPhone app NOT detected")")
+        print("   isReachable: \(locationProvider.isReachable ? "✅ YES - Can send messages now" : "⚠️  NO - Phone sleeping or app backgrounded")")
+
+        // Critical error conditions
+        if !locationProvider.isCompanionAppInstalled {
+            print("\n❌ CRITICAL ERROR: iPhone app not detected by WatchConnectivity")
+            print("   → This is the most common issue!")
+            print("   → Solution: Delete BOTH apps, clean build, reinstall iOS app FIRST, then Watch app")
         }
 
-        let session = WCSession.default
-
-        // Activation State
-        let activationStateString: String
-        switch session.activationState {
-        case .notActivated:
-            activationStateString = "⚠️  NOT ACTIVATED (WCSession.activate() hasn't been called yet)"
-        case .inactive:
-            activationStateString = "⚠️  INACTIVE (Session was deactivated)"
-        case .activated:
-            activationStateString = "✅ ACTIVATED (Session is ready)"
-        @unknown default:
-            activationStateString = "❓ UNKNOWN (\(session.activationState.rawValue))"
-        }
-
-        print("📱 Activation State: \(activationStateString)")
-        print("   Raw Value: \(session.activationState.rawValue) (0=notActivated, 1=inactive, 2=activated)")
-
-        // Only check pairing details if activated (prevents crashes)
-        if session.activationState == .activated {
-            print("\n🔗 Connection Status:")
-            print("   isCompanionAppInstalled: \(session.isCompanionAppInstalled ? "✅ YES - iPhone app detected" : "❌ NO - iPhone app NOT detected")")
-            print("   isReachable: \(session.isReachable ? "✅ YES - Can send messages now" : "⚠️  NO - Phone sleeping or app backgrounded")")
-
-            print("\n📊 Session Properties:")
-            print("   hasContentPending: \(session.hasContentPending)")
-            print("   outstandingFileTransfers: \(session.outstandingFileTransfers.count)")
-            print("   outstandingUserInfoTransfers: \(session.outstandingUserInfoTransfers.count)")
-
-            // Critical error conditions
-            if !session.isCompanionAppInstalled {
-                print("\n❌ CRITICAL ERROR: iPhone app not detected by WatchConnectivity")
-                print("   → This is the most common issue!")
-                print("   → Solution: Delete BOTH apps, clean build, reinstall iOS app FIRST, then Watch app")
-            }
-
-            if !session.isReachable && session.isCompanionAppInstalled {
-                print("\n⚠️  WARNING: iPhone app installed but unreachable")
-                print("   → iPhone might be locked or app backgrounded")
-                print("   → Try: Wake iPhone → Open pawWatch app → Then start Watch tracking")
-            }
-        } else {
-            print("\n⚠️  Connection details unavailable until session activates")
-            print("   → WCSession.activate() should be called in WatchLocationProvider")
-            print("   → Check if startWorkoutAndStreaming() → configureWatchConnectivity() was called")
+        if !locationProvider.isReachable && locationProvider.isCompanionAppInstalled {
+            print("\n⚠️  WARNING: iPhone app installed but unreachable")
+            print("   → iPhone might be locked or app backgrounded")
+            print("   → Try: Wake iPhone → Open pawWatch app → Then start Watch tracking")
         }
 
         print(String(repeating: "=", count: 60))

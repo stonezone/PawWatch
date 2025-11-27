@@ -87,6 +87,7 @@ public enum WatchConnectivityIssue: LocalizedError {
     case interactiveSendFailed(underlying: Error)
     case fileEncodingFailed(underlying: Error)
     case fileTransferFailed(underlying: Error)
+    case locationAuthorizationDenied
 
     public var errorDescription: String? {
         switch self {
@@ -98,6 +99,8 @@ public enum WatchConnectivityIssue: LocalizedError {
             return "Unable to queue background update: \(error.localizedDescription)"
         case .fileTransferFailed(let error):
             return "Background transfer failed: \(error.localizedDescription)"
+        case .locationAuthorizationDenied:
+            return "Location permission denied. Please enable in Settings."
         }
     }
 }
@@ -286,6 +289,16 @@ public final class WatchLocationProvider: NSObject {
     // MARK: - Public Properties
     
     public weak var delegate: (any WatchLocationProviderDelegate)?
+
+    /// Proxy for WCSession reachability (thread-safe access to session)
+    public var isReachable: Bool {
+        wcSession.isReachable
+    }
+
+    /// Proxy for WCSession companion app installation state
+    public var isCompanionAppInstalled: Bool {
+        wcSession.isCompanionAppInstalled
+    }
     
     // MARK: - Private Properties
     
@@ -405,7 +418,7 @@ public final class WatchLocationProvider: NSObject {
         let defaults = UserDefaults.standard
         if defaults.object(forKey: runtimePreferenceKey) == nil {
             defaults.set(true, forKey: runtimePreferenceKey)
-            defaults.synchronize()
+            // MODERATE FIX: Removed deprecated synchronize() - UserDefaults auto-syncs
             return true
         }
         return defaults.bool(forKey: runtimePreferenceKey)
@@ -471,7 +484,8 @@ public final class WatchLocationProvider: NSObject {
         }
 
         applyPreset(.aggressive, force: true)
-        locationManager.startUpdatingLocation()
+        // CRITICAL FIX: Don't start updating until authorization is granted
+        // startUpdatingLocation() will be called in locationManagerDidChangeAuthorization
 
         isWorkoutRunning = true
         if supportsExtendedRuntime {
@@ -510,10 +524,10 @@ public final class WatchLocationProvider: NSObject {
 
     private func runtimeContextMetadata() -> [String: Any] {
         [
-            "runtimeOptimizationsEnabled": batteryOptimizationsEnabled,
-            "supportsExtendedRuntime": supportsExtendedRuntime,
-            "idleHeartbeatInterval": idleHeartbeatInterval,
-            "idleFullFixInterval": stationaryUpdateInterval
+            ConnectivityConstants.runtimeOptimizationsEnabled: batteryOptimizationsEnabled,
+            ConnectivityConstants.supportsExtendedRuntime: supportsExtendedRuntime,
+            ConnectivityConstants.idleHeartbeatInterval: idleHeartbeatInterval,
+            ConnectivityConstants.idleFullFixInterval: stationaryUpdateInterval
         ]
     }
     
@@ -754,7 +768,7 @@ public final class WatchLocationProvider: NSObject {
 
         if wcSession.isReachable, shouldSendInteractive(for: fix) {
             ConnectivityLog.verbose("Sending interactive message (\(data.count) bytes)")
-            let payload: [String: Any] = ["latestFix": data]
+            let payload: [String: Any] = [ConnectivityConstants.latestFix: data]
             wcSession.sendMessage(payload, replyHandler: nil) { [weak self] error in
                 ConnectivityLog.notice("Interactive send failed: \(error.localizedDescription)")
                 self?.notifyConnectivityError(.interactiveSendFailed(underlying: error))
@@ -832,7 +846,7 @@ public final class WatchLocationProvider: NSObject {
         guard wcSession.activationState == .activated else { return }
         do {
             try wcSession.updateApplicationContext([
-                "lockState": isTrackerLocked
+                ConnectivityConstants.lockState: isTrackerLocked
             ])
             logger.log("Lock state context sent (locked=\(self.isTrackerLocked))")
         } catch {
@@ -847,9 +861,9 @@ public final class WatchLocationProvider: NSObject {
         do {
             let data = try encoder.encode(fix)
             let userInfo: [String: Any] = [
-                "latestFix": data,
-                "sequence": fix.sequence,
-                "timestamp": fix.timestamp.timeIntervalSince1970
+                ConnectivityConstants.latestFix: data,
+                ConnectivityConstants.sequence: fix.sequence,
+                ConnectivityConstants.timestamp: fix.timestamp.timeIntervalSince1970
             ]
             wcSession.transferUserInfo(userInfo)
             ConnectivityLog.verbose("Queued userInfo transfer for seq=\(fix.sequence)")
@@ -862,9 +876,9 @@ public final class WatchLocationProvider: NSObject {
     private func sendBackground(data: Data, fix: LocationFix) {
         guard wcSession.activationState == .activated else { return }
         let userInfo: [String: Any] = [
-            "latestFix": data,
-            "sequence": fix.sequence,
-            "timestamp": fix.timestamp.timeIntervalSince1970
+            ConnectivityConstants.latestFix: data,
+            ConnectivityConstants.sequence: fix.sequence,
+            ConnectivityConstants.timestamp: fix.timestamp.timeIntervalSince1970
         ]
         wcSession.transferUserInfo(userInfo)
         ConnectivityLog.verbose("Queued userInfo transfer for seq=\(fix.sequence)")
@@ -887,7 +901,7 @@ public final class WatchLocationProvider: NSObject {
             let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
             try data.write(to: url)
             
-            let transfer = wcSession.transferFile(url, metadata: ["sequence": fix.sequence])
+            let transfer = wcSession.transferFile(url, metadata: [ConnectivityConstants.sequence: fix.sequence])
             activeFileTransfers[transfer] = (url, fix)
             
             ConnectivityLog.verbose("Queued file transfer for seq=\(fix.sequence)")
@@ -971,9 +985,9 @@ public final class WatchLocationProvider: NSObject {
         guard wcSession.activationState == .activated else { return }
         do {
             var context = runtimeContextMetadata()
-            context["batteryOnly"] = latestBatteryLevel
-            context["trackingMode"] = manualTrackingMode.rawValue
-            context["lockState"] = isTrackerLocked
+            context[ConnectivityConstants.batteryOnly] = latestBatteryLevel
+            context[ConnectivityConstants.trackingMode] = manualTrackingMode.rawValue
+            context[ConnectivityConstants.lockState] = isTrackerLocked
             try wcSession.updateApplicationContext(context)
             let avg = Int(self.performanceMonitor.gpsAverage * 1000)
             let drainAvg = String(format: "%.1f", self.performanceMonitor.batteryDrainPerHour)
@@ -1093,7 +1107,32 @@ public final class WatchLocationProvider: NSObject {
 // MARK: - CLLocationManagerDelegate
 
 extension WatchLocationProvider: CLLocationManagerDelegate {
-    
+
+    /// CRITICAL FIX: Handle authorization changes before starting location updates
+    nonisolated public func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        let status = manager.authorizationStatus
+
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+
+            switch status {
+            case .authorizedWhenInUse, .authorizedAlways:
+                // Only start updating if we're actively tracking
+                if self.isWorkoutRunning {
+                    self.logger.log("Location authorized - starting updates")
+                    self.locationManager.startUpdatingLocation()
+                }
+            case .denied, .restricted:
+                self.logger.error("Location permission denied")
+                self.delegate?.didFail(WatchConnectivityIssue.locationAuthorizationDenied)
+            case .notDetermined:
+                self.locationManager.requestWhenInUseAuthorization()
+            @unknown default:
+                break
+            }
+        }
+    }
+
     /// Handles new GPS location updates from CoreLocation.
     ///
     /// Converts CLLocation to LocationFix format and publishes via triple-path messaging.
@@ -1236,11 +1275,11 @@ extension WatchLocationProvider: WCSessionDelegate {
             
             // Send diagnostic to iPhone via application context
             let diagnostic: [String: Any] = [
-                "diagnostic": "watch_activated",
-                "activationState": stateValue,
-                "isCompanionAppInstalled": isCompanionInstalled,
-                "timestamp": Date().timeIntervalSince1970,
-                "error": errorDesc ?? "none"
+                ConnectivityConstants.diagnostic: "watch_activated",
+                ConnectivityConstants.activationState: stateValue,
+                ConnectivityConstants.isCompanionAppInstalled: isCompanionInstalled,
+                ConnectivityConstants.timestamp: Date().timeIntervalSince1970,
+                ConnectivityConstants.error: errorDesc ?? "none"
             ]
             
             do {
@@ -1303,13 +1342,13 @@ extension WatchLocationProvider: WCSessionDelegate {
     }
     
     nonisolated private func handleIncomingMessage(_ message: [String: Any]) -> [String: Any] {
-        guard let action = message["action"] as? String else {
+        guard let action = message[ConnectivityConstants.action] as? String else {
             return ["status": "ignored"]
         }
 
         switch action {
-        case "requestLocation":
-            let force = (message["force"] as? Bool) == true
+        case ConnectivityConstants.requestLocation:
+            let force = (message[ConnectivityConstants.force] as? Bool) == true
             Task { @MainActor in
                 if force {
                     self.forceImmediateSend = true
@@ -1321,8 +1360,8 @@ extension WatchLocationProvider: WCSessionDelegate {
                 }
             }
             return ["status": "refreshing"]
-        case "setMode":
-            if let modeRaw = message["mode"] as? String,
+        case ConnectivityConstants.setMode:
+            if let modeRaw = message[ConnectivityConstants.mode] as? String,
                let newMode = TrackingMode(rawValue: modeRaw) {
                 Task { @MainActor in
                     let previousMode = self.manualTrackingMode
@@ -1350,8 +1389,8 @@ extension WatchLocationProvider: WCSessionDelegate {
                 return ["status": "mode-updated"]
             }
             return ["status": "mode-invalid"]
-        case "setRuntimeOptimizations":
-            guard let enabled = message["enabled"] as? Bool else {
+        case ConnectivityConstants.setRuntimeOptimizations:
+            guard let enabled = message[ConnectivityConstants.enabled] as? Bool else {
                 return ["status": "runtime-invalid"]
             }
             Task { @MainActor in
@@ -1359,10 +1398,10 @@ extension WatchLocationProvider: WCSessionDelegate {
                 self.logger.log("Runtime optimizations toggled → \(enabled ? "enabled" : "disabled")")
             }
             return ["status": "runtime-updated", "enabled": enabled]
-        case "setIdleCadence":
+        case ConnectivityConstants.setIdleCadence:
             guard
-                let heartbeat = message["heartbeatInterval"] as? Double,
-                let fullFix = message["fullFixInterval"] as? Double
+                let heartbeat = message[ConnectivityConstants.heartbeatInterval] as? Double,
+                let fullFix = message[ConnectivityConstants.fullFixInterval] as? Double
             else {
                 return ["status": "idle-invalid"]
             }
@@ -1371,7 +1410,7 @@ extension WatchLocationProvider: WCSessionDelegate {
                 self.sendBatteryHeartbeat()
             }
             return ["status": "idle-updated"]
-        case "stop-tracking":
+        case ConnectivityConstants.stopTracking:
             scheduleRemoteStop()
             return ["status": "stop-requested"]
         default:
@@ -1409,17 +1448,17 @@ extension WatchLocationProvider: WCSessionDelegate {
         _ session: WCSession,
         didReceiveApplicationContext applicationContext: [String : Any]
     ) {
-        guard let action = applicationContext["action"] as? String else { return }
-        if action == "stop-tracking" {
+        guard let action = applicationContext[ConnectivityConstants.action] as? String else { return }
+        if action == ConnectivityConstants.stopTracking {
             scheduleRemoteStop()
-        } else if action == "setRuntimeOptimizations", let enabled = applicationContext["enabled"] as? Bool {
+        } else if action == ConnectivityConstants.setRuntimeOptimizations, let enabled = applicationContext[ConnectivityConstants.enabled] as? Bool {
             Task { @MainActor in
                 self.setBatteryOptimizationsEnabled(enabled)
                 self.logger.log("Runtime optimizations context applied (enabled=\(enabled))")
             }
-        } else if action == "setIdleCadence",
-                  let heartbeat = applicationContext["heartbeatInterval"] as? Double,
-                  let fullFix = applicationContext["fullFixInterval"] as? Double {
+        } else if action == ConnectivityConstants.setIdleCadence,
+                  let heartbeat = applicationContext[ConnectivityConstants.heartbeatInterval] as? Double,
+                  let fullFix = applicationContext[ConnectivityConstants.fullFixInterval] as? Double {
             Task { @MainActor in
                 self.applyIdleCadence(heartbeat: heartbeat, fullFix: fullFix)
                 self.logger.log("Idle cadence context applied (heartbeat=\(heartbeat)s, fullFix=\(fullFix)s)")
