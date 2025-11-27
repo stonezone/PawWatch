@@ -45,6 +45,19 @@ public struct PetMapView: View {
     // MARK: - Body
 
     public var body: some View {
+        // CRITICAL FIX: Wrap in GeometryReader to prevent Metal crash when size is zero
+        GeometryReader { geometry in
+            if geometry.size.width > 0 && geometry.size.height > 0 {
+                mapContent
+            } else {
+                Color.clear
+            }
+        }
+    }
+
+    /// The actual map content, separated to prevent zero-size Metal rendering crashes
+    @ViewBuilder
+    private var mapContent: some View {
         Map(position: $cameraPosition) {
             // Pet location marker
             if let petLocation = locationManager.latestLocation {
