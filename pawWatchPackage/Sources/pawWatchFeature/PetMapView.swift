@@ -46,9 +46,11 @@ public struct PetMapView: View {
 
     public var body: some View {
         // CRITICAL FIX: Wrap in GeometryReader to prevent Metal crash when size is zero
+        // Require minimum 10pt size to ensure Metal layer is properly initialized
         GeometryReader { geometry in
-            if geometry.size.width > 0 && geometry.size.height > 0 {
+            if geometry.size.width >= 10 && geometry.size.height >= 10 {
                 mapContent
+                    .frame(width: geometry.size.width, height: geometry.size.height)
             } else {
                 Color.clear
             }
