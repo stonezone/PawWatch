@@ -248,12 +248,11 @@ private extension UIDevice {
     var modelIdentifier: String {
         var systemInfo = utsname()
         uname(&systemInfo)
-        let hardware = withUnsafePointer(to: &systemInfo.machine) { ptr in
-            ptr.withMemoryRebound(to: CChar.self, capacity: 1) { cPtr in
-                String(cString: cPtr)
-            }
+        // CRITICAL FIX: Use withUnsafeBytes for tuple properties
+        return withUnsafeBytes(of: &systemInfo.machine) { bufferPtr in
+            guard let baseAddress = bufferPtr.baseAddress else { return "Unknown" }
+            return String(cString: baseAddress.assumingMemoryBound(to: CChar.self))
         }
-        return hardware
     }
 }
 #endif
