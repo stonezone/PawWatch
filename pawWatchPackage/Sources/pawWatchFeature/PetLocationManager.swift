@@ -1002,15 +1002,29 @@ extension PetLocationManager: WCSessionDelegate {
     /// This is the primary path for fixes sent via `transferUserInfo` while the
     /// phone app is unreachable or suspended. Every fix the watch queues
     /// offline must be surfaced here when connectivity is restored.
+    ///
+    /// Supports both single fixes (latestFix) and batched fixes (batchedFixes)
+    /// to prevent queue flooding from extended offline periods.
     nonisolated public func session(
         _ session: WCSession,
         didReceiveUserInfo userInfo: [String : Any]
     ) {
-        guard let data = userInfo[ConnectivityConstants.latestFix] as? Data else { return }
-
         Task { @MainActor in
             self.isWatchConnected = true
         }
+
+        // Check for batched transfer (QUEUE FLOODING FIX)
+        if let isBatched = userInfo[ConnectivityConstants.isBatched] as? Bool, isBatched,
+           let batchedData = userInfo[ConnectivityConstants.batchedFixes] as? [Data] {
+            logger.notice("Received batched transfer with \(batchedData.count) fixes")
+            for fixData in batchedData {
+                handleLocationFixData(fixData)
+            }
+            return
+        }
+
+        // Handle single fix (backward compatible)
+        guard let data = userInfo[ConnectivityConstants.latestFix] as? Data else { return }
         handleLocationFixData(data)
     }
 

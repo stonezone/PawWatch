@@ -43,6 +43,11 @@ public enum ConnectivityConstants {
     public static let idleHeartbeatInterval = "idleHeartbeatInterval"
     public static let idleFullFixInterval = "idleFullFixInterval"
     
+    // MARK: - Batched Transfers (Queue Flooding Prevention)
+    public static let batchedFixes = "batchedFixes"
+    public static let batchedSequences = "batchedSequences"
+    public static let isBatched = "isBatched"
+
     // MARK: - Diagnostics
     public static let diagnostic = "diagnostic"
     public static let activationState = "activationState"

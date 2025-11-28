@@ -348,6 +348,20 @@ public final class WatchLocationProvider: NSObject {
     private static let idleHeartbeatDefaultsKey = "watchIdleHeartbeatInterval"
     private static let idleFullFixDefaultsKey = "watchIdleFullFixInterval"
 
+    // MARK: - Crash Recovery Persistence Keys
+    private static let isWorkoutRunningKey = "watchIsWorkoutRunningPersisted"
+    private static let isIntentionallyStoppedKey = "watchIntentionallyStoppedPersisted"
+
+    // MARK: - Batching Properties (Queue Flooding Prevention)
+    /// Buffer to accumulate GPS fixes when phone is unreachable
+    private var pendingFixBuffer: [(data: Data, fix: LocationFix)] = []
+    /// Maximum fixes to batch before flushing (prevents queue flooding)
+    private let batchFlushThreshold = 15
+    /// Maximum time before flushing batch regardless of count
+    private let batchFlushInterval: TimeInterval = 30.0
+    /// Last time we flushed the batch buffer
+    private var lastBatchFlushDate: Date = .distantPast
+
     /// Accuracy bypass threshold: When horizontal accuracy changes by more than 5 meters,
     /// immediately push application context regardless of time throttle. This ensures
     /// critical accuracy improvements (e.g., GPS lock acquisition) are delivered promptly.
@@ -443,10 +457,11 @@ public final class WatchLocationProvider: NSObject {
     }
     
     // MARK: - Initialization
-    
+
     public override init() {
         super.init()
         loadIdleCadenceDefaults()
+        loadTrackingStatePersistence()  // CRASH RECOVERY: Load persisted state
         locationManager.delegate = self
         encoder.outputFormatting = [.withoutEscapingSlashes]
         WKInterfaceDevice.current().isBatteryMonitoringEnabled = true
@@ -460,6 +475,32 @@ public final class WatchLocationProvider: NSObject {
         Task { @MainActor in
             self.configureWatchConnectivity()
         }
+
+        // CRASH RECOVERY: Check if tracking was active before crash/reboot
+        if isWorkoutRunning && !isIntentionallyStopped {
+            logger.notice("Detected crash recovery: tracking was active before termination")
+            // Notify delegate of crash recovery state - actual restart handled by delegate
+        }
+    }
+
+    // MARK: - Tracking State Persistence (Crash Recovery)
+
+    /// Load persisted tracking state for crash recovery
+    private func loadTrackingStatePersistence() {
+        let defaults = UserDefaults.standard
+        isWorkoutRunning = defaults.bool(forKey: Self.isWorkoutRunningKey)
+        isIntentionallyStopped = defaults.bool(forKey: Self.isIntentionallyStoppedKey)
+        if isWorkoutRunning {
+            logger.log("Loaded persisted state: isWorkoutRunning=\(self.isWorkoutRunning), isIntentionallyStopped=\(self.isIntentionallyStopped)")
+        }
+    }
+
+    /// Persist tracking state immediately for crash recovery
+    private func persistTrackingState() {
+        let defaults = UserDefaults.standard
+        defaults.set(isWorkoutRunning, forKey: Self.isWorkoutRunningKey)
+        defaults.set(isIntentionallyStopped, forKey: Self.isIntentionallyStoppedKey)
+        // Note: UserDefaults auto-syncs, no synchronize() needed
     }
     
     // MARK: - Public Methods
@@ -488,6 +529,7 @@ public final class WatchLocationProvider: NSObject {
         // startUpdatingLocation() will be called in locationManagerDidChangeAuthorization
 
         isWorkoutRunning = true
+        persistTrackingState()  // CRASH RECOVERY: Persist state immediately
         if supportsExtendedRuntime {
             runtimeCoordinator.updateTrackingState(isRunning: true)
         }
@@ -542,6 +584,8 @@ public final class WatchLocationProvider: NSObject {
     public func stop() {
         // Mark as intentional stop to prevent auto-restart
         isIntentionallyStopped = true
+        isWorkoutRunning = false
+        persistTrackingState()  // CRASH RECOVERY: Persist state immediately
         workoutRestartTask?.cancel()
         workoutRestartTask = nil
         reachabilityDebounceTask?.cancel()
@@ -872,9 +916,37 @@ public final class WatchLocationProvider: NSObject {
         }
     }
 
-    /// Sends background delivery using transferUserInfo with pre-encoded data.
+    /// Sends background delivery using transferUserInfo with batching to prevent queue flooding.
+    ///
+    /// QUEUE FLOODING FIX: Instead of transferring each fix individually when unreachable,
+    /// we buffer fixes and flush them in batches. This prevents overwhelming WCSession when
+    /// the phone has been unreachable for extended periods (e.g., 1 hour = 3,600 fixes).
     private func sendBackground(data: Data, fix: LocationFix) {
         guard wcSession.activationState == .activated else { return }
+
+        // If phone is reachable, send immediately (no batching needed)
+        if wcSession.isReachable {
+            sendImmediateTransfer(data: data, fix: fix)
+            // Also flush any pending buffer since we're reachable now
+            flushPendingFixBuffer()
+            return
+        }
+
+        // Phone unreachable: buffer the fix for batched transfer
+        self.pendingFixBuffer.append((data: data, fix: fix))
+        ConnectivityLog.verbose("Buffered fix seq=\(fix.sequence) (buffer count: \(self.pendingFixBuffer.count))")
+
+        // Check if we should flush the buffer
+        let shouldFlush = self.pendingFixBuffer.count >= self.batchFlushThreshold ||
+            Date().timeIntervalSince(self.lastBatchFlushDate) >= self.batchFlushInterval
+
+        if shouldFlush {
+            self.flushPendingFixBuffer()
+        }
+    }
+
+    /// Sends a single fix immediately via transferUserInfo.
+    private func sendImmediateTransfer(data: Data, fix: LocationFix) {
         let userInfo: [String: Any] = [
             ConnectivityConstants.latestFix: data,
             ConnectivityConstants.sequence: fix.sequence,
@@ -882,6 +954,33 @@ public final class WatchLocationProvider: NSObject {
         ]
         wcSession.transferUserInfo(userInfo)
         ConnectivityLog.verbose("Queued userInfo transfer for seq=\(fix.sequence)")
+    }
+
+    /// Flushes buffered fixes as a single batched transfer.
+    ///
+    /// QUEUE FLOODING FIX: Sends all pending fixes in one transferUserInfo call
+    /// using an array of encoded fixes, dramatically reducing WCSession overhead.
+    private func flushPendingFixBuffer() {
+        guard !pendingFixBuffer.isEmpty else { return }
+        guard wcSession.activationState == .activated else { return }
+
+        let fixesToFlush = pendingFixBuffer
+        pendingFixBuffer.removeAll()
+        lastBatchFlushDate = Date()
+
+        // Create batched payload with all fixes
+        let batchedData = fixesToFlush.map { $0.data }
+        let sequences = fixesToFlush.map { $0.fix.sequence }
+
+        let userInfo: [String: Any] = [
+            ConnectivityConstants.batchedFixes: batchedData,
+            ConnectivityConstants.batchedSequences: sequences,
+            ConnectivityConstants.timestamp: Date().timeIntervalSince1970,
+            ConnectivityConstants.isBatched: true
+        ]
+
+        wcSession.transferUserInfo(userInfo)
+        ConnectivityLog.notice("Flushed \(fixesToFlush.count) fixes in batched transfer (seqs: \(sequences.first ?? 0)-\(sequences.last ?? 0))")
     }
     
     /// Queues a location fix for background file transfer to the phone.
@@ -1369,12 +1468,17 @@ extension WatchLocationProvider: WCSessionDelegate {
                     self.forceImmediateSend = true  // Always force immediate on mode change
                     self.logger.log("Tracking mode changed: \(previousMode.rawValue) → \(newMode.rawValue)")
 
-                    // Emergency mode: apply aggressive cadence (5s heartbeat, 10s full fix)
+                    // Emergency mode: apply aggressive cadence AND GPS accuracy
+                    // CRITICAL FIX: Emergency must override BOTH transmission frequency AND GPS hardware accuracy
+                    // Without this, low battery could leave GPS in .saver mode while emergency cadence sends bad data
                     if newMode == .emergency {
                         self.applyIdleCadence(heartbeat: 5.0, fullFix: 10.0, persist: false)
+                        self.applyPreset(.aggressive, force: true)  // Force high-accuracy GPS regardless of battery
+                        self.logger.notice("Emergency mode: forcing aggressive GPS preset for maximum accuracy")
                     } else if previousMode == .emergency {
-                        // Exiting emergency: restore normal cadence
+                        // Exiting emergency: restore normal cadence and let battery-adaptive tuning resume
                         self.applyIdleCadence(heartbeat: 15.0, fullFix: 45.0, persist: false)
+                        // Don't reset preset here - let updateAdaptiveTuning handle it based on current battery
                     }
 
                     // Immediately transmit current location or request fresh one
