@@ -32,6 +32,7 @@ struct PushTokenUploadContext {
     let appVersion: String
     let appBuild: String
 
+    @MainActor
     static func current(bundle: Bundle = .main) -> PushTokenUploadContext {
 #if canImport(UIKit)
         let device = UIDevice.current
@@ -167,23 +168,34 @@ struct PushTokenUploader {
 
     private let session: URLSession
     private let configuration: PushTokenUploadConfiguration
-    private let context: PushTokenUploadContext
+    // CRITICAL FIX: Context is now optional and fetched lazily from MainActor
+    // This prevents crash when PushTokenUploader is created from non-MainActor context
+    // since UIDevice.current is MainActor-isolated in iOS 26
+    private let cachedContext: PushTokenUploadContext?
 
     var isEnabled: Bool { configuration.uploadsEnabled }
 
     init(
         session: URLSession = .shared,
         configuration: PushTokenUploadConfiguration = .load(),
-        context: PushTokenUploadContext = .current()
+        context: PushTokenUploadContext? = nil
     ) {
         self.session = session
         self.configuration = configuration
-        self.context = context
+        self.cachedContext = context
     }
 
     func upload(deviceToken: String, activityTokens: [PushTokenUploadRequest.ActivityToken]) async throws {
         guard configuration.uploadsEnabled else { return }
         guard !activityTokens.isEmpty else { return }
+
+        // CRITICAL FIX: Get context from MainActor - UIDevice.current is MainActor-isolated in iOS 26
+        let context: PushTokenUploadContext
+        if let cached = cachedContext {
+            context = cached
+        } else {
+            context = await MainActor.run { PushTokenUploadContext.current() }
+        }
 
         var request = URLRequest(url: configuration.endpoint)
         request.httpMethod = "POST"
@@ -245,6 +257,7 @@ struct PushTokenUploader {
 
 #if canImport(UIKit)
 private extension UIDevice {
+    @MainActor
     var modelIdentifier: String {
         var systemInfo = utsname()
         uname(&systemInfo)
