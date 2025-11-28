@@ -41,20 +41,60 @@ public struct PetMapView: View {
 
     /// Map camera position
     @State private var cameraPosition: MapCameraPosition = .automatic
+    /// Track if we have a valid size to prevent Metal crashes during transitions
+    @State private var hasValidSize = false
+    /// Last valid size for restoration
+    @State private var lastValidSize: CGSize = .zero
 
     // MARK: - Body
 
     public var body: some View {
-        // CRITICAL FIX: Wrap in GeometryReader to prevent Metal crash when size is zero
-        // Require minimum 10pt size to ensure Metal layer is properly initialized
+        // CRITICAL FIX: Multi-layer protection against Metal multisampling crash
+        // iOS 26 Map with CAMetalLayer crashes if size becomes zero during view lifecycle
         GeometryReader { geometry in
-            if geometry.size.width >= 10 && geometry.size.height >= 10 {
-                mapContent
-                    .frame(width: geometry.size.width, height: geometry.size.height)
-            } else {
-                Color.clear
+            let isValidSize = geometry.size.width >= 20 && geometry.size.height >= 20
+
+            Group {
+                if isValidSize && hasValidSize {
+                    mapContent
+                        // Ensure explicit minimum frame to prevent layout collapse
+                        .frame(
+                            minWidth: 20,
+                            idealWidth: geometry.size.width,
+                            maxWidth: .infinity,
+                            minHeight: 20,
+                            idealHeight: geometry.size.height,
+                            maxHeight: .infinity
+                        )
+                        // Clip any overflow to prevent Metal from rendering outside bounds
+                        .clipped()
+                } else {
+                    // Placeholder with matching background while waiting for valid size
+                    Color(.systemBackground)
+                        .opacity(0.5)
+                }
+            }
+            .onChange(of: isValidSize) { _, valid in
+                if valid {
+                    lastValidSize = geometry.size
+                    // Delay showing map to ensure Metal layer is ready
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                        hasValidSize = true
+                    }
+                }
+            }
+            .onAppear {
+                if isValidSize {
+                    lastValidSize = geometry.size
+                    // Initial delay to let Metal layer initialize properly
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        hasValidSize = true
+                    }
+                }
             }
         }
+        // Prevent map from ever having zero intrinsic size
+        .frame(minWidth: 20, minHeight: 20)
     }
 
     /// The actual map content, separated to prevent zero-size Metal rendering crashes
