@@ -365,6 +365,9 @@ private struct TabBarButton<Tag: Hashable>: View {
             .animation(theme.springStandard, value: isSelected)
         }
         .buttonStyle(TabBarButtonStyle(isPressed: $isPressed))
+        .accessibilityLabel(item.title)
+        .accessibilityHint("Switch to \(item.title) tab")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     @ViewBuilder

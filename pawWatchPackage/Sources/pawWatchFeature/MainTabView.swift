@@ -1,40 +1,45 @@
 #if os(iOS)
 import SwiftUI
 
-/// Root tab controller for the iOS app.
+/// Root tab controller for the iOS app with custom Liquid Glass tab bar.
 public struct MainTabView: View {
-    enum Tab {
+    /// Tab selection options
+    enum TabSelection: Hashable {
         case dashboard, history, settings
     }
 
     @EnvironmentObject private var locationManager: PetLocationManager
     @AppStorage("useMetricUnits") private var useMetricUnits = true
-    @State private var selectedTab: Tab = .dashboard
+    @State private var selectedTab: TabSelection = .dashboard
 
     public init() {}
 
     public var body: some View {
         ZStack(alignment: .bottom) {
+            // Background surface
             GlassSurface { Color.clear }
                 .ignoresSafeArea()
 
+            // Tab content - native TabView with hidden tab bar
             TabView(selection: $selectedTab) {
                 DashboardView(useMetricUnits: useMetricUnits)
-                    .tag(Tab.dashboard)
+                    .tag(TabSelection.dashboard)
 
                 HistoryView(useMetricUnits: useMetricUnits)
-                    .tag(Tab.history)
+                    .tag(TabSelection.history)
 
                 SettingsView(useMetricUnits: $useMetricUnits)
-                    .tag(Tab.settings)
+                    .tag(TabSelection.settings)
             }
             .tabViewStyle(.automatic)
             .toolbar(.hidden, for: .tabBar)
             .environmentObject(locationManager)
             .safeAreaInset(edge: .bottom) {
-                Color.clear.frame(height: 90)
+                // Reserve space for custom tab bar
+                Color.clear.frame(height: 100)
             }
 
+            // Custom Liquid Glass tab bar
             LiquidGlassTabBar(
                 selection: $selectedTab,
                 items: tabItems
@@ -43,13 +48,14 @@ public struct MainTabView: View {
                     selectedTab = tab
                 }
             }
-            .padding(.bottom, 8)
+            .padding(.horizontal, Spacing.Component.screenEdge)
+            .padding(.bottom, Spacing.sm)
         }
     }
 }
 
 private extension MainTabView {
-    var tabItems: [(icon: String, title: String, tag: Tab)] {
+    var tabItems: [(icon: String, title: String, tag: TabSelection)] {
         [
             ("house.fill", "Dashboard", .dashboard),
             ("clock.arrow.circlepath", "History", .history),
@@ -283,7 +289,7 @@ private struct DashboardHeader: View {
 
     var body: some View {
         HStack(alignment: .center) {
-            HStack(spacing: 12) {
+            HStack(spacing: Spacing.md) {
                 // App icon with theme gradient
                 ZStack {
                     Circle()
@@ -294,18 +300,18 @@ private struct DashboardHeader: View {
                                 endPoint: .bottomTrailing
                             )
                         )
-                        .frame(width: 48, height: 48)
+                        .frame(width: IconSize.xxl, height: IconSize.xxl)
 
                     Image(systemName: "pawprint.fill")
-                        .font(.title2.weight(.semibold))
+                        .font(.system(size: IconSize.lg, weight: .semibold))
                         .foregroundStyle(.white)
                 }
 
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: Spacing.xxxs) {
                     Text("pawWatch")
-                        .font(.title2.weight(.bold))
+                        .font(Typography.pageTitle)
                     Text("Live Tracking")
-                        .font(.caption)
+                        .font(Typography.caption)
                         .foregroundStyle(.secondary)
                 }
             }
@@ -316,14 +322,14 @@ private struct DashboardHeader: View {
                 ZStack {
                     Circle()
                         .fill(.ultraThinMaterial)
-                        .frame(width: 44, height: 44)
+                        .frame(width: Layout.minTouchTarget, height: Layout.minTouchTarget)
                         .overlay(
                             Circle()
                                 .strokeBorder(theme.chromeStrokeSubtle, lineWidth: 1)
                         )
 
                     Image(systemName: "arrow.clockwise")
-                        .font(.body.weight(.semibold))
+                        .font(.system(size: IconSize.button, weight: .semibold))
                         .foregroundStyle(theme.accentPrimary)
                         .rotationEffect(.degrees(isRefreshing ? 360 : 0))
                         .animation(
@@ -335,6 +341,8 @@ private struct DashboardHeader: View {
                 }
             }
             .disabled(isRefreshing)
+            .accessibilityLabel("Refresh location")
+            .accessibilityHint(isRefreshing ? "Currently refreshing" : "Double tap to request fresh location data")
         }
     }
 }
@@ -391,6 +399,9 @@ private struct OnboardingCard: View {
                 .padding(.top, 4)
             }
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Watch not connected")
+        .accessibilityHint("Open the pawWatch app on your Apple Watch, then tap Start to begin tracking")
     }
 }
 
@@ -428,6 +439,9 @@ private struct WaitingForDataCard: View {
                     .controlSize(.small)
             }
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Watch connected, waiting for GPS data")
+        .accessibilityValue("Loading location information from your Apple Watch")
     }
 }
 
@@ -445,25 +459,29 @@ private struct QuickStatsStrip: View {
             QuickStatItem(
                 icon: "scope",
                 value: accuracy.map { MeasurementDisplay.accuracy($0, useMetric: useMetric) } ?? "-",
-                color: accuracyColor
+                color: accuracyColor,
+                accessibilityLabel: "GPS accuracy"
             )
 
             QuickStatItem(
                 icon: batteryIcon,
                 value: battery.map { String(format: "%.0f%%", $0 * 100) } ?? "-",
-                color: batteryColor
+                color: batteryColor,
+                accessibilityLabel: "Watch battery"
             )
 
             QuickStatItem(
                 icon: "ruler",
                 value: distance.map { MeasurementDisplay.distance($0, useMetric: useMetric) } ?? "-",
-                color: .cyan
+                color: .cyan,
+                accessibilityLabel: "Distance from you"
             )
 
             QuickStatItem(
                 icon: "clock",
                 value: timeAgoText,
-                color: .purple
+                color: .purple,
+                accessibilityLabel: "Time since last update"
             )
         }
     }
@@ -502,6 +520,7 @@ private struct QuickStatItem: View {
     let icon: String
     let value: String
     let color: Color
+    let accessibilityLabel: String
     private let theme = LiquidGlassTheme.current
 
     var body: some View {
@@ -525,6 +544,9 @@ private struct QuickStatItem: View {
                         .strokeBorder(color.opacity(0.2), lineWidth: 1)
                 )
         )
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityValue(value)
     }
 }
 
@@ -552,6 +574,9 @@ private struct LiveStatusBadge: View {
                 .fill(.ultraThinMaterial)
                 .shadow(color: .black.opacity(0.2), radius: 8, y: 4)
         )
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Connection status")
+        .accessibilityValue(accessibilityStatus)
     }
 
     private var statusText: String {
@@ -560,6 +585,14 @@ private struct LiveStatusBadge: View {
         if seconds < 10 { return "Live" }
         if seconds < 60 { return String(format: "%.0fs ago", seconds) }
         return String(format: "%.0fm ago", seconds / 60)
+    }
+
+    private var accessibilityStatus: String {
+        if !isReachable { return "Watch paired but not actively streaming" }
+        guard let seconds = secondsAgo else { return "Receiving live updates" }
+        if seconds < 10 { return "Receiving live updates" }
+        if seconds < 60 { return "Last update \(Int(seconds)) seconds ago" }
+        return "Last update \(Int(seconds / 60)) minutes ago"
     }
 }
 
@@ -600,6 +633,9 @@ private struct CoordinatesCard: View {
                 }
             }
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Pet coordinates")
+        .accessibilityValue("Latitude \(String(format: "%.4f", latitude)) degrees, Longitude \(String(format: "%.4f", longitude)) degrees")
     }
 }
 
@@ -609,6 +645,10 @@ private struct TrailSummaryCard: View {
     let count: Int
     let limit: Int
     private let theme = LiquidGlassTheme.current
+
+    private var percentage: Int {
+        Int(Double(count) / Double(limit) * 100)
+    }
 
     var body: some View {
         GlassCard(cornerRadius: theme.cornerRadiusButton, padding: 14) {
@@ -646,12 +686,15 @@ private struct TrailSummaryCard: View {
                         .frame(width: 32, height: 32)
                         .rotationEffect(.degrees(-90))
 
-                    Text("\(Int(Double(count) / Double(limit) * 100))")
+                    Text("\(percentage)")
                         .font(.system(size: 9, weight: .bold, design: .rounded))
                         .foregroundStyle(.secondary)
                 }
             }
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Trail history")
+        .accessibilityValue("\(count) of \(limit) locations recorded, \(percentage) percent capacity")
     }
 }
 
@@ -719,15 +762,15 @@ struct HistoryView: View {
     let useMetricUnits: Bool
 
     var body: some View {
-        GlassScroll(spacing: 16, maxWidth: 340, enableParallax: false) {
-            VStack(alignment: .leading, spacing: 4) {
+        GlassScroll(spacing: Spacing.lg, maxWidth: 340, enableParallax: false) {
+            VStack(alignment: .leading, spacing: Spacing.xxs) {
                 Text("History")
-                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                    .font(Typography.pageTitle)
                 Text("Recent location fixes")
-                    .font(.subheadline)
+                    .font(Typography.pageSubtitle)
                     .foregroundStyle(.secondary)
             }
-            .padding(.top, 32)
+            .padding(.top, Spacing.xxxl)
 
             ForEach(Array(locationManager.locationHistory.enumerated()), id: \.offset) { index, fix in
                 GlassCard(cornerRadius: 20, padding: 16) {
@@ -789,15 +832,15 @@ struct SettingsView: View {
     }
 
     var body: some View {
-        GlassScroll(spacing: 18, maxWidth: 340, enableParallax: false) {
-            VStack(alignment: .leading, spacing: 4) {
+        GlassScroll(spacing: Spacing.Component.listItemSpacing + Spacing.xs, maxWidth: 340, enableParallax: false) {
+            VStack(alignment: .leading, spacing: Spacing.xxs) {
                 Text("Settings")
-                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                    .font(Typography.pageTitle)
                 Text("Customize your experience")
-                    .font(.subheadline)
+                    .font(Typography.pageSubtitle)
                     .foregroundStyle(.secondary)
             }
-            .padding(.top, 32)
+            .padding(.top, Spacing.xxxl)
 
             // MARK: - Connection Status Card (Visual)
             ConnectionStatusCard()
