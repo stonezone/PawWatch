@@ -62,6 +62,7 @@ struct ContentView: View {
         .animation(.easeInOut(duration: 0.2), value: isTrackerLocked)
         .onAppear {
             locationManager.setBatteryOptimizationsEnabled(batteryOptimizationsEnabled)
+            locationManager.restoreState()
             locationManager.updateConnectionStatus()
         }
         .onChange(of: batteryOptimizationsEnabled) { _, newValue in
@@ -769,7 +770,7 @@ private extension ContentView {
 // MARK: - Preview
 
 #Preview {
-    ContentView(locationManager: WatchLocationManager())
+    ContentView(locationManager: WatchLocationManager.shared)
 }
 
 // MARK: - Settings View

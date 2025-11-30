@@ -23,6 +23,9 @@ import HealthKit
 #if canImport(UIKit)
 import UIKit
 #endif
+#if canImport(UserNotifications)
+import UserNotifications
+#endif
 
 #if canImport(WatchConnectivity)
 import WatchConnectivity
@@ -141,7 +144,7 @@ public final class PetLocationManager: NSObject, ObservableObject {
     /// Most recent GPS fix from Apple Watch (nil if no data received)
     public private(set) var latestLocation: LocationFix?
 
-    /// Last 100 GPS fixes for trail visualization (newest first)
+    /// Last N GPS fixes for trail visualization (oldest first)
     public private(set) var locationHistory: [LocationFix] = []
 
     /// WatchConnectivity session status
@@ -149,6 +152,9 @@ public final class PetLocationManager: NSObject, ObservableObject {
 
     /// Whether WCSession is reachable for immediate message delivery
     public private(set) var isWatchReachable: Bool = false
+
+    /// Whether the Watch connection is considered stale (no updates for a while).
+    public private(set) var isConnectionStale: Bool = false
 
     /// Timestamp of last received GPS fix
     public private(set) var lastUpdateTime: Date?
@@ -218,6 +224,7 @@ public final class PetLocationManager: NSObject, ObservableObject {
     @ObservationIgnored private var sessionStartDate: Date?
     @ObservationIgnored private var sessionReachabilityFlipCount: Int = 0
     private let maxSessionSamples = 10_000
+    private var staleConnectionTask: Task<Void, Never>?
 
     // MARK: - Initialization
 
@@ -291,6 +298,8 @@ public final class PetLocationManager: NSObject, ObservableObject {
             session.activate()
         }
         #endif
+
+        startStaleConnectionMonitor()
     }
 
     /// Attempt to recover location data from CloudKit if local data is missing.
@@ -762,6 +771,59 @@ public final class PetLocationManager: NSObject, ObservableObject {
 
     // MARK: - Private Helpers
 
+    /// Starts a periodic monitor that flags when the Watch connection has gone stale.
+    private func startStaleConnectionMonitor() {
+        staleConnectionTask?.cancel()
+        staleConnectionTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(60))
+                await self?.checkForStaleConnection()
+            }
+        }
+    }
+
+    @MainActor
+    private func checkForStaleConnection() {
+        guard isWatchConnected else { return }
+        guard let lastUpdateTime else { return }
+
+        let elapsed = Date().timeIntervalSince(lastUpdateTime)
+        let threshold: TimeInterval = 300 // 5 minutes
+
+        if elapsed > threshold {
+            if !isConnectionStale {
+                isConnectionStale = true
+                logger.warning("Watch connection stale (no updates for \(Int(elapsed))s)")
+                scheduleStaleConnectionNotification()
+            }
+        } else if isConnectionStale {
+            // Fresh data within threshold clears stale state.
+            isConnectionStale = false
+        }
+    }
+
+    private func scheduleStaleConnectionNotification() {
+        #if canImport(UserNotifications)
+        let center = UNUserNotificationCenter.current()
+        let content = UNMutableNotificationContent()
+        content.title = "PawWatch connection stale"
+        content.body = "No signal from pawWatch for 5 minutes."
+        content.sound = .default
+
+        let request = UNNotificationRequest(
+            identifier: "pawwatch.stale-connection",
+            content: content,
+            trigger: nil
+        )
+
+        center.add(request) { [weak self] error in
+            if let error {
+                self?.logger.error("Failed to schedule stale connection notification: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+        #endif
+    }
+
     /// Process incoming LocationFix and update state.
     private func handleLocationFix(_ locationFix: LocationFix) {
         guard shouldAccept(locationFix) else { return }
@@ -778,6 +840,7 @@ public final class PetLocationManager: NSObject, ObservableObject {
 
         let previousUpdate = lastUpdateTime
         lastUpdateTime = locationFix.timestamp
+        isConnectionStale = false
         errorMessage = nil
         if let lastUpdate = previousUpdate {
             if locationFix.timestamp >= lastUpdate {
@@ -842,14 +905,8 @@ public final class PetLocationManager: NSObject, ObservableObject {
     }
 
     private func insertIntoHistory(_ fix: LocationFix) {
-        if locationHistory.isEmpty {
-            locationHistory = [fix]
-        } else if let index = locationHistory.firstIndex(where: { fix.timestamp > $0.timestamp }) {
-            locationHistory.insert(fix, at: index)
-        } else {
-            locationHistory.append(fix)
-        }
-
+        // Ring-buffer style history: append newest fixes and trim oldest
+        locationHistory.append(fix)
         pruneHistoryIfNeeded()
     }
 
@@ -860,8 +917,9 @@ public final class PetLocationManager: NSObject, ObservableObject {
     }
 
     private func pruneHistoryIfNeeded() {
-        guard locationHistory.count > trailHistoryLimit else { return }
-        locationHistory.removeLast(locationHistory.count - trailHistoryLimit)
+        let overflow = locationHistory.count - trailHistoryLimit
+        guard overflow > 0 else { return }
+        locationHistory.removeFirst(overflow)
     }
 
     private static func clampTrailHistoryLimit(_ value: Int) -> Int {
@@ -1014,18 +1072,35 @@ extension PetLocationManager: WCSessionDelegate {
         }
 
         // Check for batched transfer (QUEUE FLOODING FIX)
-        if let isBatched = userInfo[ConnectivityConstants.isBatched] as? Bool, isBatched,
-           let batchedData = userInfo[ConnectivityConstants.batchedFixes] as? [Data] {
-            logger.notice("Received batched transfer with \(batchedData.count) fixes")
-            for fixData in batchedData {
-                handleLocationFixData(fixData)
+        if let isBatched = userInfo[ConnectivityConstants.isBatched] as? Bool, isBatched {
+            // New format: single Data payload containing an array of LocationFix.
+            if let batchData = userInfo[ConnectivityConstants.batchedFixes] as? Data {
+                do {
+                    let fixes = try JSONDecoder().decode([LocationFix].self, from: batchData)
+                    logger.notice("Received batched transfer with \(fixes.count) fixes (compact payload)")
+                    Task { @MainActor in
+                        fixes.forEach { self.handleLocationFix($0) }
+                    }
+                } catch {
+                    logger.error("Failed to decode batched LocationFix array: \(error.localizedDescription, privacy: .public)")
+                }
+                return
             }
-            return
+
+            // Backward-compatible format: array of Data payloads.
+            if let batchedData = userInfo[ConnectivityConstants.batchedFixes] as? [Data] {
+                logger.notice("Received batched transfer with \(batchedData.count) fixes")
+                for fixData in batchedData {
+                    handleLocationFixData(fixData)
+                }
+                return
+            }
         }
 
         // Handle single fix (backward compatible)
-        guard let data = userInfo[ConnectivityConstants.latestFix] as? Data else { return }
-        handleLocationFixData(data)
+        if let data = userInfo[ConnectivityConstants.latestFix] as? Data {
+            handleLocationFixData(data)
+        }
     }
 
     /// Received application context from Apple Watch (guaranteed delivery).

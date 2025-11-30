@@ -353,13 +353,13 @@ public final class WatchLocationProvider: NSObject {
     private static let isIntentionallyStoppedKey = "watchIntentionallyStoppedPersisted"
 
     // MARK: - Batching Properties (Queue Flooding Prevention)
-    /// Buffer to accumulate GPS fixes when phone is unreachable
-    private var pendingFixBuffer: [(data: Data, fix: LocationFix)] = []
-    /// Maximum fixes to batch before flushing (prevents queue flooding)
-    private let batchFlushThreshold = 15
-    /// Maximum time before flushing batch regardless of count
-    private let batchFlushInterval: TimeInterval = 30.0
-    /// Last time we flushed the batch buffer
+    /// Buffer to accumulate GPS fixes when phone is unreachable.
+    private var pendingFixes: [LocationFix] = []
+    /// Maximum fixes to batch before flushing (prevents queue flooding).
+    private let batchThreshold = 60
+    /// Maximum time before flushing batch regardless of count.
+    private let batchFlushInterval: TimeInterval = 60.0
+    /// Last time we flushed the batch buffer.
     private var lastBatchFlushDate: Date = .distantPast
 
     /// Accuracy bypass threshold: When horizontal accuracy changes by more than 5 meters,
@@ -394,6 +394,17 @@ public final class WatchLocationProvider: NSObject {
     private var latestBatteryLevel: Double = 1.0
     private var manualTrackingMode: TrackingMode = .auto
     private var forceImmediateSend = false
+
+    /// Exposes the current tracking mode for persistence on the Watch side.
+    public var currentTrackingModeRaw: String {
+        manualTrackingMode.rawValue
+    }
+
+    /// Restores the tracking mode from a persisted raw value, if valid.
+    public func restoreTrackingMode(from rawValue: String) {
+        guard let mode = TrackingMode(rawValue: rawValue) else { return }
+        manualTrackingMode = mode
+    }
     private var batteryHeartbeatTask: Task<Void, Never>?
     private var minUpdateWatchdogTask: Task<Void, Never>?
     private var isTrackerLocked = false
@@ -758,10 +769,10 @@ public final class WatchLocationProvider: NSObject {
     }
     
     /// Publishes a location fix using a lossless path:
-    /// 1. transferUserInfo (FIFO queue, survives background) for every fix
-    /// 2. sendMessage when reachable (fast path)
-    /// 3. transferFile as a background fallback when reachability is false or sendMessage fails
-    /// ApplicationContext is **not** used for fixes (latest-only would drop history).
+    /// 1. `sendMessage` when reachable (fast path)
+    /// 2. Batched `transferUserInfo` when unreachable (survives background)
+    /// 3. `transferFile` as a background fallback when reachability is false or sendMessage fails
+    /// ApplicationContext is **not** used for full fixes (latest-only would drop history).
     ///
     /// - Parameter fix: The location fix to publish
     private func publishFix(_ fix: LocationFix) {
@@ -790,7 +801,7 @@ public final class WatchLocationProvider: NSObject {
                 delegate?.didProduce(fix)
             }
         }
-        
+
         ConnectivityLog.verbose("WCSession state=\(self.wcSession.activationState.rawValue) reachable=\(self.wcSession.isReachable)")
 
         guard wcSession.activationState == .activated else {
@@ -799,28 +810,35 @@ public final class WatchLocationProvider: NSObject {
             return
         }
 
-        // Encode once, reuse for all transports
-        guard let data = try? encoder.encode(fix) else {
-            ConnectivityLog.error("Failed to encode fix")
-            Task { @MainActor in delegate?.didFail(WatchConnectivityIssue.fileEncodingFailed(underlying: CocoaError(.coderInvalidValue))) }
-            return
-        }
-
-        let sendBackground: () -> Void = { [weak self] in
-            self?.sendBackground(data: data, fix: fix)
+        let enqueueBackground: () -> Void = { [weak self] in
+            self?.enqueueForBatch(fix)
         }
 
         if wcSession.isReachable, shouldSendInteractive(for: fix) {
+            // Interactive path: send immediately via sendMessage and fall back to batched queue on failure.
+            guard let data = try? encoder.encode(fix) else {
+                ConnectivityLog.error("Failed to encode fix for interactive send")
+                Task { @MainActor in
+                    delegate?.didFail(WatchConnectivityIssue.fileEncodingFailed(underlying: CocoaError(.coderInvalidValue)))
+                }
+                return
+            }
+
             ConnectivityLog.verbose("Sending interactive message (\(data.count) bytes)")
             let payload: [String: Any] = [ConnectivityConstants.latestFix: data]
             wcSession.sendMessage(payload, replyHandler: nil) { [weak self] error in
                 ConnectivityLog.notice("Interactive send failed: \(error.localizedDescription)")
                 self?.notifyConnectivityError(.interactiveSendFailed(underlying: error))
-                sendBackground()
+                enqueueBackground()
+            }
+
+            // If we just regained connectivity, flush any offline backlog immediately.
+            if !pendingFixes.isEmpty {
+                flushPendingFixes()
             }
         } else {
-            ConnectivityLog.verbose("Phone unreachable or debounced; queuing background transfer")
-            sendBackground()
+            ConnectivityLog.verbose("Phone unreachable or debounced; queuing batched transfer")
+            enqueueBackground()
         }
     }
 
@@ -898,89 +916,53 @@ public final class WatchLocationProvider: NSObject {
         }
     }
     
-    /// Queues a lossless FIFO payload via transferUserInfo.
-    private func queueUserInfo(for fix: LocationFix) {
-        guard wcSession.activationState == .activated else { return }
-
-        do {
-            let data = try encoder.encode(fix)
-            let userInfo: [String: Any] = [
-                ConnectivityConstants.latestFix: data,
-                ConnectivityConstants.sequence: fix.sequence,
-                ConnectivityConstants.timestamp: fix.timestamp.timeIntervalSince1970
-            ]
-            wcSession.transferUserInfo(userInfo)
-            ConnectivityLog.verbose("Queued userInfo transfer for seq=\(fix.sequence)")
-        } catch {
-            ConnectivityLog.error("Failed to queue userInfo: \(error.localizedDescription)")
-        }
-    }
-
-    /// Sends background delivery using transferUserInfo with batching to prevent queue flooding.
+    /// Enqueues a fix for batched background delivery using `transferUserInfo`.
     ///
     /// QUEUE FLOODING FIX: Instead of transferring each fix individually when unreachable,
     /// we buffer fixes and flush them in batches. This prevents overwhelming WCSession when
     /// the phone has been unreachable for extended periods (e.g., 1 hour = 3,600 fixes).
-    private func sendBackground(data: Data, fix: LocationFix) {
+    private func enqueueForBatch(_ fix: LocationFix) {
         guard wcSession.activationState == .activated else { return }
 
-        // If phone is reachable, send immediately (no batching needed)
-        if wcSession.isReachable {
-            sendImmediateTransfer(data: data, fix: fix)
-            // Also flush any pending buffer since we're reachable now
-            flushPendingFixBuffer()
-            return
-        }
+        pendingFixes.append(fix)
+        ConnectivityLog.verbose("Buffered fix seq=\(fix.sequence) (buffer count: \(pendingFixes.count))")
 
-        // Phone unreachable: buffer the fix for batched transfer
-        self.pendingFixBuffer.append((data: data, fix: fix))
-        ConnectivityLog.verbose("Buffered fix seq=\(fix.sequence) (buffer count: \(self.pendingFixBuffer.count))")
-
-        // Check if we should flush the buffer
-        let shouldFlush = self.pendingFixBuffer.count >= self.batchFlushThreshold ||
-            Date().timeIntervalSince(self.lastBatchFlushDate) >= self.batchFlushInterval
+        let shouldFlush = pendingFixes.count >= batchThreshold ||
+            Date().timeIntervalSince(lastBatchFlushDate) >= batchFlushInterval
 
         if shouldFlush {
-            self.flushPendingFixBuffer()
+            flushPendingFixes()
         }
-    }
-
-    /// Sends a single fix immediately via transferUserInfo.
-    private func sendImmediateTransfer(data: Data, fix: LocationFix) {
-        let userInfo: [String: Any] = [
-            ConnectivityConstants.latestFix: data,
-            ConnectivityConstants.sequence: fix.sequence,
-            ConnectivityConstants.timestamp: fix.timestamp.timeIntervalSince1970
-        ]
-        wcSession.transferUserInfo(userInfo)
-        ConnectivityLog.verbose("Queued userInfo transfer for seq=\(fix.sequence)")
     }
 
     /// Flushes buffered fixes as a single batched transfer.
     ///
-    /// QUEUE FLOODING FIX: Sends all pending fixes in one transferUserInfo call
-    /// using an array of encoded fixes, dramatically reducing WCSession overhead.
-    private func flushPendingFixBuffer() {
-        guard !pendingFixBuffer.isEmpty else { return }
+    /// Sends all pending fixes in one `transferUserInfo` call using an encoded array of
+    /// `LocationFix` values, dramatically reducing WCSession overhead versus per-fix calls.
+    private func flushPendingFixes() {
+        guard !pendingFixes.isEmpty else { return }
         guard wcSession.activationState == .activated else { return }
 
-        let fixesToFlush = pendingFixBuffer
-        pendingFixBuffer.removeAll()
+        let fixesToFlush = pendingFixes
+        pendingFixes.removeAll()
         lastBatchFlushDate = Date()
 
-        // Create batched payload with all fixes
-        let batchedData = fixesToFlush.map { $0.data }
-        let sequences = fixesToFlush.map { $0.fix.sequence }
+        do {
+            let data = try encoder.encode(fixesToFlush)
+            let firstSeq = fixesToFlush.first?.sequence ?? -1
+            let lastSeq = fixesToFlush.last?.sequence ?? -1
 
-        let userInfo: [String: Any] = [
-            ConnectivityConstants.batchedFixes: batchedData,
-            ConnectivityConstants.batchedSequences: sequences,
-            ConnectivityConstants.timestamp: Date().timeIntervalSince1970,
-            ConnectivityConstants.isBatched: true
-        ]
+            let userInfo: [String: Any] = [
+                ConnectivityConstants.batchedFixes: data,
+                ConnectivityConstants.timestamp: Date().timeIntervalSince1970,
+                ConnectivityConstants.isBatched: true
+            ]
 
-        wcSession.transferUserInfo(userInfo)
-        ConnectivityLog.notice("Flushed \(fixesToFlush.count) fixes in batched transfer (seqs: \(sequences.first ?? 0)-\(sequences.last ?? 0))")
+            wcSession.transferUserInfo(userInfo)
+            ConnectivityLog.notice("Flushed \(fixesToFlush.count) fixes in batched transfer (seqs: \(firstSeq)-\(lastSeq))")
+        } catch {
+            ConnectivityLog.error("Failed to encode batched fixes: \(error.localizedDescription)")
+        }
     }
     
     /// Queues a location fix for background file transfer to the phone.

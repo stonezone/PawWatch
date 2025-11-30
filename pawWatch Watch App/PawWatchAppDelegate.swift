@@ -9,6 +9,14 @@ class PawWatchAppDelegate: NSObject, WKApplicationDelegate {
         print("PawWatch App Delegate Launched")
     }
 
+    /// Called by the system when recovering an active workout after a crash or reboot.
+    func handleActiveWorkoutRecovery() {
+        Task { @MainActor in
+            print("PawWatch App Delegate handling active workout recovery")
+            WatchLocationManager.shared.restoreState()
+        }
+    }
+
     func handle(_ backgroundTasks: Set<WKRefreshBackgroundTask>) {
         for task in backgroundTasks {
             switch task {

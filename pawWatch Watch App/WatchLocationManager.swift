@@ -13,6 +13,11 @@ import WatchKit
 import CoreLocation
 import pawWatchFeature
 
+enum WatchTrackingDefaults {
+    static let isTrackingKey = "isTrackingActive"
+    static let trackingModeKey = "trackingMode"
+}
+
 /// Manages GPS tracking using WatchLocationProvider and relays location data to iPhone.
 ///
 /// Responsibilities:
@@ -27,6 +32,10 @@ import pawWatchFeature
 @MainActor
 @Observable
 final class WatchLocationManager: WatchLocationProviderDelegate {
+
+    // MARK: - Singleton
+
+    static let shared = WatchLocationManager()
 
     // MARK: - Properties
 
@@ -112,6 +121,9 @@ final class WatchLocationManager: WatchLocationProviderDelegate {
         print("[WatchLocationManager] Starting GPS tracking")
 
         isTracking = true
+        let defaults = UserDefaults.standard
+        defaults.set(true, forKey: WatchTrackingDefaults.isTrackingKey)
+        defaults.set(locationProvider.currentTrackingModeRaw, forKey: WatchTrackingDefaults.trackingModeKey)
         statusMessage = "Starting workout..."
         errorMessage = nil
         fixCount = 0
@@ -138,6 +150,8 @@ final class WatchLocationManager: WatchLocationProviderDelegate {
         print("[WatchLocationManager] Stopping GPS tracking")
 
         isTracking = false
+        let defaults = UserDefaults.standard
+        defaults.set(false, forKey: WatchTrackingDefaults.isTrackingKey)
         statusMessage = "Stopping..."
 
         locationProvider.stop()
@@ -158,6 +172,26 @@ final class WatchLocationManager: WatchLocationProviderDelegate {
             try? await Task.sleep(for: .milliseconds(300))
             startTracking()
         }
+    }
+
+    /// Restores tracking state after app relaunch or crash based on persisted flag.
+    func restoreState() {
+        let defaults = UserDefaults.standard
+        let wasTracking = defaults.bool(forKey: WatchTrackingDefaults.isTrackingKey)
+        let savedModeRaw = defaults.string(forKey: WatchTrackingDefaults.trackingModeKey)
+
+        guard wasTracking, !isTracking else { return }
+
+        if let modeRaw = savedModeRaw {
+            locationProvider.restoreTrackingMode(from: modeRaw)
+        }
+
+        startTracking()
+    }
+
+    /// Backwards-compatible helper for older call sites.
+    func restoreTrackingIfNeeded() {
+        restoreState()
     }
 
     /// Updates whether runtime guard + motion throttling should be active.
