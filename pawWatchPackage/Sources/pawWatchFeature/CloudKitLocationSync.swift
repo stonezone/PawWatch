@@ -41,7 +41,11 @@ public actor CloudKitLocationSync {
     // MARK: - Location Sync
 
     /// Save the latest location fix to CloudKit.
+    /// Silently returns if iCloud is unavailable to prevent error log spam.
     public func saveLocation(_ location: LocationFix) async {
+        // OPTIMIZATION: Check account status first to prevent error spam
+        guard await checkAccountStatus() else { return }
+
         let record = CKRecord(recordType: locationRecordType, recordID: latestLocationID)
 
         // Store as JSON data for flexibility
@@ -102,7 +106,11 @@ public actor CloudKitLocationSync {
     // MARK: - Performance Snapshot Sync
 
     /// Save the latest performance snapshot to CloudKit.
+    /// Silently returns if iCloud is unavailable to prevent error log spam.
     public func saveSnapshot(_ snapshot: PerformanceSnapshot) async {
+        // OPTIMIZATION: Check account status first to prevent error spam
+        guard await checkAccountStatus() else { return }
+
         let record = CKRecord(recordType: snapshotRecordType, recordID: latestSnapshotID)
 
         do {

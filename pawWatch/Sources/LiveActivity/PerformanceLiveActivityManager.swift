@@ -34,7 +34,11 @@ enum PerformanceLiveActivityManager {
         )
 
         Task {
-            let content = ActivityContent(state: contentState, staleDate: nil)
+            // SAFETY: Set staleDate to 5 minutes from now
+            // If app crashes or connection drops, system will gray out the activity
+            // preventing false confidence in stale data
+            let staleDate = Date().addingTimeInterval(300)
+            let content = ActivityContent(state: contentState, staleDate: staleDate)
             if let activity = Activity<PawActivityAttributes>.activities.first {
                 await observePushTokens(for: activity)
                 await activity.update(content)
@@ -66,7 +70,9 @@ enum PerformanceLiveActivityManager {
         Task {
             guard let activity = Activity<PawActivityAttributes>.activities.first else { return }
             await observePushTokens(for: activity)
-            let content = ActivityContent(state: contentState, staleDate: nil)
+            // SAFETY: Use staleDate from remote update timestamp + 5 min buffer
+            let staleDate = contentState.timestamp.addingTimeInterval(300)
+            let content = ActivityContent(state: contentState, staleDate: staleDate)
             await activity.update(content)
         }
     }

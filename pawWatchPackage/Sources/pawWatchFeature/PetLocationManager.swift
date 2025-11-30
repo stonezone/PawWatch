@@ -1180,7 +1180,11 @@ extension PetLocationManager: CLLocationManagerDelegate {
         didUpdateLocations locations: [CLLocation]
     ) {
         Task { @MainActor in
-            // Use most recent location with best accuracy
+            // Select location with BEST (smallest) horizontal accuracy
+            // NOTE: horizontalAccuracy is a radius in meters - LOWER is BETTER
+            // Using max(by: { $0 > $1 }) effectively returns the MIN value
+            // because elements where comparator returns true are sorted "before"
+            // Equivalent to: locations.min(by: { $0.horizontalAccuracy < $1.horizontalAccuracy })
             if let bestLocation = locations.max(by: { $0.horizontalAccuracy > $1.horizontalAccuracy }) {
                 self.ownerLocation = bestLocation
             }
