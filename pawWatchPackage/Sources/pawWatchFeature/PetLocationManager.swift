@@ -207,6 +207,10 @@ public final class PetLocationManager: NSObject, ObservableObject {
     private var recentSequenceSet: Set<Int> = []
     private var recentSequenceOrder: [Int] = []
 
+    // CloudKit sync throttling (CR-001 fix)
+    private var lastCloudKitSync: Date?
+    private let cloudKitSyncInterval: TimeInterval = 300 // 5 minutes
+
     // MARK: - Dependencies
 
     #if canImport(WatchConnectivity)
@@ -318,6 +322,12 @@ public final class PetLocationManager: NSObject, ObservableObject {
             let age = Date().timeIntervalSince(recoveredLocation.timestamp)
             if age < 24 * 60 * 60 {
                 await MainActor.run {
+                    // CR-002 FIX: Re-check latestLocation inside MainActor block
+                    // A live WCSession update may have arrived during the CloudKit fetch
+                    guard self.latestLocation == nil else {
+                        self.logger.notice("Skipping CloudKit recovery - live data arrived during fetch")
+                        return
+                    }
                     self.latestLocation = recoveredLocation
                     self.watchBatteryFraction = recoveredLocation.batteryFraction
                     self.lastUpdateTime = recoveredLocation.timestamp
@@ -331,11 +341,22 @@ public final class PetLocationManager: NSObject, ObservableObject {
 
     // MARK: - Public API
 
+    /// Maximum age (in seconds) for pet location to be considered fresh for distance calculation.
+    /// CR-005 FIX: Prevents misleading distance when location data is stale.
+    private let maxDistanceLocationAge: TimeInterval = 600 // 10 minutes
+
     /// Calculate distance between owner (iPhone) and pet (Watch) in meters.
-    /// Returns nil if either location is unavailable.
+    /// Returns nil if either location is unavailable or if pet location is stale.
+    /// CR-005 FIX: Now returns nil for stale pet locations (>10 min old).
     public var distanceFromOwner: Double? {
         guard let ownerLoc = ownerLocation,
               let petLoc = latestLocation else {
+            return nil
+        }
+
+        // CR-005 FIX: Return nil if pet location is too stale to be meaningful
+        let age = Date().timeIntervalSince(petLoc.timestamp)
+        guard age <= maxDistanceLocationAge else {
             return nil
         }
 
@@ -346,6 +367,14 @@ public final class PetLocationManager: NSObject, ObservableObject {
         )
 
         return ownerLoc.distance(from: petCLLocation)
+    }
+
+    /// Whether the pet location is fresh enough for reliable distance calculation.
+    /// Returns false if location is nil or older than 10 minutes.
+    public var isDistanceFresh: Bool {
+        guard let petLoc = latestLocation else { return false }
+        let age = Date().timeIntervalSince(petLoc.timestamp)
+        return age <= maxDistanceLocationAge
     }
 
     /// Battery level as percentage (0-100)
@@ -856,9 +885,14 @@ public final class PetLocationManager: NSObject, ObservableObject {
         appendSessionSample(locationFix)
         PerformanceMonitor.shared.recordRemoteFix(locationFix, watchReachable: isWatchReachable)
 
-        // Sync to CloudKit for offline recovery (fire and forget)
-        Task.detached {
-            await CloudKitLocationSync.shared.saveLocation(locationFix)
+        // Sync to CloudKit for offline recovery (throttled to prevent rate limiting)
+        // CR-001 FIX: Only sync every 5 minutes to prevent CloudKit throttling and battery drain
+        let now = Date()
+        if lastCloudKitSync == nil || now.timeIntervalSince(lastCloudKitSync!) >= cloudKitSyncInterval {
+            lastCloudKitSync = now
+            Task.detached {
+                await CloudKitLocationSync.shared.saveLocation(locationFix)
+            }
         }
     }
 
@@ -1180,12 +1214,9 @@ extension PetLocationManager: CLLocationManagerDelegate {
         didUpdateLocations locations: [CLLocation]
     ) {
         Task { @MainActor in
-            // Select location with BEST (smallest) horizontal accuracy
-            // NOTE: horizontalAccuracy is a radius in meters - LOWER is BETTER
-            // Using max(by: { $0 > $1 }) effectively returns the MIN value
-            // because elements where comparator returns true are sorted "before"
-            // Equivalent to: locations.min(by: { $0.horizontalAccuracy < $1.horizontalAccuracy })
-            if let bestLocation = locations.max(by: { $0.horizontalAccuracy > $1.horizontalAccuracy }) {
+            // CR-004 FIX: Use min(by:) for clarity - select location with smallest horizontal accuracy
+            // horizontalAccuracy is a radius in meters, so LOWER is BETTER (more precise)
+            if let bestLocation = locations.min(by: { $0.horizontalAccuracy < $1.horizontalAccuracy }) {
                 self.ownerLocation = bestLocation
             }
         }

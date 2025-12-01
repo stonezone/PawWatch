@@ -33,6 +33,11 @@ public actor CloudKitLocationSync {
     private let latestLocationID = CKRecord.ID(recordName: "latest-pet-location")
     private let latestSnapshotID = CKRecord.ID(recordName: "latest-performance-snapshot")
 
+    // CR-003 FIX: Cache account status to avoid expensive IPC calls on every save
+    private var cachedAccountAvailable: Bool?
+    private var lastAccountCheck: Date?
+    private let accountCheckInterval: TimeInterval = 300 // Re-check every 5 minutes
+
     private init() {
         container = CKContainer(identifier: "iCloud.com.stonezone.pawWatch")
         database = container.privateCloudDatabase
@@ -167,11 +172,25 @@ public actor CloudKitLocationSync {
     // MARK: - Account Status
 
     /// Check if iCloud is available for the user.
-    public func checkAccountStatus() async -> Bool {
+    /// CR-003 FIX: Uses cached status to avoid expensive IPC calls on every operation.
+    /// Re-checks every 5 minutes or on explicit request.
+    public func checkAccountStatus(forceRefresh: Bool = false) async -> Bool {
+        // Return cached value if recent and not forcing refresh
+        let now = Date()
+        if !forceRefresh,
+           let cached = cachedAccountAvailable,
+           let lastCheck = lastAccountCheck,
+           now.timeIntervalSince(lastCheck) < accountCheckInterval {
+            return cached
+        }
+
+        // Perform actual check and cache result
         do {
             let status = try await container.accountStatus()
+            lastAccountCheck = now
             switch status {
             case .available:
+                cachedAccountAvailable = true
                 return true
             case .noAccount:
                 logger.notice("No iCloud account configured")
@@ -184,10 +203,18 @@ public actor CloudKitLocationSync {
             @unknown default:
                 logger.notice("Unknown iCloud status")
             }
+            cachedAccountAvailable = false
             return false
         } catch {
             logger.error("iCloud status check failed: \(error.localizedDescription, privacy: .public)")
+            cachedAccountAvailable = false
             return false
         }
+    }
+
+    /// Invalidate cached account status (call on CKAccountChangedNotification)
+    public func invalidateAccountCache() {
+        cachedAccountAvailable = nil
+        lastAccountCheck = nil
     }
 }
