@@ -427,6 +427,12 @@ public final class WatchLocationProvider: NSObject {
     /// Tracks whether tracking was intentionally stopped (vs unexpected termination)
     private var isIntentionallyStopped = false
 
+    /// CR-001 FIX: Tracks consecutive restart attempts to prevent infinite loops
+    private var restartAttemptCount = 0
+
+    /// CR-001 FIX: Maximum restart attempts before giving up (prevents infinite loop)
+    private let maxRestartAttempts = 5
+
     /// Current thermal degradation level (0 = normal, 1 = degraded, 2 = stopped)
     private var thermalDegradationLevel = 0
 
@@ -529,6 +535,7 @@ public final class WatchLocationProvider: NSObject {
         // Reset intentional stop flag for new tracking session
         isIntentionallyStopped = false
         thermalDegradationLevel = 0
+        resetRestartCounter()  // CR-001 FIX: Reset counter for fresh tracking session
         requestAuthorizationsIfNeeded()
         startWorkoutSession(activity: activity)
         Task { @MainActor in
@@ -925,7 +932,7 @@ public final class WatchLocationProvider: NSObject {
         guard wcSession.activationState == .activated else { return }
 
         pendingFixes.append(fix)
-        ConnectivityLog.verbose("Buffered fix seq=\(fix.sequence) (buffer count: \(pendingFixes.count))")
+        ConnectivityLog.verbose("Buffered fix seq=\(fix.sequence) (buffer count: \(self.pendingFixes.count))")
 
         let shouldFlush = pendingFixes.count >= batchThreshold ||
             Date().timeIntervalSince(lastBatchFlushDate) >= batchFlushInterval
@@ -1151,7 +1158,21 @@ public final class WatchLocationProvider: NSObject {
             return false
         }
 
-        // Priority 2: Send if accuracy significantly improved
+        // CR-004 FIX: Priority 2 - Critical battery check BEFORE accuracy bypass
+        // When battery is critically low, we must throttle aggressively to prevent
+        // total battery depletion. Jittery GPS causing frequent accuracy changes
+        // should NOT bypass this critical protection.
+        if batteryLevel <= 0.10 {
+            let criticalThrottle: TimeInterval = 5.0  // 5 seconds at critical battery
+            if timeSinceLast < criticalThrottle {
+                return true  // Throttle - battery protection takes priority
+            }
+            lastTransmittedFixDate = now
+            lastThrottleAccuracy = location.horizontalAccuracy
+            return false
+        }
+
+        // Priority 3: Send if accuracy significantly improved (only when battery is OK)
         let accuracyChange = abs(location.horizontalAccuracy - lastThrottleAccuracy)
         if accuracyChange > contextAccuracyDelta {
             lastTransmittedFixDate = now
@@ -1159,12 +1180,9 @@ public final class WatchLocationProvider: NSObject {
             return false
         }
 
-        // Priority 3: Apply throttle interval based on battery and movement state
+        // Priority 4: Apply throttle interval based on battery and movement state
         let throttleInterval: TimeInterval
-        if batteryLevel <= 0.10 {
-            // Critical battery: 5 seconds regardless of movement (still frequent for pet safety)
-            throttleInterval = 5.0
-        } else if batteryLevel <= 0.20 {
+        if batteryLevel <= 0.20 {
             // Low battery: 3 seconds when moving, 5 seconds when stationary
             throttleInterval = isStationary ? 5.0 : 3.0
         } else if isStationary {
@@ -1255,9 +1273,11 @@ extension WatchLocationProvider: CLLocationManagerDelegate {
                 // Continue processing but at reduced rate
             } else if self.thermalDegradationLevel > 0 {
                 // Thermal recovered - restore normal operation
-                self.logger.log("Thermal recovered - restoring normal operation")
+                let wasFullyStopped = self.thermalDegradationLevel == 2
+                self.logger.log("Thermal recovered from level \(self.thermalDegradationLevel) - restoring normal operation")
                 self.thermalDegradationLevel = 0
                 self.isIntentionallyStopped = false
+
                 // Restore preset based on current battery level
                 if self.batteryOptimizationsEnabled {
                     let battery = self.latestBatteryLevel
@@ -1270,6 +1290,20 @@ extension WatchLocationProvider: CLLocationManagerDelegate {
                     }
                 } else {
                     self.applyPreset(.aggressive)
+                }
+
+                // CR-002 FIX: If tracking was fully stopped due to thermal critical,
+                // we must restart location updates and workout session
+                if wasFullyStopped {
+                    self.logger.log("CR-002: Restarting tracking after thermal recovery from critical state")
+                    self.resetRestartCounter()  // Fresh start, reset retry counter
+                    self.isWorkoutRunning = true
+                    self.locationManager.startUpdatingLocation()
+                    self.startWorkoutSession(activity: .other)
+                    self.startBatteryHeartbeat()
+                    if self.supportsExtendedRuntime {
+                        self.runtimeCoordinator.updateTrackingState(isRunning: true)
+                    }
                 }
             }
             
@@ -1647,19 +1681,37 @@ extension WatchLocationProvider: HKWorkoutSessionDelegate {
     }
 
     /// Schedules an automatic restart of the workout session after unexpected termination.
-    /// Uses a 3-second delay to allow system resources to settle.
+    /// CR-001 FIX: Uses exponential backoff (3s base, doubling each attempt) with max 5 retries
+    /// to prevent infinite restart loops that could drain battery or cause system instability.
     @MainActor
     private func scheduleWorkoutRestart() {
         workoutRestartTask?.cancel()
+
+        // CR-001 FIX: Check if we've exceeded max restart attempts
+        if restartAttemptCount >= maxRestartAttempts {
+            logger.error("Auto-restart aborted: exceeded max attempts (\(self.maxRestartAttempts)). Manual restart required.")
+            isIntentionallyStopped = true  // Mark as stopped to prevent further attempts
+            isWorkoutRunning = false
+            delegate?.didFail(WatchConnectivityIssue.sessionNotActivated)
+            return
+        }
+
+        // CR-001 FIX: Exponential backoff: 3s, 6s, 12s, 24s, 48s
+        let backoffSeconds = 3.0 * pow(2.0, Double(restartAttemptCount))
+        restartAttemptCount += 1
+
+        logger.log("Scheduling workout restart attempt \(self.restartAttemptCount)/\(self.maxRestartAttempts) in \(Int(backoffSeconds))s")
+
         workoutRestartTask = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(3))
+            try? await Task.sleep(for: .seconds(backoffSeconds))
             guard let self, !Task.isCancelled else { return }
             guard !self.isIntentionallyStopped else {
                 self.logger.log("Auto-restart cancelled - tracking was intentionally stopped")
+                self.restartAttemptCount = 0  // Reset counter for next tracking session
                 return
             }
 
-            self.logger.log("Auto-restarting workout session")
+            self.logger.log("Auto-restarting workout session (attempt \(self.restartAttemptCount))")
 
             // Clear old session references
             self.workoutSession = nil
@@ -1669,8 +1721,15 @@ extension WatchLocationProvider: HKWorkoutSessionDelegate {
             self.startWorkoutSession(activity: .other)
             self.locationManager.startUpdatingLocation()
 
+            // CR-001 FIX: Reset counter on successful restart
+            // (If it fails again, workoutSession delegate will call scheduleWorkoutRestart)
             self.logger.log("Workout session auto-restart complete")
         }
+    }
+
+    /// CR-001 FIX: Reset restart counter when tracking starts intentionally
+    private func resetRestartCounter() {
+        restartAttemptCount = 0
     }
     
     /// Handles workout session errors.
