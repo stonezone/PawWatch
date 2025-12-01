@@ -147,29 +147,25 @@ final class BackgroundRefreshScheduler: @unchecked Sendable {
             logger.warning("Background refresh expired before completion")
         }
 
-        // Request location from watch via WCSession directly (simpler, no actor issues)
-        var success = requestWatchLocation()
-
-        // Sync Live Activity if available
-        if let snapshot = PerformanceSnapshotStore.load() {
-            PerformanceLiveActivityManager.syncLiveActivity(with: snapshot)
-            success = true
-        }
-
-        logger.info("Background refresh completed: \(success, privacy: .public)")
-        task.setTaskCompleted(success: success)
-    }
-
-    /// Request location update from watch using WCSession directly.
-    private func requestWatchLocation() -> Bool {
-        // Uses shared manager to avoid duplicate delegate issues
+        // CR-003 FIX: Use async task to properly track success
         Task { @MainActor in
-            // CRITICAL FIX: Access shared instance on MainActor
+            var success = false
+
+            // Request location from watch
             if let manager = PetLocationManager.sharedSync {
                 manager.requestBackgroundUpdate()
+                success = true
             }
+
+            // Sync Live Activity if available
+            if let snapshot = PerformanceSnapshotStore.load() {
+                PerformanceLiveActivityManager.syncLiveActivity(with: snapshot)
+                success = true
+            }
+
+            self.logger.info("Background refresh completed: \(success, privacy: .public)")
+            task.setTaskCompleted(success: success)
         }
-        return true
     }
 }
 
@@ -208,16 +204,17 @@ enum BackgroundLocationPushHandler {
         }
 
         logger.info("Silent push received: requesting watch location")
-        return requestWatchLocation()
-    }
 
-    private static func requestWatchLocation() -> Bool {
+        // CR-003 FIX: Request location and return true to indicate we handled this push
+        // The actual request happens async on MainActor
         Task { @MainActor in
-            // CRITICAL FIX: Access shared instance on MainActor
             if let manager = PetLocationManager.sharedSync {
                 manager.requestBackgroundUpdate()
+                logger.info("Watch location request issued via push")
+            } else {
+                logger.warning("PetLocationManager not available for push request")
             }
         }
-        return true
+        return true  // We handled this push type, even if manager wasn't ready
     }
 }

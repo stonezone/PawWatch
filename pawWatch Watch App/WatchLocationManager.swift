@@ -11,6 +11,7 @@ import SwiftUI
 import Observation
 import WatchKit
 import CoreLocation
+import OSLog
 import pawWatchFeature
 
 enum WatchTrackingDefaults {
@@ -41,6 +42,9 @@ final class WatchLocationManager: WatchLocationProviderDelegate {
 
     /// The underlying GPS provider managing workout and location capture
     private let locationProvider = WatchLocationProvider()
+
+    /// CR-007 FIX: Structured logger for consistent logging
+    private let logger = Logger(subsystem: "com.stonezone.pawWatch", category: "WatchLocationManager")
 
     /// Whether GPS tracking is currently active
     var isTracking: Bool = false
@@ -118,7 +122,7 @@ final class WatchLocationManager: WatchLocationProviderDelegate {
     /// The 0.5s application context throttle allows ~2Hz max relay rate
     /// while capturing all 1Hz Watch GPS fixes.
     func startTracking() {
-        print("[WatchLocationManager] Starting GPS tracking")
+        logger.info("Starting GPS tracking")
 
         isTracking = true
         let defaults = UserDefaults.standard
@@ -147,7 +151,7 @@ final class WatchLocationManager: WatchLocationProviderDelegate {
     /// - Application context throttle state
     /// - Active file transfers
     func stopTracking() {
-        print("[WatchLocationManager] Stopping GPS tracking")
+        logger.info("Stopping GPS tracking")
 
         isTracking = false
         let defaults = UserDefaults.standard
@@ -217,7 +221,7 @@ final class WatchLocationManager: WatchLocationProviderDelegate {
     ///
     /// - Parameter fix: The location fix containing GPS data and metadata
     func didProduce(_ fix: LocationFix) {
-        print("[WatchLocationManager] Received GPS fix #\(fix.sequence)")
+        logger.debug("Received GPS fix #\(fix.sequence)")
 
         // Update state with latest fix
         currentFix = fix
@@ -292,7 +296,7 @@ final class WatchLocationManager: WatchLocationProviderDelegate {
     ///
     /// - Parameter error: The error that occurred
     func didFail(_ error: Error) {
-        print("[WatchLocationManager] Error: \(error.localizedDescription)")
+        logger.error("Location error: \(error.localizedDescription, privacy: .public)")
 
         // Convert error to user-friendly message
         let friendlyMessage: String
