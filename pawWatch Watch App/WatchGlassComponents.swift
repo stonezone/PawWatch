@@ -84,6 +84,7 @@ struct WatchGlassBackground: View {
 
 /// Compact glass pill for metric display, optimized for circular watch layout.
 /// Adapts sizing and spacing for bezel clearance.
+/// On watchOS 26+, uses native .glassEffect() API.
 struct WatchGlassPill<Content: View>: View {
     private let theme = WatchGlassTheme.current
     private let prominent: Bool
@@ -95,10 +96,27 @@ struct WatchGlassPill<Content: View>: View {
     }
 
     var body: some View {
+        if #available(watchOS 26, *) {
+            modernPill
+        } else {
+            legacyPill
+        }
+    }
+
+    @available(watchOS 26, *)
+    private var modernPill: some View {
         content
             .padding(.horizontal, prominent ? 14 : 10)
             .padding(.vertical, prominent ? 8 : 5)
-            .background(glassBackground)
+            .glassEffect(prominent ? .regular.interactive() : .regular, in: .capsule)
+            .shadow(color: theme.chromeShadow.opacity(0.5), radius: prominent ? 4 : 2, x: 0, y: 1)
+    }
+
+    private var legacyPill: some View {
+        content
+            .padding(.horizontal, prominent ? 14 : 10)
+            .padding(.vertical, prominent ? 8 : 5)
+            .background(glassBackgroundLegacy)
             .clipShape(Capsule())
             .overlay(
                 Capsule()
@@ -110,7 +128,7 @@ struct WatchGlassPill<Content: View>: View {
             .shadow(color: theme.chromeShadow, radius: prominent ? 6 : 4, x: 0, y: 2)
     }
 
-    private var glassBackground: some View {
+    private var glassBackgroundLegacy: some View {
         ZStack {
             // Base material
             Capsule()
@@ -135,6 +153,7 @@ struct WatchGlassPill<Content: View>: View {
 // MARK: - Glass Card (Circular-Aware)
 
 /// Glass card with bezel-aware spacing for circular watch displays.
+/// On watchOS 26+, uses native .glassEffect() API.
 struct WatchGlassCard<Content: View>: View {
     private let theme = WatchGlassTheme.current
     @ViewBuilder var content: Content
@@ -144,6 +163,23 @@ struct WatchGlassCard<Content: View>: View {
     }
 
     var body: some View {
+        if #available(watchOS 26, *) {
+            modernCard
+        } else {
+            legacyCard
+        }
+    }
+
+    @available(watchOS 26, *)
+    private var modernCard: some View {
+        content
+            .padding(12)
+            .glassEffect(.regular.interactive(), in: .rect(cornerRadius: theme.cardCornerRadius))
+            .shadow(color: theme.chromeShadow.opacity(0.4), radius: 6, x: 0, y: 2)
+            .padding(.horizontal, theme.bezelInset)
+    }
+
+    private var legacyCard: some View {
         content
             .padding(12)
             .background(
@@ -372,6 +408,7 @@ struct WatchBezelSpacer: View {
 // MARK: - Metric Badge
 
 /// Compact metric display badge for circular layouts.
+/// On watchOS 26+, uses native .glassEffect() API.
 struct WatchMetricBadge: View {
     let icon: String
     let value: String
@@ -380,6 +417,38 @@ struct WatchMetricBadge: View {
     private let theme = WatchGlassTheme.current
 
     var body: some View {
+        if #available(watchOS 26, *) {
+            modernBadge
+        } else {
+            legacyBadge
+        }
+    }
+
+    @available(watchOS 26, *)
+    private var modernBadge: some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.system(size: 12))
+                .foregroundStyle(theme.statusColor(for: status))
+                .symbolEffect(.pulse.byLayer, options: status == .excellent ? .repeating : .default, value: status)
+
+            Text(value)
+                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .monospacedDigit()
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .glassEffect(.regular, in: .capsule)
+        .overlay(
+            Capsule()
+                .strokeBorder(
+                    theme.statusColor(for: status).opacity(0.3),
+                    lineWidth: 0.5
+                )
+        )
+    }
+
+    private var legacyBadge: some View {
         HStack(spacing: 6) {
             Image(systemName: icon)
                 .font(.system(size: 12))

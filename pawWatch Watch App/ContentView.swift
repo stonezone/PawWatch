@@ -91,16 +91,41 @@ struct ContentView: View {
 
                     // MARK: - App Title
 
-                    Text("pawWatch")
-                        .font(.title3)
-                        .fontWeight(.bold)
+                    if #available(watchOS 26, *) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "pawprint.fill")
+                                .font(.title3)
+                                .foregroundStyle(.cyan.gradient)
+                                .symbolEffect(.breathe.pulse.byLayer, options: .repeating, value: locationManager.isTracking)
+                            Text("pawWatch")
+                                .font(.title3)
+                                .fontWeight(.bold)
+                        }
+                    } else {
+                        Text("pawWatch")
+                            .font(.title3)
+                            .fontWeight(.bold)
+                    }
 
                     // MARK: - GPS Status Icon
 
-                    Image(systemName: locationManager.isTracking ? "location.fill" : "location.slash")
-                        .font(.system(size: 50))
-                        .foregroundStyle(locationManager.isTracking ? .green : .secondary)
-                        .symbolEffect(.pulse, isActive: locationManager.isTracking)
+                    if #available(watchOS 26, *) {
+                        ZStack {
+                            Circle()
+                                .fill(locationManager.isTracking ? Color.green.opacity(0.2) : Color.secondary.opacity(0.1))
+                                .frame(width: 70, height: 70)
+                            Image(systemName: locationManager.isTracking ? "location.fill" : "location.slash")
+                                .font(.system(size: 36))
+                                .foregroundStyle(locationManager.isTracking ? AnyShapeStyle(.green.gradient) : AnyShapeStyle(.secondary))
+                                .symbolEffect(.bounce.byLayer, value: locationManager.isTracking)
+                        }
+                        .glassEffect(.regular, in: .circle)
+                    } else {
+                        Image(systemName: locationManager.isTracking ? "location.fill" : "location.slash")
+                            .font(.system(size: 50))
+                            .foregroundStyle(locationManager.isTracking ? .green : .secondary)
+                            .symbolEffect(.pulse, isActive: locationManager.isTracking)
+                    }
 
                     // MARK: - Status Message
 
@@ -605,10 +630,17 @@ private struct GlassPill<Content: View>: View {
     @ViewBuilder var content: Content
 
     var body: some View {
-        content
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .background(.thinMaterial, in: Capsule())
+        if #available(watchOS 26, *) {
+            content
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .glassEffect(.regular, in: .capsule)
+        } else {
+            content
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(.thinMaterial, in: Capsule())
+        }
     }
 }
 
@@ -688,9 +720,22 @@ private struct SmartStackHintView: View {
 private extension ContentView {
     var lockOverlay: some View {
         VStack(spacing: 10) {
-            Image(systemName: "lock.fill")
-                .font(.title2)
-                .foregroundStyle(.cyan)
+            if #available(watchOS 26, *) {
+                ZStack {
+                    Circle()
+                        .fill(.cyan.opacity(0.2))
+                        .frame(width: 50, height: 50)
+                    Image(systemName: "lock.fill")
+                        .font(.title2)
+                        .foregroundStyle(.cyan.gradient)
+                        .symbolEffect(.pulse.byLayer, options: .repeating)
+                }
+                .glassEffect(.regular, in: .circle)
+            } else {
+                Image(systemName: "lock.fill")
+                    .font(.title2)
+                    .foregroundStyle(.cyan)
+            }
 
             Text("Tracker Locked")
                 .font(.headline)
@@ -719,7 +764,7 @@ private extension ContentView {
         }
         .padding()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .modifier(LockOverlayBackgroundModifier())
         .padding()
         .focusable(true)
         .focused($lockOverlayFocused)
@@ -764,6 +809,20 @@ private extension ContentView {
     func resetCrownTracking() {
         crownRotation = 0
         crownRotationAccumulator = 0
+    }
+}
+
+// MARK: - Lock Overlay Background
+
+private struct LockOverlayBackgroundModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(watchOS 26, *) {
+            content
+                .glassEffect(.regular, in: .rect(cornerRadius: 18))
+        } else {
+            content
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        }
     }
 }
 

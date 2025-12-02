@@ -147,25 +147,25 @@ final class BackgroundRefreshScheduler: @unchecked Sendable {
             logger.warning("Background refresh expired before completion")
         }
 
-        // CR-003 FIX: Use async task to properly track success
+        // CR-003 FIX: Dispatch MainActor work and complete task
+        // Note: BGAppRefreshTask has limited time, so we dispatch work and complete
+        let taskLogger = logger
         Task { @MainActor in
-            var success = false
-
             // Request location from watch
             if let manager = PetLocationManager.sharedSync {
                 manager.requestBackgroundUpdate()
-                success = true
             }
 
             // Sync Live Activity if available
             if let snapshot = PerformanceSnapshotStore.load() {
                 PerformanceLiveActivityManager.syncLiveActivity(with: snapshot)
-                success = true
             }
 
-            self.logger.info("Background refresh completed: \(success, privacy: .public)")
-            task.setTaskCompleted(success: success)
+            taskLogger.info("Background refresh work dispatched")
         }
+
+        // Complete task - work continues asynchronously
+        task.setTaskCompleted(success: true)
     }
 }
 

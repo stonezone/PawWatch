@@ -134,7 +134,6 @@ public struct PetMapView: View {
         .mapControls {
             MapUserLocationButton()
             MapCompass()
-            MapScaleView()
         }
         .onAppear {
             updateCamera()

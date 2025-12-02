@@ -15,31 +15,21 @@ public struct MainTabView: View {
     public init() {}
 
     public var body: some View {
-        ZStack(alignment: .bottom) {
-            // Background surface
-            GlassSurface { Color.clear }
-                .ignoresSafeArea()
-
-            // Tab content - native TabView with hidden tab bar
-            TabView(selection: $selectedTab) {
-                DashboardView(useMetricUnits: useMetricUnits)
-                    .tag(TabSelection.dashboard)
-
-                HistoryView(useMetricUnits: useMetricUnits)
-                    .tag(TabSelection.history)
-
-                SettingsView(useMetricUnits: $useMetricUnits)
-                    .tag(TabSelection.settings)
+        VStack(spacing: 0) {
+            // Tab content - manual switching to avoid native TabView artifacts
+            Group {
+                switch selectedTab {
+                case .dashboard:
+                    DashboardView(useMetricUnits: useMetricUnits)
+                case .history:
+                    HistoryView(useMetricUnits: useMetricUnits)
+                case .settings:
+                    SettingsView(useMetricUnits: $useMetricUnits)
+                }
             }
-            .tabViewStyle(.automatic)
-            .toolbar(.hidden, for: .tabBar)
             .environmentObject(locationManager)
-            .safeAreaInset(edge: .bottom) {
-                // Reserve space for custom tab bar
-                Color.clear.frame(height: 100)
-            }
 
-            // Custom Liquid Glass tab bar
+            // Custom Liquid Glass tab bar at bottom
             LiquidGlassTabBar(
                 selection: $selectedTab,
                 items: tabItems
@@ -48,8 +38,11 @@ public struct MainTabView: View {
                     selectedTab = tab
                 }
             }
-            .padding(.horizontal, Spacing.Component.screenEdge)
-            .padding(.bottom, Spacing.sm)
+            .padding(.bottom, 4)
+        }
+        .background {
+            GlassSurface { Color.clear }
+                .ignoresSafeArea()
         }
     }
 }
@@ -65,7 +58,7 @@ private extension MainTabView {
 }
 
 /// Centers scrollable content and constrains width for large devices so cards never overflow portrait.
-/// Now with parallax support for depth effects.
+/// iOS 26+: Uses native scroll edge effects for modern glass blur at edges.
 private struct GlassScroll<Content: View>: View {
     private let spacing: CGFloat
     private let maximumWidth: CGFloat
@@ -114,8 +107,22 @@ private struct GlassScroll<Content: View>: View {
                     scrollOffset = value
                 }
             }
+            .modifier(ScrollEdgeEffectModifier())
         }
         .environment(\.scrollOffset, scrollOffset)
+    }
+}
+
+/// iOS 26 scroll edge effect modifier
+private struct ScrollEdgeEffectModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 26, *) {
+            content
+                .scrollEdgeEffectStyle(.soft, for: .top)
+                .scrollEdgeEffectStyle(.soft, for: .bottom)
+        } else {
+            content
+        }
     }
 }
 
@@ -290,34 +297,84 @@ private struct DashboardHeader: View {
     var body: some View {
         HStack(alignment: .center) {
             HStack(spacing: Spacing.md) {
-                // App icon with theme gradient
-                ZStack {
-                    Circle()
-                        .fill(
-                            LinearGradient(
-                                colors: theme.accentGradient,
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .frame(width: IconSize.xxl, height: IconSize.xxl)
-
-                    Image(systemName: "pawprint.fill")
-                        .font(.system(size: IconSize.lg, weight: .semibold))
-                        .foregroundStyle(.white)
-                }
+                // App icon with modern glass effect
+                appIcon
 
                 VStack(alignment: .leading, spacing: Spacing.xxxs) {
                     Text("pawWatch")
-                        .font(Typography.pageTitle)
+                        .font(.system(size: 26, weight: .bold, design: .rounded))
                     Text("Live Tracking")
-                        .font(Typography.caption)
+                        .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(.secondary)
                 }
             }
 
             Spacer()
 
+            refreshButton
+        }
+    }
+
+    @ViewBuilder
+    private var appIcon: some View {
+        if #available(iOS 26, *) {
+            ZStack {
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [theme.accentPrimary, theme.accentSecondary],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 52, height: 52)
+
+                Image(systemName: "pawprint.fill")
+                    .font(.system(size: 24, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .symbolEffect(.breathe.pulse.byLayer, options: .repeating)
+            }
+            .glassEffect(.regular, in: .circle)
+        } else {
+            ZStack {
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: theme.accentGradient,
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: IconSize.xxl, height: IconSize.xxl)
+
+                Image(systemName: "pawprint.fill")
+                    .font(.system(size: IconSize.lg, weight: .semibold))
+                    .foregroundStyle(.white)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var refreshButton: some View {
+        if #available(iOS 26, *) {
+            Button(action: onRefresh) {
+                Image(systemName: "arrow.clockwise")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(theme.accentPrimary)
+                    .rotationEffect(.degrees(isRefreshing ? 360 : 0))
+                    .animation(
+                        isRefreshing
+                            ? .linear(duration: 1).repeatForever(autoreverses: false)
+                            : theme.springStandard,
+                        value: isRefreshing
+                    )
+                    .frame(width: 44, height: 44)
+                    .glassEffect(.regular.interactive(), in: .circle)
+            }
+            .disabled(isRefreshing)
+            .accessibilityLabel("Refresh location")
+            .accessibilityHint(isRefreshing ? "Currently refreshing" : "Double tap to request fresh location data")
+        } else {
             Button(action: onRefresh) {
                 ZStack {
                     Circle()
@@ -455,7 +512,7 @@ private struct QuickStatsStrip: View {
     let useMetric: Bool
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 10) {
             QuickStatItem(
                 icon: "scope",
                 value: accuracy.map { MeasurementDisplay.accuracy($0, useMetric: useMetric) } ?? "-",
@@ -524,13 +581,44 @@ private struct QuickStatItem: View {
     private let theme = LiquidGlassTheme.current
 
     var body: some View {
+        if #available(iOS 26, *) {
+            modernStatItem
+        } else {
+            legacyStatItem
+        }
+    }
+
+    @available(iOS 26, *)
+    private var modernStatItem: some View {
         VStack(spacing: 6) {
+            // Clean icon with subtle color - no animation unless this is accuracy
             Image(systemName: icon)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(color.gradient)
+                .font(.system(size: 16, weight: .medium))
+                .foregroundStyle(color)
 
             Text(value)
-                .font(.caption2.weight(.bold))
+                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 14)
+        .glassEffect(.regular, in: .rect(cornerRadius: 16))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityValue(value)
+    }
+
+    private var legacyStatItem: some View {
+        VStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(color)
+
+            Text(value)
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .foregroundStyle(.primary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
         }
@@ -539,10 +627,6 @@ private struct QuickStatItem: View {
         .background(
             RoundedRectangle(cornerRadius: theme.cornerRadiusSmall, style: .continuous)
                 .fill(.ultraThinMaterial)
-                .overlay(
-                    RoundedRectangle(cornerRadius: theme.cornerRadiusSmall, style: .continuous)
-                        .strokeBorder(color.opacity(0.2), lineWidth: 1)
-                )
         )
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityLabel)
@@ -556,12 +640,45 @@ private struct LiveStatusBadge: View {
     let isReachable: Bool
     let secondsAgo: TimeInterval?
 
+    private var statusColor: Color {
+        isReachable ? .green : .orange
+    }
+
     var body: some View {
+        if #available(iOS 26, *) {
+            modernBadge
+        } else {
+            legacyBadge
+        }
+    }
+
+    @available(iOS 26, *)
+    private var modernBadge: some View {
+        HStack(spacing: 8) {
+            Circle()
+                .fill(statusColor.gradient)
+                .frame(width: 10, height: 10)
+                .shadow(color: statusColor.opacity(0.8), radius: 6)
+                .symbolEffect(.pulse, options: isReachable ? .repeating : .default, value: isReachable)
+
+            Text(statusText)
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .foregroundStyle(.primary)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .glassEffect(.regular.interactive(), in: .capsule)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Connection status")
+        .accessibilityValue(accessibilityStatus)
+    }
+
+    private var legacyBadge: some View {
         HStack(spacing: 6) {
             Circle()
-                .fill(isReachable ? Color.green : Color.orange)
+                .fill(statusColor)
                 .frame(width: 8, height: 8)
-                .shadow(color: (isReachable ? Color.green : Color.orange).opacity(0.6), radius: 4)
+                .shadow(color: statusColor.opacity(0.6), radius: 4)
 
             Text(statusText)
                 .font(.caption2.weight(.semibold))
@@ -951,34 +1068,7 @@ struct SettingsView: View {
             }
 
             // MARK: - Advanced Section (Collapsible)
-            DisclosureGroup(isExpanded: $showAdvanced) {
-                VStack(spacing: 14) {
-                    // Session Stats
-                    sessionStatsSection
-
-                    // HealthKit Details
-                    healthKitSection
-
-                    // Developer Tools
-                    developerSection
-
-                    // About
-                    aboutSection
-                }
-                .padding(.top, 8)
-            } label: {
-                HStack {
-                    Image(systemName: "gearshape.2.fill")
-                        .foregroundStyle(.secondary)
-                    Text("Advanced")
-                        .font(.headline)
-                }
-            }
-            .padding(16)
-            .background(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(.ultraThinMaterial)
-            )
+            advancedSection
 
             Spacer(minLength: 32)
         }
@@ -991,6 +1081,63 @@ struct SettingsView: View {
     // MARK: - Connection Status Card
     @ViewBuilder
     private func ConnectionStatusCard() -> some View {
+        if #available(iOS 26, *) {
+            modernConnectionStatusCard
+        } else {
+            legacyConnectionStatusCard
+        }
+    }
+
+    @available(iOS 26, *)
+    private var modernConnectionStatusCard: some View {
+        HStack(spacing: 16) {
+            // Watch icon with glass circle and pulse effect
+            ZStack {
+                Circle()
+                    .fill(connectionColor.opacity(0.2))
+                    .frame(width: 56, height: 56)
+
+                Image(systemName: "applewatch")
+                    .font(.title)
+                    .foregroundStyle(connectionColor.gradient)
+                    .symbolEffect(.pulse.byLayer, options: locationManager.isWatchReachable ? .repeating : .default, value: locationManager.isWatchReachable)
+            }
+            .glassEffect(.regular, in: .circle)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(connectionTitle)
+                    .font(.headline)
+
+                Text(connectionSubtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                if let battery = locationManager.watchBatteryFraction {
+                    HStack(spacing: 4) {
+                        Image(systemName: batteryIcon(for: battery))
+                            .font(.caption2)
+                            .foregroundStyle(batteryColor(for: battery))
+                        Text(String(format: "%.0f%%", battery * 100))
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+
+            Spacer()
+
+            // Status indicator with glow
+            Circle()
+                .fill(connectionColor.gradient)
+                .frame(width: 14, height: 14)
+                .shadow(color: connectionColor.opacity(0.6), radius: 6)
+        }
+        .padding(20)
+        .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 24))
+        .shadow(color: .black.opacity(0.12), radius: 16, x: 0, y: 8)
+    }
+
+    private var legacyConnectionStatusCard: some View {
         GlassCard(cornerRadius: 24, padding: 20) {
             HStack(spacing: 16) {
                 // Watch icon with status
@@ -1065,6 +1212,64 @@ struct SettingsView: View {
         if level > 0.5 { return .green }
         if level > 0.2 { return .yellow }
         return .red
+    }
+
+    // MARK: - Advanced Section
+    @ViewBuilder
+    private var advancedSection: some View {
+        if #available(iOS 26, *) {
+            modernAdvancedSection
+        } else {
+            legacyAdvancedSection
+        }
+    }
+
+    @available(iOS 26, *)
+    private var modernAdvancedSection: some View {
+        DisclosureGroup(isExpanded: $showAdvanced) {
+            VStack(spacing: 14) {
+                sessionStatsSection
+                healthKitSection
+                developerSection
+                aboutSection
+            }
+            .padding(.top, 8)
+        } label: {
+            HStack {
+                Image(systemName: "gearshape.2.fill")
+                    .foregroundStyle(.secondary)
+                    .symbolEffect(.rotate, value: showAdvanced)
+                Text("Advanced")
+                    .font(.headline)
+            }
+        }
+        .padding(16)
+        .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 20))
+        .shadow(color: .black.opacity(0.1), radius: 12, x: 0, y: 6)
+    }
+
+    private var legacyAdvancedSection: some View {
+        DisclosureGroup(isExpanded: $showAdvanced) {
+            VStack(spacing: 14) {
+                sessionStatsSection
+                healthKitSection
+                developerSection
+                aboutSection
+            }
+            .padding(.top, 8)
+        } label: {
+            HStack {
+                Image(systemName: "gearshape.2.fill")
+                    .foregroundStyle(.secondary)
+                Text("Advanced")
+                    .font(.headline)
+            }
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(.ultraThinMaterial)
+        )
     }
 
     // MARK: - Session Stats Section
@@ -1192,6 +1397,28 @@ private struct StatCell: View {
     let value: String
 
     var body: some View {
+        if #available(iOS 26, *) {
+            modernStatCell
+        } else {
+            legacyStatCell
+        }
+    }
+
+    @available(iOS 26, *)
+    private var modernStatCell: some View {
+        VStack(spacing: 2) {
+            Text(value)
+                .font(.callout.weight(.semibold))
+            Text(title)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 10)
+        .glassEffect(.regular, in: .rect(cornerRadius: 10))
+    }
+
+    private var legacyStatCell: some View {
         VStack(spacing: 2) {
             Text(value)
                 .font(.callout.weight(.semibold))
@@ -1208,13 +1435,27 @@ private struct StatCell: View {
 // MARK: - SettingsView Helpers
 private extension SettingsView {
 
+    @ViewBuilder
     private func settingsCard<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
-        GlassCard(cornerRadius: 20, padding: 16) {
+        if #available(iOS 26, *) {
             VStack(alignment: .leading, spacing: 8) {
                 Text(title)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.secondary)
                 content()
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 20))
+            .shadow(color: .black.opacity(0.08), radius: 10, x: 0, y: 5)
+        } else {
+            GlassCard(cornerRadius: 20, padding: 16) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    content()
+                }
             }
         }
     }
