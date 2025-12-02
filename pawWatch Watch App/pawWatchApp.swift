@@ -58,7 +58,7 @@ struct pawWatch_Watch_App: App {
     /// GPS Tracking Notes:
     /// - HealthKit workout session keeps GPS active in background
     /// - WatchConnectivity automatically queues background transfers
-    /// - No explicit handling needed - WatchLocationProvider manages it all
+    /// - We proactively restore state on activation for maximum resilience
     ///
     /// - Parameters:
     ///   - oldPhase: Previous scene phase
@@ -67,27 +67,32 @@ struct pawWatch_Watch_App: App {
         switch newPhase {
         case .active:
             // App became active (foreground)
-            // WatchConnectivity will resume interactive messaging if iPhone reachable
-            // GPS continues uninterrupted via workout session
-            print("[pawWatch] App became active")
+            // CRITICAL: Refresh connection status and restore tracking if needed
+            print("[pawWatch] App became active - refreshing state")
+
+            // Immediately update connection status to re-establish interactive messaging
+            locationManager.updateConnectionStatus()
+
+            // Restore tracking if it was running before (crash recovery / background restart)
+            locationManager.restoreTrackingIfNeeded()
 
         case .inactive:
             // App became inactive (temporary transition state)
             // Example: Control Center overlay, incoming call UI
-            // GPS tracking continues via workout session
-            print("[pawWatch] App became inactive")
+            // GPS tracking continues via workout session - DO NOT stop
+            print("[pawWatch] App became inactive - tracking continues")
 
         case .background:
             // App moved to background
-            // HealthKit workout session keeps GPS active
+            // CRITICAL: Do NOT stop tracking - HealthKit workout keeps GPS alive
             // WatchConnectivity automatically switches to:
             //   1. Application context (0.5s throttle, latest-only)
             //   2. File transfer (queued delivery, guaranteed)
-            // No interactive messaging while backgrounded
-            print("[pawWatch] App moved to background")
+            // Heartbeat task continues running in background
+            print("[pawWatch] App moved to background - heartbeat continues")
 
-            // WatchLocationProvider handles all background transitions automatically
-            // No manual cleanup or state changes needed here
+            // Final connection status update before backgrounding
+            locationManager.updateConnectionStatus()
 
         @unknown default:
             // Future scene phase states

@@ -74,23 +74,13 @@ public struct PetMapView: View {
                         .opacity(0.5)
                 }
             }
-            .onChange(of: isValidSize) { _, valid in
-                if valid {
-                    lastValidSize = geometry.size
-                    // Delay showing map to ensure Metal layer is ready
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                        hasValidSize = true
-                    }
-                }
-            }
-            .onAppear {
-                if isValidSize {
-                    lastValidSize = geometry.size
-                    // Initial delay to let Metal layer initialize properly
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                        hasValidSize = true
-                    }
-                }
+            .task(id: isValidSize) {
+                guard isValidSize else { return }
+                lastValidSize = geometry.size
+                // Delay to ensure Metal layer is ready - using Swift Concurrency for proper cancellation
+                try? await Task.sleep(for: .milliseconds(100))
+                guard !Task.isCancelled else { return }
+                hasValidSize = true
             }
         }
         // Prevent map from ever having zero intrinsic size

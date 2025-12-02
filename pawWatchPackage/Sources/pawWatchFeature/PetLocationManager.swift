@@ -228,7 +228,9 @@ public final class PetLocationManager: NSObject, ObservableObject {
     @ObservationIgnored private var sessionStartDate: Date?
     @ObservationIgnored private var sessionReachabilityFlipCount: Int = 0
     private let maxSessionSamples = 10_000
-    private var staleConnectionTask: Task<Void, Never>?
+    /// Task for monitoring stale connections. Marked nonisolated(unsafe) because
+    /// Task.cancel() is thread-safe and we need to call it from deinit.
+    nonisolated(unsafe) private var staleConnectionTask: Task<Void, Never>?
 
     // MARK: - Initialization
 
@@ -292,7 +294,7 @@ public final class PetLocationManager: NSObject, ObservableObject {
         refreshHealthAuthorizationState()
 
         // Attempt CloudKit recovery if no local data
-        Task { [weak self] in
+        Task { @MainActor [weak self] in
             await self?.recoverFromCloudKitIfNeeded()
         }
 
@@ -304,6 +306,11 @@ public final class PetLocationManager: NSObject, ObservableObject {
         #endif
 
         startStaleConnectionMonitor()
+    }
+
+    deinit {
+        staleConnectionTask?.cancel()
+        staleConnectionTask = nil
     }
 
     /// Attempt to recover location data from CloudKit if local data is missing.
@@ -803,10 +810,11 @@ public final class PetLocationManager: NSObject, ObservableObject {
     /// Starts a periodic monitor that flags when the Watch connection has gone stale.
     private func startStaleConnectionMonitor() {
         staleConnectionTask?.cancel()
-        staleConnectionTask = Task { [weak self] in
+        staleConnectionTask = Task { @MainActor [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(60))
-                await self?.checkForStaleConnection()
+                guard let self = self else { return }
+                self.checkForStaleConnection()
             }
         }
     }
@@ -1304,8 +1312,10 @@ extension PetLocationManager {
         }
 
         let timestamps = sessionSamples.map { $0.timestamp }
-        let start = sessionStartDate ?? timestamps.first!
-        let duration = max(0, timestamps.last!.timeIntervalSince(start))
+        guard let firstTimestamp = timestamps.first,
+              let lastTimestamp = timestamps.last else { return }
+        let start = sessionStartDate ?? firstTimestamp
+        let duration = max(0, lastTimestamp.timeIntervalSince(start))
         let intervals = zip(timestamps.dropFirst(), timestamps).map { $0.0.timeIntervalSince($0.1) }
         let avgInterval = intervals.isEmpty ? 0 : intervals.reduce(0, +) / Double(intervals.count)
 
@@ -1342,8 +1352,8 @@ extension PetLocationManager {
 
     private func percentile(of values: [Double], percent: Double) -> Double {
         guard !values.isEmpty else { return 0 }
-        if percent <= 0 { return values.first! }
-        if percent >= 100 { return values.last! }
+        if percent <= 0 { return values.first ?? 0 }
+        if percent >= 100 { return values.last ?? 0 }
         let rank = Int(ceil(percent / 100 * Double(values.count))) - 1
         return values[max(0, min(values.count - 1, rank))]
     }

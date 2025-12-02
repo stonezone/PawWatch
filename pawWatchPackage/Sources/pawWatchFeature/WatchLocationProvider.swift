@@ -410,6 +410,12 @@ public final class WatchLocationProvider: NSObject {
     private var isTrackerLocked = false
     private var activationRetryTask: Task<Void, Never>?
 
+    /// Tracks consecutive activation retry attempts
+    private var activationRetryCount = 0
+
+    /// Maximum activation retry attempts before giving up temporarily
+    private let maxActivationRetries = 10
+
     // MARK: - Resilience Properties
 
     /// Task for debouncing reachability changes (prevents UI churn from Bluetooth flapping)
@@ -768,9 +774,30 @@ public final class WatchLocationProvider: NSObject {
         activationRetryTask = Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(delay))
             guard let self else { return }
-            if self.wcSession.activationState != .activated {
-                ConnectivityLog.notice("Retrying WCSession.activate() (\(reason))")
-                self.wcSession.activate()
+
+            // Persistent activation monitor - keeps trying until activated or max retries
+            while !Task.isCancelled && self.wcSession.activationState != .activated {
+                self.activationRetryCount += 1
+
+                if self.activationRetryCount <= self.maxActivationRetries {
+                    ConnectivityLog.notice("Retrying WCSession.activate() attempt \(self.activationRetryCount)/\(self.maxActivationRetries) (\(reason))")
+                    self.wcSession.activate()
+                } else {
+                    ConnectivityLog.notice("Max activation retries reached (\(self.maxActivationRetries)), waiting before next batch")
+                    // Wait longer before next retry batch
+                    try? await Task.sleep(for: .seconds(30))
+                    self.activationRetryCount = 0  // Reset for next batch
+                    continue
+                }
+
+                // Wait 5 seconds between attempts
+                try? await Task.sleep(for: .seconds(5))
+            }
+
+            // Reset counter on successful activation
+            if self.wcSession.activationState == .activated {
+                self.activationRetryCount = 0
+                ConnectivityLog.notice("WCSession activation succeeded after retries")
             }
         }
     }

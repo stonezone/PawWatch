@@ -17,14 +17,18 @@ public struct MainTabView: View {
     public var body: some View {
         VStack(spacing: 0) {
             // Tab content - manual switching to avoid native TabView artifacts
+            // Using .id() to force view recreation on tab change, preventing observation leaks
             Group {
                 switch selectedTab {
                 case .dashboard:
                     DashboardView(useMetricUnits: useMetricUnits)
+                        .id("dashboard-\(selectedTab)")
                 case .history:
                     HistoryView(useMetricUnits: useMetricUnits)
+                        .id("history-\(selectedTab)")
                 case .settings:
                     SettingsView(useMetricUnits: $useMetricUnits)
+                        .id("settings-\(selectedTab)")
                 }
             }
             .environmentObject(locationManager)
@@ -943,6 +947,8 @@ struct SettingsView: View {
     @Binding private var useMetricUnits: Bool
     @State private var showDeveloperSheet = false
     @State private var showAdvanced = false
+    /// Debounce task to prevent rapid mode change race conditions
+    @State private var modeChangeTask: Task<Void, Never>?
 
     init(useMetricUnits: Binding<Bool>) {
         self._useMetricUnits = useMetricUnits
@@ -985,8 +991,16 @@ struct SettingsView: View {
                     }
                     .pickerStyle(.segmented)
                     .onChange(of: trackingModeRaw) { _, newRaw in
-                        if let mode = TrackingMode(rawValue: newRaw) {
-                            locationManager.setTrackingMode(mode)
+                        // Debounce mode changes to prevent race conditions and crashes
+                        modeChangeTask?.cancel()
+                        modeChangeTask = Task { @MainActor in
+                            // 300ms debounce delay
+                            try? await Task.sleep(for: .milliseconds(300))
+                            guard !Task.isCancelled else { return }
+
+                            if let mode = TrackingMode(rawValue: newRaw) {
+                                locationManager.setTrackingMode(mode)
+                            }
                         }
                     }
                 }
