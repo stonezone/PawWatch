@@ -7,6 +7,7 @@ import ActivityKit
 import WatchConnectivity
 #endif
 import BackgroundTasks
+import CloudKit
 import OSLog
 import UIKit
 import UserNotifications
@@ -18,12 +19,12 @@ struct pawWatchApp: App {
     /// Single shared PetLocationManager instance for the entire app lifetime.
     /// This guarantees that WCSession.delegate is configured as soon as the
     /// app launches, including background activations for queued transfers.
-    @StateObject private var locationManager: PetLocationManager
+    @State private var locationManager: PetLocationManager
 
     init() {
         // Create and register the shared location manager
         let manager = PetLocationManager()
-        _locationManager = StateObject(wrappedValue: manager)
+        _locationManager = State(initialValue: manager)
         PetLocationManager.setShared(manager)
 
 #if canImport(ActivityKit)
@@ -34,7 +35,7 @@ struct pawWatchApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .environmentObject(locationManager)
+                .environment(locationManager)
                 .onOpenURL { url in
                     guard url.scheme == "pawwatch" else { return }
                     switch url.host?.lowercased() {
@@ -71,6 +72,7 @@ final class PawWatchAppDelegate: NSObject, UIApplicationDelegate {
     ) -> Bool {
         backgroundScheduler.register()
         backgroundScheduler.schedule()
+        UIApplication.shared.registerForRemoteNotifications()
 #if !DEBUG
         PushRegistrationController.registerForRemoteNotifications()
 #endif
@@ -94,6 +96,11 @@ final class PawWatchAppDelegate: NSObject, UIApplicationDelegate {
         didReceiveRemoteNotification userInfo: [AnyHashable : Any],
         fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
     ) {
+        if CloudKitRelayPushHandler.handle(userInfo: userInfo, completionHandler: completionHandler) {
+            backgroundScheduler.schedule()
+            return
+        }
+
         // Handle location request push (silent push for watch location update)
         if BackgroundLocationPushHandler.handle(userInfo: userInfo) {
             backgroundScheduler.schedule()
@@ -109,6 +116,53 @@ final class PawWatchAppDelegate: NSObject, UIApplicationDelegate {
         }
 
         completionHandler(.noData)
+    }
+}
+
+enum CloudKitRelayPushHandler {
+    private static let logger = Logger(subsystem: "com.stonezone.pawWatch", category: "CloudKitRelayPush")
+
+    static func handle(
+        userInfo: [AnyHashable: Any],
+        completionHandler: @escaping (UIBackgroundFetchResult) -> Void
+    ) -> Bool {
+        guard let notification = CKNotification(fromRemoteNotificationDictionary: userInfo) else { return false }
+        guard notification.subscriptionID == CloudKitLocationSync.locationSubscriptionID else { return false }
+
+        let completion = BackgroundFetchCompletion(completionHandler)
+        Task.detached(priority: .utility) {
+            let state = await MainActor.run { (mode: PetLocationManager.sharedSync?.trackingMode, reachable: PetLocationManager.sharedSync?.isWatchReachable) }
+            guard state.mode == .emergency, state.reachable == false else {
+                completion.call(.noData)
+                return
+            }
+
+            guard let fix = await CloudKitLocationSync.shared.loadLocation() else {
+                completion.call(.noData)
+                return
+            }
+
+            await MainActor.run {
+                PetLocationManager.sharedSync?.applyCloudKitRelayLocation(fix)
+            }
+
+            logger.info("Applied CloudKit relay update (seq=\(fix.sequence, privacy: .public))")
+            completion.call(.newData)
+        }
+
+        return true
+    }
+}
+
+private final class BackgroundFetchCompletion: @unchecked Sendable {
+    private let handler: (UIBackgroundFetchResult) -> Void
+
+    init(_ handler: @escaping (UIBackgroundFetchResult) -> Void) {
+        self.handler = handler
+    }
+
+    func call(_ result: UIBackgroundFetchResult) {
+        handler(result)
     }
 }
 

@@ -20,6 +20,7 @@ import OSLog
 /// - Uses private database to protect user location privacy
 public actor CloudKitLocationSync {
     public static let shared = CloudKitLocationSync()
+    public static let locationSubscriptionID = "pawWatch.latest-pet-location.subscription"
 
     private let logger = Logger(subsystem: "com.stonezone.pawWatch", category: "CloudKitSync")
     private let container: CKContainer
@@ -105,6 +106,57 @@ public actor CloudKitLocationSync {
         } catch {
             logger.error("CloudKit location load failed: \(error.localizedDescription, privacy: .public)")
             return nil
+        }
+    }
+
+    // MARK: - Push Subscriptions
+
+    /// Ensures a CloudKit subscription exists for location updates.
+    ///
+    /// Used by the iPhone app in Emergency mode to receive silent pushes when the watch writes a new fix.
+    public func ensureLocationSubscription() async -> Bool {
+        guard await checkAccountStatus() else { return false }
+
+        do {
+            _ = try await fetchSubscription(withID: Self.locationSubscriptionID)
+            return true
+        } catch let error as CKError where error.code == .unknownItem {
+            // Not found: create it below.
+        } catch {
+            logger.error("CloudKit subscription fetch failed: \(error.localizedDescription, privacy: .public)")
+        }
+
+        let predicate = NSPredicate(value: true)
+        let options: CKQuerySubscription.Options = [.firesOnRecordCreation, .firesOnRecordUpdate]
+        let subscription = CKQuerySubscription(
+            recordType: locationRecordType,
+            predicate: predicate,
+            subscriptionID: Self.locationSubscriptionID,
+            options: options
+        )
+
+        let info = CKSubscription.NotificationInfo()
+        info.shouldSendContentAvailable = true
+        subscription.notificationInfo = info
+
+        do {
+            _ = try await saveSubscription(subscription)
+            logger.info("CloudKit location subscription ensured")
+            return true
+        } catch {
+            logger.error("CloudKit subscription save failed: \(error.localizedDescription, privacy: .public)")
+            return false
+        }
+    }
+
+    /// Best-effort removal of the location subscription to avoid background wakeups when Emergency mode is off.
+    public func deleteLocationSubscription() async {
+        do {
+            _ = try await deleteSubscription(withID: Self.locationSubscriptionID)
+        } catch let error as CKError where error.code == .unknownItem {
+            return
+        } catch {
+            logger.error("CloudKit subscription delete failed: \(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -216,5 +268,55 @@ public actor CloudKitLocationSync {
     public func invalidateAccountCache() {
         cachedAccountAvailable = nil
         lastAccountCheck = nil
+    }
+}
+
+private extension CloudKitLocationSync {
+    func fetchSubscription(withID id: String) async throws -> CKSubscription {
+        try await withCheckedThrowingContinuation { continuation in
+            database.fetch(withSubscriptionID: id) { subscription, error in
+                if let subscription {
+                    continuation.resume(returning: subscription)
+                    return
+                }
+                if let error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+                continuation.resume(throwing: CKError(.unknownItem))
+            }
+        }
+    }
+
+    func saveSubscription(_ subscription: CKSubscription) async throws -> CKSubscription {
+        try await withCheckedThrowingContinuation { continuation in
+            database.save(subscription) { saved, error in
+                if let saved {
+                    continuation.resume(returning: saved)
+                    return
+                }
+                if let error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+                continuation.resume(throwing: CKError(.internalError))
+            }
+        }
+    }
+
+    func deleteSubscription(withID id: String) async throws -> String {
+        try await withCheckedThrowingContinuation { continuation in
+            database.delete(withSubscriptionID: id) { deletedID, error in
+                if let deletedID {
+                    continuation.resume(returning: deletedID)
+                    return
+                }
+                if let error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+                continuation.resume(throwing: CKError(.internalError))
+            }
+        }
     }
 }

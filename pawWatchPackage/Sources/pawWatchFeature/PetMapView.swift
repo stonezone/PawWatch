@@ -28,14 +28,14 @@ import UIKit
 /// Usage:
 /// ```swift
 /// PetMapView()
-///     .environmentObject(PetLocationManager())
+///     .environment(PetLocationManager())
 /// ```
 public struct PetMapView: View {
 
     // MARK: - Dependencies
 
     /// Location manager providing pet GPS data
-    @EnvironmentObject private var locationManager: PetLocationManager
+    @Environment(PetLocationManager.self) private var locationManager
 
     // MARK: - State
 
@@ -100,7 +100,7 @@ public struct PetMapView: View {
                         longitude: petLocation.coordinate.longitude
                     )
                 ) {
-                    PetMarkerView()
+                    PetMarkerView(sequence: petLocation.sequence)
                 }
             }
 
@@ -179,6 +179,8 @@ public struct PetMapView: View {
 
 /// Custom pet location marker with paw icon and Liquid Glass effect.
 struct PetMarkerView: View {
+    let sequence: Int
+
     var body: some View {
         ZStack {
             // Liquid Glass background
@@ -199,7 +201,7 @@ struct PetMarkerView: View {
                     .foregroundStyle(.white)
             }
         }
-        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: UUID()) // Liquid bounce
+        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: sequence) // Liquid bounce on new fixes
     }
 
     private var pawBadge: UIImage? {

@@ -8,7 +8,7 @@ public struct MainTabView: View {
         case dashboard, history, settings
     }
 
-    @EnvironmentObject private var locationManager: PetLocationManager
+    @Environment(PetLocationManager.self) private var locationManager
     @AppStorage("useMetricUnits") private var useMetricUnits = true
     @State private var selectedTab: TabSelection = .dashboard
 
@@ -31,7 +31,6 @@ public struct MainTabView: View {
                         .id("settings-\(selectedTab)")
                 }
             }
-            .environmentObject(locationManager)
 
             // Custom Liquid Glass tab bar at bottom
             LiquidGlassTabBar(
@@ -178,7 +177,7 @@ extension View {
 // MARK: - Dashboard
 
 struct DashboardView: View {
-    @EnvironmentObject private var locationManager: PetLocationManager
+    @Environment(PetLocationManager.self) private var locationManager
     let useMetricUnits: Bool
     @State private var isRefreshing = false
 
@@ -237,7 +236,8 @@ struct DashboardView: View {
                 if isConnected {
                     LiveStatusBadge(
                         isReachable: locationManager.isWatchReachable,
-                        secondsAgo: locationManager.secondsSinceLastUpdate
+                        secondsAgo: locationManager.secondsSinceLastUpdate,
+                        updateSource: locationManager.latestUpdateSource
                     )
                     .padding(16)
                 }
@@ -309,6 +309,9 @@ private struct DashboardHeader: View {
                         .font(.system(size: 26, weight: .bold, design: .rounded))
                     Text("Live Tracking")
                         .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(.secondary)
+                    Text(AppVersion.displayString)
+                        .font(.system(size: 11, weight: .medium, design: .monospaced))
                         .foregroundStyle(.secondary)
                 }
             }
@@ -643,9 +646,11 @@ private struct QuickStatItem: View {
 private struct LiveStatusBadge: View {
     let isReachable: Bool
     let secondsAgo: TimeInterval?
+    let updateSource: LocationUpdateSource
 
     private var statusColor: Color {
-        isReachable ? .green : .orange
+        if updateSource == .cloudKit { return .blue }
+        return isReachable ? .green : .orange
     }
 
     var body: some View {
@@ -701,19 +706,33 @@ private struct LiveStatusBadge: View {
     }
 
     private var statusText: String {
-        if !isReachable { return "Paired" }
-        guard let seconds = secondsAgo else { return "Live" }
-        if seconds < 10 { return "Live" }
-        if seconds < 60 { return String(format: "%.0fs ago", seconds) }
-        return String(format: "%.0fm ago", seconds / 60)
+        let base: String
+        if updateSource == .cloudKit {
+            base = "iCloud Relay"
+        } else {
+            base = isReachable ? "Direct" : "Paired"
+        }
+
+        guard let seconds = secondsAgo else { return base }
+        if seconds < 10 { return base }
+        if seconds < 60 { return "\(base) • \(Int(seconds))s" }
+        return "\(base) • \(Int(seconds / 60))m"
     }
 
     private var accessibilityStatus: String {
-        if !isReachable { return "Watch paired but not actively streaming" }
-        guard let seconds = secondsAgo else { return "Receiving live updates" }
-        if seconds < 10 { return "Receiving live updates" }
-        if seconds < 60 { return "Last update \(Int(seconds)) seconds ago" }
-        return "Last update \(Int(seconds / 60)) minutes ago"
+        let base: String
+        if updateSource == .cloudKit {
+            base = "Receiving iCloud relay updates"
+        } else if isReachable {
+            base = "Receiving direct WatchConnectivity updates"
+        } else {
+            base = "Watch paired but not actively streaming"
+        }
+
+        guard let seconds = secondsAgo else { return base }
+        if seconds < 10 { return base }
+        if seconds < 60 { return "\(base). Last update \(Int(seconds)) seconds ago" }
+        return "\(base). Last update \(Int(seconds / 60)) minutes ago"
     }
 }
 
@@ -879,7 +898,7 @@ private struct DashboardErrorBanner: View {
 // MARK: - History
 
 struct HistoryView: View {
-    @EnvironmentObject private var locationManager: PetLocationManager
+    @Environment(PetLocationManager.self) private var locationManager
     let useMetricUnits: Bool
 
     var body: some View {
@@ -941,7 +960,7 @@ struct HistoryView: View {
 // MARK: - Settings
 
 struct SettingsView: View {
-    @EnvironmentObject private var locationManager: PetLocationManager
+    @Environment(PetLocationManager.self) private var locationManager
     @AppStorage("notificationsEnabled") private var notificationsEnabled = true
     @AppStorage("trackingMode") private var trackingModeRaw = TrackingMode.auto.rawValue
     @Binding private var useMetricUnits: Bool
@@ -952,6 +971,13 @@ struct SettingsView: View {
 
     init(useMetricUnits: Binding<Bool>) {
         self._useMetricUnits = useMetricUnits
+    }
+
+    private var emergencyCadenceBinding: Binding<EmergencyCadencePreset> {
+        Binding(
+            get: { locationManager.emergencyCadencePreset },
+            set: { locationManager.setEmergencyCadencePreset($0) }
+        )
     }
 
     var body: some View {
@@ -976,6 +1002,7 @@ struct SettingsView: View {
 
             // MARK: - Tracking
             settingsCard(title: "Tracking") {
+                let selectedMode = TrackingMode(rawValue: trackingModeRaw) ?? .auto
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Mode")
                         .font(.caption.weight(.medium))
@@ -1002,6 +1029,27 @@ struct SettingsView: View {
                                 locationManager.setTrackingMode(mode)
                             }
                         }
+                    }
+                }
+
+                if selectedMode == .emergency {
+                    Divider().opacity(0.3)
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Emergency cadence")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(.secondary)
+
+                        Picker("Emergency cadence", selection: emergencyCadenceBinding) {
+                            ForEach(EmergencyCadencePreset.allCases) { preset in
+                                Text(preset.displayName).tag(preset)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+
+                        Text(locationManager.emergencyCadencePreset.footnote)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
                     }
                 }
 
@@ -1088,7 +1136,7 @@ struct SettingsView: View {
         }
         .sheet(isPresented: $showDeveloperSheet) {
             DeveloperSettingsSheet()
-                .environmentObject(locationManager)
+                .environment(locationManager)
         }
     }
 
@@ -1483,7 +1531,7 @@ private extension SettingsView {
     }
 
     private struct DeveloperSettingsSheet: View {
-        @EnvironmentObject private var locationManager: PetLocationManager
+        @Environment(PetLocationManager.self) private var locationManager
         @Environment(\.dismiss) private var dismiss
 
         private var runtimeBinding: Binding<Bool> {

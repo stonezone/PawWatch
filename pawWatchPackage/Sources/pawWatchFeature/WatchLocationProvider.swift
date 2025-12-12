@@ -106,7 +106,7 @@ public enum WatchConnectivityIssue: LocalizedError {
 }
 
 private enum ConnectivityLog {
-    private static let logger = Logger(subsystem: "com.stonezone.pawwatch", category: "WatchConnectivity")
+    private static let logger = Logger(subsystem: "com.stonezone.pawWatch", category: "WatchConnectivity")
 #if DEBUG
     private static let isVerbose = ProcessInfo.processInfo.environment["PAWWATCH_VERBOSE_WC_LOGS"] == "1"
 #else
@@ -131,8 +131,8 @@ private enum ConnectivityLog {
 
 @MainActor
 private final class ExtendedRuntimeCoordinator: NSObject, WKExtendedRuntimeSessionDelegate {
-    private let logger = Logger(subsystem: "com.stonezone.pawwatch", category: "ExtendedRuntime")
-    private let signposter = OSSignposter(subsystem: "com.stonezone.pawwatch", category: "ExtendedRuntime")
+    private let logger = Logger(subsystem: "com.stonezone.pawWatch", category: "ExtendedRuntime")
+    private let signposter = OSSignposter(subsystem: "com.stonezone.pawWatch", category: "ExtendedRuntime")
     private var session: WKExtendedRuntimeSession?
     private var restartTask: Task<Void, Never>?
     private var intervalState: OSSignpostIntervalState?
@@ -309,8 +309,8 @@ public final class WatchLocationProvider: NSObject {
     private var wcSession: WCSession { WCSession.default }
     private let encoder = JSONEncoder()
     private let fileManager = FileManager.default
-    private let logger = Logger(subsystem: "com.stonezone.pawwatch", category: "WatchLocationProvider")
-    private let signposter = OSSignposter(subsystem: "com.stonezone.pawwatch", category: "WatchLocationProvider")
+    private let logger = Logger(subsystem: "com.stonezone.pawWatch", category: "WatchLocationProvider")
+    private let signposter = OSSignposter(subsystem: "com.stonezone.pawWatch", category: "WatchLocationProvider")
     private var trackingIntervalState: OSSignpostIntervalState?
     private let runtimeCoordinator = ExtendedRuntimeCoordinator()
     private static let runtimePreferenceKey = RuntimePreferenceKey.runtimeOptimizationsEnabled
@@ -334,16 +334,16 @@ public final class WatchLocationProvider: NSObject {
     private let contextPushInterval: TimeInterval = 0.5
 
     /// When stationary, send updates at reduced but still frequent rate for pet tracking.
-    /// 45s ensures owner gets location confirmations even when pet isn't moving.
-    private var stationaryUpdateInterval: TimeInterval = 45.0
+    /// 180s ensures owner gets periodic confirmations without burning battery.
+    private var stationaryUpdateInterval: TimeInterval = 180.0
 
     /// Maximum time between any location updates, regardless of movement state.
-    /// HARD CAP at 60s - for pet tracking, updates must be at least every minute.
-    private var maxUpdateInterval: TimeInterval = 60.0
+    /// Used by the throttling stack to guarantee a periodic fix even if the pet is stationary.
+    private var maxUpdateInterval: TimeInterval = 180.0
 
     /// Interval between battery-only heartbeat contexts when idle.
-    /// 15s ensures connectivity is confirmed frequently during active tracking.
-    private var idleHeartbeatInterval: TimeInterval = 15.0
+    /// 30s provides periodic connectivity confirmation without excessive churn.
+    private var idleHeartbeatInterval: TimeInterval = 30.0
 
     private static let idleHeartbeatDefaultsKey = "watchIdleHeartbeatInterval"
     private static let idleFullFixDefaultsKey = "watchIdleFullFixInterval"
@@ -361,6 +361,12 @@ public final class WatchLocationProvider: NSObject {
     private let batchFlushInterval: TimeInterval = 60.0
     /// Last time we flushed the batch buffer.
     private var lastBatchFlushDate: Date = .distantPast
+
+    // MARK: - Emergency Cloud Relay
+
+    /// Throttle CloudKit writes during emergency relay to avoid rate limiting and excess battery usage.
+    private var lastEmergencyCloudRelayDate: Date = .distantPast
+    private let emergencyCloudRelayInterval: TimeInterval = 60.0
 
     /// Accuracy bypass threshold: When horizontal accuracy changes by more than 5 meters,
     /// immediately push application context regardless of time throttle. This ensures
@@ -469,13 +475,12 @@ public final class WatchLocationProvider: NSObject {
         if storedHeartbeat > 0, storedFullFix > 0 {
             idleHeartbeatInterval = storedHeartbeat
             stationaryUpdateInterval = storedFullFix
-            // Cap maxUpdateInterval at 60s for pet safety even if stored value is higher
-            maxUpdateInterval = min(storedFullFix, 60.0)
+            maxUpdateInterval = storedFullFix
         } else {
-            // Pet tracking defaults: frequent updates are critical
-            idleHeartbeatInterval = 15.0
-            stationaryUpdateInterval = 45.0
-            maxUpdateInterval = 60.0
+            // Default cadence (non-emergency): battery-friendly, "every few minutes" stationary updates.
+            idleHeartbeatInterval = 30.0
+            stationaryUpdateInterval = 180.0
+            maxUpdateInterval = 180.0
         }
     }
     
@@ -666,6 +671,69 @@ public final class WatchLocationProvider: NSObject {
         stopMinUpdateWatchdog()
         logger.log("Workout tracking stopped")
     }
+
+    /// Stops tracking due to a thermal critical event.
+    ///
+    /// Mirrors `stop()` cleanup but preserves `thermalDegradationLevel` so the
+    /// thermal recovery path can restart tracking safely.
+    @MainActor
+    private func stopTrackingForThermalCritical() {
+        isIntentionallyStopped = true
+        isWorkoutRunning = false
+        persistTrackingState()
+
+        workoutRestartTask?.cancel()
+        workoutRestartTask = nil
+        reachabilityDebounceTask?.cancel()
+        reachabilityDebounceTask = nil
+        activationRetryTask?.cancel()
+        activationRetryTask = nil
+
+        locationManager.stopUpdatingLocation()
+
+        let builder = workoutBuilder
+        let session = workoutSession
+
+        workoutSession = nil
+        workoutBuilder = nil
+        lastContextSequence = nil
+        lastContextPushDate = nil
+        lastContextAccuracy = nil
+        activeFileTransfers.removeAll()
+
+        if let builder {
+            builder.endCollection(withEnd: Date()) { [weak delegate = self.delegate] _, error in
+                if let error {
+                    Task { @MainActor in
+                        delegate?.didFail(error)
+                    }
+                }
+                builder.finishWorkout { _, finishError in
+                    if let finishError {
+                        Task { @MainActor in
+                            delegate?.didFail(finishError)
+                        }
+                    }
+                }
+            }
+        }
+
+        if let session, session.state == .running || session.state == .prepared {
+            session.end()
+        }
+
+        if let state = trackingIntervalState {
+            signposter.endInterval("TrackingSession", state)
+        }
+        trackingIntervalState = nil
+
+        if supportsExtendedRuntime {
+            runtimeCoordinator.updateTrackingState(isRunning: false)
+        }
+        stopBatteryHeartbeat()
+        stopMinUpdateWatchdog()
+        logger.log("Workout tracking stopped (thermal critical)")
+    }
     
     // MARK: - Private Methods - Authorization
     
@@ -706,6 +774,12 @@ public final class WatchLocationProvider: NSObject {
         let configuration = HKWorkoutConfiguration()
         configuration.activityType = activity
         configuration.locationType = .outdoor
+
+        if let existingSession = workoutSession,
+           existingSession.state == .running || existingSession.state == .prepared {
+            logger.log("Workout session already active; skipping start")
+            return
+        }
         
         do {
             let session = try HKWorkoutSession(healthStore: workoutStore, configuration: configuration)
@@ -741,31 +815,23 @@ public final class WatchLocationProvider: NSObject {
     /// Configures and activates WatchConnectivity session for phone relay.
     @MainActor
     private func configureWatchConnectivity() {
-        print("🔍 configureWatchConnectivity() called")
+        ConnectivityLog.verbose("Configuring WCSession")
 
-        // Prevent duplicate initialization when already activated
+        // Prevent duplicate initialization when already activated.
         if wcSession.delegate != nil, wcSession.activationState == .activated {
-            print("⚠️ WCSession already configured and active, skipping duplicate initialization")
+            ConnectivityLog.verbose("WCSession already configured and active; skipping")
             return
         }
 
         guard WCSession.isSupported() else {
-            print("❌ WCSession.isSupported() returned FALSE")
             ConnectivityLog.error("WatchConnectivity not supported on this device")
             return
         }
-        
-        print("✅ WCSession.isSupported() returned TRUE")
-        print("📱 Setting delegate and activating session...")
-        
-        ConnectivityLog.verbose("Activating WCSession")
+
         wcSession.delegate = self
         wcSession.activate()
-        
-        print("✅ WCSession.activate() called successfully")
+        ConnectivityLog.notice("WCSession.activate() called")
         scheduleActivationRetry(reason: "initial-activation")
-        
-        // Send activation diagnostic to iPhone after session activates (see delegate)
     }
     
     @MainActor
@@ -838,6 +904,8 @@ public final class WatchLocationProvider: NSObject {
 
         ConnectivityLog.verbose("WCSession state=\(self.wcSession.activationState.rawValue) reachable=\(self.wcSession.isReachable)")
 
+        maybeUploadEmergencyFixToCloud(fix)
+
         guard wcSession.activationState == .activated else {
             ConnectivityLog.verbose("WCSession not activated; skipping transmit")
             notifyConnectivityError(.sessionNotActivated)
@@ -873,6 +941,22 @@ public final class WatchLocationProvider: NSObject {
         } else {
             ConnectivityLog.verbose("Phone unreachable or debounced; queuing batched transfer")
             enqueueBackground()
+        }
+    }
+
+    private func maybeUploadEmergencyFixToCloud(_ fix: LocationFix) {
+        guard manualTrackingMode == .emergency else { return }
+
+        let canReachPhone = wcSession.activationState == .activated && wcSession.isReachable
+        guard !canReachPhone else { return }
+
+        let now = Date()
+        guard now.timeIntervalSince(lastEmergencyCloudRelayDate) >= emergencyCloudRelayInterval else { return }
+        lastEmergencyCloudRelayDate = now
+
+        logger.notice("Emergency relay: uploading fix seq=\(fix.sequence)")
+        Task.detached(priority: .utility) {
+            await CloudKitLocationSync.shared.saveLocation(fix)
         }
     }
 
@@ -1053,8 +1137,8 @@ public final class WatchLocationProvider: NSObject {
 
     // MARK: - Minimum Update Watchdog
 
-    /// Starts the minimum update watchdog timer to guarantee at least one update per minute.
-    /// This catches edge cases where normal update flow might stall.
+    /// Starts a watchdog to guarantee periodic updates even if the normal flow stalls.
+    /// Uses `maxUpdateInterval` in normal mode and a tighter threshold in emergency mode.
     private func startMinUpdateWatchdog() {
         minUpdateWatchdogTask?.cancel()
         minUpdateWatchdogTask = Task { [weak self] in
@@ -1074,13 +1158,13 @@ public final class WatchLocationProvider: NSObject {
         minUpdateWatchdogTask = nil
     }
 
-    /// If no update has been sent in 60+ seconds, force a location request.
+    /// If no update has been sent within the configured maximum interval, force a location request.
     @MainActor
     private func checkAndForceUpdateIfStale() {
         guard isWorkoutRunning else { return }
 
         let timeSinceLast = Date().timeIntervalSince(lastTransmittedFixDate)
-        let threshold: TimeInterval = manualTrackingMode == .emergency ? 10.0 : 60.0
+        let threshold: TimeInterval = max(10.0, maxUpdateInterval)
 
         if timeSinceLast >= threshold {
             logger.notice("Watchdog triggered: \(Int(timeSinceLast))s since last update, forcing refresh")
@@ -1122,9 +1206,8 @@ public final class WatchLocationProvider: NSObject {
         let fullFix = max(10, min(600, rawFullFix))
         idleHeartbeatInterval = heartbeat
         stationaryUpdateInterval = fullFix
-        // CRITICAL: Cap maxUpdateInterval at 60s for pet safety regardless of fullFix setting
-        // For pet tracking, we MUST get at least one update per minute to prevent losing track
-        maxUpdateInterval = min(fullFix, 60.0)
+        // Keep a periodic fix cadence while stationary (in normal mode this can be minutes).
+        maxUpdateInterval = fullFix
         lastTransmittedFixDate = .distantPast
 
         if persist {
@@ -1167,10 +1250,10 @@ public final class WatchLocationProvider: NSObject {
         let now = Date()
         let timeSinceLast = now.timeIntervalSince(lastTransmittedFixDate)
 
-        // Priority 0: EMERGENCY MODE - always update every 5s regardless of state
-        // Pet safety is paramount in emergency mode
+        // Priority 0: EMERGENCY MODE - fixed cadence, regardless of movement/battery heuristics
         if manualTrackingMode == .emergency {
-            if timeSinceLast >= 5.0 {
+            let emergencyInterval = max(10.0, maxUpdateInterval)
+            if timeSinceLast >= emergencyInterval {
                 lastTransmittedFixDate = now
                 lastThrottleAccuracy = location.horizontalAccuracy
                 return false
@@ -1178,7 +1261,7 @@ public final class WatchLocationProvider: NSObject {
             return true
         }
 
-        // Priority 1: Always send if we've exceeded max heartbeat interval (60s cap)
+        // Priority 1: Always send if we've exceeded the configured max interval
         if timeSinceLast >= maxUpdateInterval {
             lastTransmittedFixDate = now
             lastThrottleAccuracy = location.horizontalAccuracy
@@ -1213,7 +1296,7 @@ public final class WatchLocationProvider: NSObject {
             // Low battery: 3 seconds when moving, 5 seconds when stationary
             throttleInterval = isStationary ? 5.0 : 3.0
         } else if isStationary {
-            // Normal battery, stationary: use stationary interval (45s default)
+            // Normal battery, stationary: use stationary interval (180s default)
             throttleInterval = stationaryUpdateInterval
         } else {
             // Normal battery, moving: high frequency (0.5s)
@@ -1281,13 +1364,7 @@ extension WatchLocationProvider: CLLocationManagerDelegate {
                 if self.thermalDegradationLevel < 2 {
                     self.thermalDegradationLevel = 2
                     self.logger.error("Thermal CRITICAL - stopping tracking to protect hardware")
-                    self.isIntentionallyStopped = true  // Prevent auto-restart during thermal event
-                    self.locationManager.stopUpdatingLocation()
-                    self.isWorkoutRunning = false
-                    self.stopBatteryHeartbeat()
-                    if self.supportsExtendedRuntime {
-                        self.runtimeCoordinator.updateTrackingState(isRunning: false)
-                    }
+                    self.stopTrackingForThermalCritical()
                 }
                 return
             } else if thermalState == .serious {
@@ -1408,14 +1485,9 @@ extension WatchLocationProvider: WCSessionDelegate {
         Task { @MainActor [weak self] in
             guard let self else { return }
             
-            ConnectivityLog.verbose("WCSession activation completed with state=\(stateValue) error=\(errorDesc ?? "none")")
-            
-            // 🔍 DIAGNOSTIC: Send Watch activation status to iPhone
-            print("🔍 Watch WCSession activated: state=\(stateValue)")
-            print("   isCompanionAppInstalled: \(isCompanionInstalled)")
-            print("   error: \(errorDesc ?? "none")")
-            
-            // Send diagnostic to iPhone via application context
+            ConnectivityLog.verbose("WCSession activation completed with state=\(stateValue) error=\(errorDesc ?? "none") companionInstalled=\(isCompanionInstalled)")
+
+            #if DEBUG
             let diagnostic: [String: Any] = [
                 ConnectivityConstants.diagnostic: "watch_activated",
                 ConnectivityConstants.activationState: stateValue,
@@ -1423,13 +1495,19 @@ extension WatchLocationProvider: WCSessionDelegate {
                 ConnectivityConstants.timestamp: Date().timeIntervalSince1970,
                 ConnectivityConstants.error: errorDesc ?? "none"
             ]
-            
-            do {
-                try session.updateApplicationContext(diagnostic)
-                print("✅ Sent activation diagnostic to iPhone")
-            } catch {
-                print("❌ Failed to send activation diagnostic: \(error)")
+
+            if session.isReachable {
+                session.sendMessage(diagnostic, replyHandler: nil) { error in
+                    ConnectivityLog.verbose("Failed to send activation diagnostic: \(error.localizedDescription)")
+                }
+            } else {
+                do {
+                    try session.updateApplicationContext(diagnostic)
+                } catch {
+                    ConnectivityLog.verbose("Failed to queue activation diagnostic: \(error.localizedDescription)")
+                }
             }
+            #endif
             
             if let error {
                 self.delegate?.didFail(error)
@@ -1482,6 +1560,38 @@ extension WatchLocationProvider: WCSessionDelegate {
             }
         }
     }
+
+    @MainActor
+    private func applyTrackingModeChange(to newMode: TrackingMode, heartbeat: Double?, fullFix: Double?) {
+        let previousMode = manualTrackingMode
+        manualTrackingMode = newMode
+        forceImmediateSend = true  // Always force immediate on mode change
+        logger.log("Tracking mode changed: \(previousMode.rawValue) → \(newMode.rawValue)")
+
+        if newMode == .emergency {
+            lastEmergencyCloudRelayDate = .distantPast
+
+            let resolvedHeartbeat = max(5.0, min(300.0, heartbeat ?? 30.0))
+            let resolvedFullFix = max(10.0, min(600.0, fullFix ?? 60.0))
+
+            applyIdleCadence(heartbeat: resolvedHeartbeat, fullFix: resolvedFullFix, persist: false)
+            applyPreset(.aggressive, force: true)  // Force high-accuracy GPS regardless of battery
+            logger.notice("Emergency mode enabled (heartbeat=\(resolvedHeartbeat)s, fullFix=\(resolvedFullFix)s)")
+        } else if previousMode == .emergency {
+            // Exiting emergency: restore user's persisted cadence and let adaptive tuning resume.
+            loadIdleCadenceDefaults()
+            logger.notice("Emergency mode disabled; restored persisted idle cadence defaults")
+        }
+
+        // Immediately transmit current location or request fresh one
+        if let fix = latestFix, Date().timeIntervalSince(fix.timestamp) < 30 {
+            transmitFix(fix, notifyDelegate: false)
+        } else {
+            locationManager.requestLocation()
+        }
+
+        sendBatteryHeartbeat()
+    }
     
     nonisolated private func handleIncomingMessage(_ message: [String: Any]) -> [String: Any] {
         guard let action = message[ConnectivityConstants.action] as? String else {
@@ -1505,33 +1615,10 @@ extension WatchLocationProvider: WCSessionDelegate {
         case ConnectivityConstants.setMode:
             if let modeRaw = message[ConnectivityConstants.mode] as? String,
                let newMode = TrackingMode(rawValue: modeRaw) {
+                let heartbeat = message[ConnectivityConstants.heartbeatInterval] as? Double
+                let fullFix = message[ConnectivityConstants.fullFixInterval] as? Double
                 Task { @MainActor in
-                    let previousMode = self.manualTrackingMode
-                    self.manualTrackingMode = newMode
-                    self.forceImmediateSend = true  // Always force immediate on mode change
-                    self.logger.log("Tracking mode changed: \(previousMode.rawValue) → \(newMode.rawValue)")
-
-                    // Emergency mode: apply aggressive cadence AND GPS accuracy
-                    // CRITICAL FIX: Emergency must override BOTH transmission frequency AND GPS hardware accuracy
-                    // Without this, low battery could leave GPS in .saver mode while emergency cadence sends bad data
-                    if newMode == .emergency {
-                        self.applyIdleCadence(heartbeat: 5.0, fullFix: 10.0, persist: false)
-                        self.applyPreset(.aggressive, force: true)  // Force high-accuracy GPS regardless of battery
-                        self.logger.notice("Emergency mode: forcing aggressive GPS preset for maximum accuracy")
-                    } else if previousMode == .emergency {
-                        // Exiting emergency: restore normal cadence and let battery-adaptive tuning resume
-                        self.applyIdleCadence(heartbeat: 15.0, fullFix: 45.0, persist: false)
-                        // Don't reset preset here - let updateAdaptiveTuning handle it based on current battery
-                    }
-
-                    // Immediately transmit current location or request fresh one
-                    if let fix = self.latestFix, Date().timeIntervalSince(fix.timestamp) < 30 {
-                        self.transmitFix(fix, notifyDelegate: false)
-                    } else {
-                        self.locationManager.requestLocation()
-                    }
-
-                    self.sendBatteryHeartbeat()
+                    self.applyTrackingModeChange(to: newMode, heartbeat: heartbeat, fullFix: fullFix)
                 }
                 return ["status": "mode-updated"]
             }
@@ -1598,6 +1685,14 @@ extension WatchLocationProvider: WCSessionDelegate {
         guard let action = applicationContext[ConnectivityConstants.action] as? String else { return }
         if action == ConnectivityConstants.stopTracking {
             scheduleRemoteStop()
+        } else if action == ConnectivityConstants.setMode,
+                  let modeRaw = applicationContext[ConnectivityConstants.mode] as? String,
+                  let newMode = TrackingMode(rawValue: modeRaw) {
+            let heartbeat = applicationContext[ConnectivityConstants.heartbeatInterval] as? Double
+            let fullFix = applicationContext[ConnectivityConstants.fullFixInterval] as? Double
+            Task { @MainActor in
+                self.applyTrackingModeChange(to: newMode, heartbeat: heartbeat, fullFix: fullFix)
+            }
         } else if action == ConnectivityConstants.setRuntimeOptimizations, let enabled = applicationContext[ConnectivityConstants.enabled] as? Bool {
             Task { @MainActor in
                 self.setBatteryOptimizationsEnabled(enabled)

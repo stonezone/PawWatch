@@ -45,6 +45,46 @@ import Testing
     #expect(decoded == fix)
 }
 
+#if !os(watchOS)
+@MainActor
+@Test func performanceMonitorBatteryDrainSmoothingClampsAndSmooths() async {
+    let monitor = PerformanceMonitor.shared
+
+    let t0 = Date(timeIntervalSince1970: 1_700_000_000)
+    let fix1 = makeFix(sequence: 1, timestamp: t0, battery: 1.0)
+    monitor.recordRemoteFix(fix1, watchReachable: true)
+
+    let fix2 = makeFix(sequence: 2, timestamp: t0.addingTimeInterval(120), battery: 0.98)
+    monitor.recordRemoteFix(fix2, watchReachable: true)
+
+    #expect(abs(monitor.batteryDrainPerHourInstant - 30) < 0.2)
+    #expect(abs(monitor.batteryDrainPerHourSmoothed - 6) < 0.8)
+
+    let fix3 = makeFix(sequence: 3, timestamp: t0.addingTimeInterval(240), battery: 0.97)
+    monitor.recordRemoteFix(fix3, watchReachable: true)
+
+    #expect(abs(monitor.batteryDrainPerHourInstant - 30) < 0.2)
+    #expect(abs(monitor.batteryDrainPerHourSmoothed - 10.8) < 1.0)
+}
+
+private func makeFix(sequence: Int, timestamp: Date, battery: Double) -> LocationFix {
+    LocationFix(
+        timestamp: timestamp,
+        source: .watchOS,
+        coordinate: .init(latitude: 37.3318, longitude: -122.0312),
+        altitudeMeters: 10,
+        horizontalAccuracyMeters: 5,
+        verticalAccuracyMeters: 7,
+        speedMetersPerSecond: 0.6,
+        courseDegrees: 42,
+        headingDegrees: nil,
+        batteryFraction: battery,
+        sequence: sequence,
+        trackingPreset: "balanced"
+    )
+}
+#endif
+
 // MARK: - Helpers
 
 private enum ExportValidationError: Error, CustomStringConvertible {
@@ -108,12 +148,18 @@ private func runProcess(executable: String, arguments: [String]) throws -> Data 
     process.standardError = stderr
 
     try process.run()
+    // Read output while the process runs to avoid pipe-buffer deadlocks on large files.
+    let stdoutData = stdout.fileHandleForReading.readDataToEndOfFile()
+    let stderrData = stderr.fileHandleForReading.readDataToEndOfFile()
     process.waitUntilExit()
 
     guard process.terminationStatus == 0 else {
-        let message = String(decoding: stderr.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
-        throw ExportValidationError.processFailed(command: ([executable] + arguments).joined(separator: " "), message: message.trimmingCharacters(in: .whitespacesAndNewlines))
+        let message = String(decoding: stderrData, as: UTF8.self)
+        throw ExportValidationError.processFailed(
+            command: ([executable] + arguments).joined(separator: " "),
+            message: message.trimmingCharacters(in: .whitespacesAndNewlines)
+        )
     }
 
-    return stdout.fileHandleForReading.readDataToEndOfFile()
+    return stdoutData
 }

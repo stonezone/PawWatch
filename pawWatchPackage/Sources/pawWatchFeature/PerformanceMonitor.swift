@@ -61,10 +61,12 @@ public final class PerformanceMonitor: NSObject {
         latestSnapshot = snapshot
         PerformanceSnapshotStore.save(snapshot)
 
-        // Sync to CloudKit for offline recovery
+        #if os(iOS) || os(watchOS)
+        // Sync to CloudKit for offline recovery (not needed on macOS test host).
         Task.detached {
             await CloudKitLocationSync.shared.saveSnapshot(snapshot)
         }
+        #endif
     }
 
     #if os(watchOS)

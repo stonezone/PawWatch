@@ -7,7 +7,9 @@ let package = Package(
     name: "pawWatchFeature",
     platforms: [
         .iOS(.v18),
-        .watchOS(.v11)
+        .watchOS(.v11),
+        // Included to allow `swift test` on macOS host.
+        .macOS(.v14)
     ],
     products: [
         // Products define the executables and libraries a package produces, making them visible to other packages.

@@ -30,7 +30,7 @@ public struct PetStatusCard: View {
     // MARK: - Dependencies
 
     /// Location manager providing pet GPS data
-    @EnvironmentObject private var locationManager: PetLocationManager
+    @Environment(PetLocationManager.self) private var locationManager
     let useMetricUnits: Bool
     private let theme = LiquidGlassTheme.current
 
@@ -57,6 +57,12 @@ public struct PetStatusCard: View {
                     if let seconds = locationManager.secondsSinceLastUpdate {
                         Text(timeAgoText(seconds))
                             .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    if locationManager.latestLocation != nil {
+                        Text(locationManager.latestUpdateSource.label)
+                            .font(.caption2.weight(.semibold))
                             .foregroundStyle(.secondary)
                     }
                 }

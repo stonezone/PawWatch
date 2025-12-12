@@ -9,7 +9,7 @@ fileprivate struct ActivityPushTokenStream: @unchecked Sendable {
 }
 
 enum PerformanceLiveActivityManager {
-    private static let logger = Logger(subsystem: "com.stonezone.pawwatch", category: "LiveActivity")
+    private static let logger = Logger(subsystem: "com.stonezone.pawWatch", category: "LiveActivity")
     private static let sustainedDrainThreshold: Double = 5.0
     private static let instantDrainThreshold: Double = 8.0
 
@@ -114,7 +114,7 @@ actor LiveActivityPushCoordinator {
     private let activityTokenKey = "LiveActivity.PushTokens"
     private let apnsTokenKey = "LiveActivity.APNSToken"
     private let lastUploadKey = "LiveActivity.PushTokens.LastUpload"
-    private let logger = Logger(subsystem: "com.stonezone.pawwatch", category: "LiveActivityPush")
+    private let logger = Logger(subsystem: "com.stonezone.pawWatch", category: "LiveActivityPush")
     private lazy var isoFormatter: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -268,7 +268,7 @@ struct LiveActivityRemotePayload: Codable {
 }
 
 enum LiveActivityPushHandler {
-    private static let logger = Logger(subsystem: "com.stonezone.pawwatch", category: "LiveActivityPush")
+    private static let logger = Logger(subsystem: "com.stonezone.pawWatch", category: "LiveActivityPush")
 
     static func handle(userInfo: [AnyHashable: Any]) -> Bool {
         guard let payloadDict = userInfo["pawwatch"] as? [String: Any],

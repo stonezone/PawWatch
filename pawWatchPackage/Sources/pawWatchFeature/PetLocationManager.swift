@@ -16,7 +16,6 @@ import Foundation
 import CoreLocation
 import Observation
 import OSLog
-import Combine
 #if canImport(HealthKit)
 import HealthKit
 #endif
@@ -43,6 +42,20 @@ public enum TrackingMode: String, CaseIterable, Sendable {
         case .emergency: return "Emergency"
         case .balanced: return "Balanced"
         case .saver: return "Saver"
+        }
+    }
+}
+
+public enum LocationUpdateSource: String, Sendable {
+    case watchConnectivity
+    case cloudKit
+
+    public var label: String {
+        switch self {
+        case .watchConnectivity:
+            return "Direct"
+        case .cloudKit:
+            return "iCloud Relay"
         }
     }
 }
@@ -90,6 +103,43 @@ public enum IdleCadencePreset: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
+public enum EmergencyCadencePreset: String, CaseIterable, Identifiable, Sendable {
+    case standard
+    case fast
+
+    public var id: String { rawValue }
+
+    public var displayName: String {
+        switch self {
+        case .standard: return "Standard"
+        case .fast: return "Fast"
+        }
+    }
+
+    public var heartbeatInterval: TimeInterval {
+        switch self {
+        case .standard: return 30
+        case .fast: return 10
+        }
+    }
+
+    public var fullFixInterval: TimeInterval {
+        switch self {
+        case .standard: return 60
+        case .fast: return 10
+        }
+    }
+
+    public var footnote: String {
+        switch self {
+        case .standard:
+            return "Sends fixes roughly every 60s when in Emergency (battery-friendly)."
+        case .fast:
+            return "Sends fixes roughly every 10s when in Emergency (battery-heavy)."
+        }
+    }
+}
+
 /// Observable manager for pet location data received from Apple Watch.
 ///
 /// Responsibilities:
@@ -110,7 +160,7 @@ public enum IdleCadencePreset: String, CaseIterable, Identifiable, Sendable {
 /// ```
 @MainActor
 @Observable
-public final class PetLocationManager: NSObject, ObservableObject {
+public final class PetLocationManager: NSObject {
 
     // MARK: - Shared Instance for Background Access
 
@@ -159,6 +209,9 @@ public final class PetLocationManager: NSObject, ObservableObject {
     /// Timestamp of last received GPS fix
     public private(set) var lastUpdateTime: Date?
 
+    /// Where the latest location update came from (Direct vs iCloud relay).
+    public private(set) var latestUpdateSource: LocationUpdateSource = .watchConnectivity
+
     /// Current owner location from iPhone GPS (nil if not yet obtained)
     public private(set) var ownerLocation: CLLocation?
 
@@ -186,6 +239,7 @@ public final class PetLocationManager: NSObject, ObservableObject {
     public private(set) var idleCadencePreset: IdleCadencePreset
     public private(set) var watchIdleHeartbeatInterval: TimeInterval?
     public private(set) var watchIdleFullFixInterval: TimeInterval?
+    public private(set) var emergencyCadencePreset: EmergencyCadencePreset
 
     // MARK: - Constants
 
@@ -196,14 +250,45 @@ public final class PetLocationManager: NSObject, ObservableObject {
     private let trailHistoryLimitKey = "TrailHistoryLimit"
     private let runtimePreferenceKey = RuntimePreferenceKey.runtimeOptimizationsEnabled
     private let idleCadenceKey = "IdleCadencePreset"
+    private let emergencyCadenceKey = "EmergencyCadencePreset"
     private let sharedDefaults: UserDefaults
     public private(set) var trailHistoryLimit: Int
     public private(set) var runtimeOptimizationsEnabled: Bool
     public private(set) var watchSupportsExtendedRuntime: Bool = false
     private let recentSequenceCapacity = 512
-    private let maxHorizontalAccuracyMeters: Double = 75
-    private let maxFixStaleness: TimeInterval = 120
-    private let maxJumpDistanceMeters: Double = 5000
+
+    private struct FixAcceptancePolicy: Sendable {
+        let maxHorizontalAccuracyMeters: Double
+        let maxFixStaleness: TimeInterval
+        let maxJumpDistanceMeters: Double
+
+        static let balanced = FixAcceptancePolicy(
+            maxHorizontalAccuracyMeters: 75,
+            maxFixStaleness: 120,
+            maxJumpDistanceMeters: 5_000
+        )
+        static let saver = FixAcceptancePolicy(
+            maxHorizontalAccuracyMeters: 60,
+            maxFixStaleness: 180,
+            maxJumpDistanceMeters: 3_000
+        )
+        static let emergency = FixAcceptancePolicy(
+            maxHorizontalAccuracyMeters: 150,
+            maxFixStaleness: 300,
+            maxJumpDistanceMeters: 10_000
+        )
+    }
+
+    private var fixAcceptancePolicy: FixAcceptancePolicy {
+        switch trackingMode {
+        case .emergency:
+            return .emergency
+        case .saver:
+            return .saver
+        case .auto, .balanced:
+            return .balanced
+        }
+    }
     private var recentSequenceSet: Set<Int> = []
     private var recentSequenceOrder: [Int] = []
 
@@ -217,9 +302,9 @@ public final class PetLocationManager: NSObject, ObservableObject {
     private let session: WCSession
     #endif
     private let locationManager: CLLocationManager
-    private let logger = Logger(subsystem: "com.stonezone.pawwatch", category: "PetLocationManager")
-    private let signposter = OSSignposter(subsystem: "com.stonezone.pawwatch", category: "PetLocationManager")
-    private let sessionSignposter = OSSignposter(subsystem: "com.stonezone.pawwatch", category: "SessionExport")
+    private let logger = Logger(subsystem: "com.stonezone.pawWatch", category: "PetLocationManager")
+    private let signposter = OSSignposter(subsystem: "com.stonezone.pawWatch", category: "PetLocationManager")
+    private let sessionSignposter = OSSignposter(subsystem: "com.stonezone.pawWatch", category: "SessionExport")
     #if canImport(HealthKit)
     private let healthStore = HKHealthStore()
     private let heartRateType = HKObjectType.quantityType(forIdentifier: .heartRate)
@@ -256,6 +341,15 @@ public final class PetLocationManager: NSObject, ObservableObject {
         }
         let needsDefaultIdlePreset = storedPresetRaw == nil
 
+        let storedEmergencyCadenceRaw = sharedDefaults.string(forKey: emergencyCadenceKey)
+        if let storedEmergencyCadenceRaw,
+           let storedEmergencyCadence = EmergencyCadencePreset(rawValue: storedEmergencyCadenceRaw) {
+            self.emergencyCadencePreset = storedEmergencyCadence
+        } else {
+            self.emergencyCadencePreset = .standard
+        }
+        let needsDefaultEmergencyCadence = storedEmergencyCadenceRaw == nil
+
         super.init()
 
         // Set initial authorization status using instance property (iOS 14+)
@@ -289,6 +383,9 @@ public final class PetLocationManager: NSObject, ObservableObject {
         }
         if needsDefaultIdlePreset {
             sharedDefaults.set(idleCadencePreset.rawValue, forKey: idleCadenceKey)
+        }
+        if needsDefaultEmergencyCadence {
+            sharedDefaults.set(emergencyCadencePreset.rawValue, forKey: emergencyCadenceKey)
         }
 
         refreshHealthAuthorizationState()
@@ -336,6 +433,7 @@ public final class PetLocationManager: NSObject, ObservableObject {
                         return
                     }
                     self.latestLocation = recoveredLocation
+                    self.latestUpdateSource = .cloudKit
                     self.watchBatteryFraction = recoveredLocation.batteryFraction
                     self.lastUpdateTime = recoveredLocation.timestamp
                     self.logger.info("Recovered location from CloudKit (age: \(Int(age))s)")
@@ -404,6 +502,16 @@ public final class PetLocationManager: NSObject, ObservableObject {
         idleCadencePreset = preset
         sharedDefaults.set(preset.rawValue, forKey: idleCadenceKey)
         sendIdleCadenceCommand(preset)
+    }
+
+    /// Selects the cadence used during Emergency mode (fast vs battery-friendly).
+    public func setEmergencyCadencePreset(_ preset: EmergencyCadencePreset) {
+        guard preset != emergencyCadencePreset else { return }
+        emergencyCadencePreset = preset
+        sharedDefaults.set(preset.rawValue, forKey: emergencyCadenceKey)
+        if trackingMode == .emergency {
+            sendModeCommand(.emergency)
+        }
     }
 
     /// Persists and forwards the extended runtime preference to the watch.
@@ -516,39 +624,81 @@ public final class PetLocationManager: NSObject, ObservableObject {
         locationManager.requestWhenInUseAuthorization()
     }
 
+    private func startEmergencyCloudRelay() {
+        Task.detached(priority: .utility) { [weak self] in
+            _ = await CloudKitLocationSync.shared.ensureLocationSubscription()
+            guard let self else { return }
+
+            let state = await MainActor.run { (mode: self.trackingMode, reachable: self.isWatchReachable, lastUpdate: self.lastUpdateTime) }
+            guard state.mode == .emergency else { return }
+
+            let now = Date()
+            let isStale = state.lastUpdate.map { now.timeIntervalSince($0) > 90 } ?? true
+            guard !state.reachable || isStale else { return }
+
+            if let fix = await CloudKitLocationSync.shared.loadLocation() {
+                await MainActor.run {
+                    self.handleLocationFix(fix, source: .cloudKit)
+                }
+            }
+        }
+    }
+
+    private func stopEmergencyCloudRelay() {
+        Task.detached(priority: .utility) {
+            await CloudKitLocationSync.shared.deleteLocationSubscription()
+        }
+    }
+
     /// Update the desired tracking mode and inform the watch
     public func setTrackingMode(_ mode: TrackingMode) {
         let previousMode = trackingMode
         trackingMode = mode
+
+        if mode == .emergency {
+            startEmergencyCloudRelay()
+        } else if previousMode == .emergency {
+            stopEmergencyCloudRelay()
+        }
+
+        sendModeCommand(mode)
+
+        if previousMode == .emergency, mode != .emergency {
+            sendIdleCadenceCommand(idleCadencePreset)
+        }
+    }
+
+    /// Accepts a CloudKit relay fix (typically delivered via CloudKit silent push on iPhone).
+    public func applyCloudKitRelayLocation(_ fix: LocationFix) {
+        handleLocationFix(fix, source: .cloudKit)
+    }
+
+    private func sendModeCommand(_ mode: TrackingMode) {
         #if canImport(WatchConnectivity)
         guard session.activationState == .activated else { return }
-        
-        // Send mode change first
-        let modePayload: [String: Any] = [
+
+        var payload: [String: Any] = [
             ConnectivityConstants.action: ConnectivityConstants.setMode,
             ConnectivityConstants.mode: mode.rawValue
         ]
+
+        if mode == .emergency {
+            payload[ConnectivityConstants.heartbeatInterval] = emergencyCadencePreset.heartbeatInterval
+            payload[ConnectivityConstants.fullFixInterval] = emergencyCadencePreset.fullFixInterval
+        }
+
         if session.isReachable {
-            session.sendMessage(modePayload, replyHandler: nil) { error in
+            session.sendMessage(payload, replyHandler: nil) { error in
                 Task { @MainActor in
                     self.errorMessage = "Failed to send mode: \(error.localizedDescription)"
                 }
             }
         } else {
             do {
-                try session.updateApplicationContext(modePayload)
+                try session.updateApplicationContext(payload)
             } catch {
                 errorMessage = "Failed to cache mode: \(error.localizedDescription)"
             }
-        }
-        
-        // Emergency mode: send aggressive cadence (5s heartbeat, 10s full fix)
-        // This ensures watch updates extremely frequently when pet may be lost
-        if mode == .emergency {
-            sendEmergencyCadence()
-        } else if previousMode == .emergency {
-            // Exiting emergency: restore user's selected preset
-            sendIdleCadenceCommand(idleCadencePreset)
         }
         #endif
     }
@@ -599,34 +749,6 @@ public final class PetLocationManager: NSObject, ObservableObject {
                 errorMessage = "Failed to queue idle cadence: \(error.localizedDescription)"
             }
         }
-        #endif
-    }
-
-    /// Sends aggressive cadence for emergency mode: 5s heartbeat, 10s full fix.
-    /// Used when pet may be lost - maximum update frequency regardless of battery impact.
-    private func sendEmergencyCadence() {
-        #if canImport(WatchConnectivity)
-        guard session.activationState == .activated else { return }
-        let payload: [String: Any] = [
-            ConnectivityConstants.action: ConnectivityConstants.setIdleCadence,
-            ConnectivityConstants.heartbeatInterval: 5.0,
-            ConnectivityConstants.fullFixInterval: 10.0
-        ]
-
-        if session.isReachable {
-            session.sendMessage(payload, replyHandler: nil) { error in
-                Task { @MainActor in
-                    self.logger.error("Failed to set emergency cadence: \(error.localizedDescription, privacy: .public)")
-                }
-            }
-        } else {
-            do {
-                try session.updateApplicationContext(payload)
-            } catch {
-                logger.error("Failed to queue emergency cadence: \(error.localizedDescription, privacy: .public)")
-            }
-        }
-        logger.notice("Emergency cadence sent: 5s heartbeat, 10s full fix")
         #endif
     }
 
@@ -681,15 +803,21 @@ public final class PetLocationManager: NSObject, ObservableObject {
             Task {
                 let query = HKSampleQuery(sampleType: heartRateType, predicate: nil, limit: 1, sortDescriptors: nil) { _, samples, error in
                     Task { @MainActor in
-                        if error == nil, samples != nil {
-                            // Successfully queried = authorized
-                            self.heartRateAuthorizationStatus = .sharingAuthorized
-                            self.logger.info("Heart Rate: Authorized (verified by query)")
-                        } else {
-                            // Query failed = not authorized
-                            self.heartRateAuthorizationStatus = .notDetermined
-                            self.logger.info("Heart Rate: Not authorized (query failed: \(error?.localizedDescription ?? "unknown"))")
+                        if let error {
+                            if let hkError = error as? HKError, hkError.code == .errorAuthorizationDenied {
+                                self.heartRateAuthorizationStatus = .sharingDenied
+                                self.logger.info("Heart Rate: Denied (verified by query)")
+                            } else {
+                                self.heartRateAuthorizationStatus = .notDetermined
+                                self.logger.info("Heart Rate: Unable to verify authorization (error: \(error.localizedDescription, privacy: .public))")
+                            }
+                            return
                         }
+
+                        // No error means the read query was permitted, even if there are zero samples.
+                        _ = samples // keep parameter used for future debugging
+                        self.heartRateAuthorizationStatus = .sharingAuthorized
+                        self.logger.info("Heart Rate: Authorized (verified by query)")
                     }
                 }
                 healthStore.execute(query)
@@ -862,30 +990,38 @@ public final class PetLocationManager: NSObject, ObservableObject {
     }
 
     /// Process incoming LocationFix and update state.
-    private func handleLocationFix(_ locationFix: LocationFix) {
+    private func handleLocationFix(_ locationFix: LocationFix, source: LocationUpdateSource = .watchConnectivity) {
         guard shouldAccept(locationFix) else { return }
 
         recordSequence(locationFix.sequence)
 
+        var didUpdateLatest = false
         if let current = latestLocation {
             if locationFix.timestamp >= current.timestamp {
                 latestLocation = locationFix
+                didUpdateLatest = true
             }
         } else {
             latestLocation = locationFix
+            didUpdateLatest = true
         }
 
         let previousUpdate = lastUpdateTime
-        lastUpdateTime = locationFix.timestamp
-        isConnectionStale = false
-        errorMessage = nil
-        if let lastUpdate = previousUpdate {
-            if locationFix.timestamp >= lastUpdate {
-                watchBatteryFraction = locationFix.batteryFraction
+        let isFreshUpdate = previousUpdate == nil || locationFix.timestamp >= previousUpdate!
+        if didUpdateLatest, isFreshUpdate {
+            lastUpdateTime = locationFix.timestamp
+            isConnectionStale = false
+            latestUpdateSource = source
+
+            if source == .watchConnectivity {
+                errorMessage = nil
+            } else if errorMessage?.contains("unreachable") == true {
+                errorMessage = "Apple Watch unreachable. Showing iCloud relay updates."
             }
-        } else {
+
             watchBatteryFraction = locationFix.batteryFraction
         }
+
         logger.debug("Received fix accuracy=\(locationFix.horizontalAccuracyMeters, privacy: .public)")
         signposter.emitEvent("FixReceived")
 
@@ -895,27 +1031,32 @@ public final class PetLocationManager: NSObject, ObservableObject {
 
         // Sync to CloudKit for offline recovery (throttled to prevent rate limiting)
         // CR-001 FIX: Only sync every 5 minutes to prevent CloudKit throttling and battery drain
-        let now = Date()
-        if lastCloudKitSync == nil || now.timeIntervalSince(lastCloudKitSync!) >= cloudKitSyncInterval {
-            lastCloudKitSync = now
-            Task.detached {
-                await CloudKitLocationSync.shared.saveLocation(locationFix)
+        if source == .watchConnectivity, didUpdateLatest {
+            let now = Date()
+            if lastCloudKitSync == nil || now.timeIntervalSince(lastCloudKitSync!) >= cloudKitSyncInterval {
+                lastCloudKitSync = now
+                Task.detached {
+                    await CloudKitLocationSync.shared.saveLocation(locationFix)
+                }
             }
         }
     }
 
-    private func shouldAccept(_ fix: LocationFix) -> Bool {
+    /// Acceptance filter for incoming fixes.
+    /// Internal so unit tests can validate thresholds.
+    func shouldAccept(_ fix: LocationFix) -> Bool {
+        let policy = fixAcceptancePolicy
         if recentSequenceSet.contains(fix.sequence) {
             logger.debug("Dropping duplicate fix seq=\(fix.sequence)")
             return false
         }
 
         let staleness = Date().timeIntervalSince(fix.timestamp)
-        if staleness > maxFixStaleness {
+        if staleness > policy.maxFixStaleness {
             logger.info("Received historical fix (age=\(staleness)s) - accepting for trail")
         }
 
-        if fix.horizontalAccuracyMeters > maxHorizontalAccuracyMeters {
+        if fix.horizontalAccuracyMeters > policy.maxHorizontalAccuracyMeters {
             logger.info("Dropping low-quality fix accuracy=\(fix.horizontalAccuracyMeters)")
             return false
         }
@@ -925,7 +1066,7 @@ public final class PetLocationManager: NSObject, ObservableObject {
             let deltaTime = abs(fix.timestamp.timeIntervalSince(current.timestamp))
             if deltaTime < 5 {
                 let jump = distanceBetween(current.coordinate, fix.coordinate)
-                if jump > maxJumpDistanceMeters {
+                if jump > policy.maxJumpDistanceMeters {
                     logger.info("Dropping implausible jump distance=\(jump)")
                     return false
                 }
@@ -934,6 +1075,18 @@ public final class PetLocationManager: NSObject, ObservableObject {
 
         return true
     }
+
+    #if DEBUG
+    /// Test-only hook to prime duplicate detection.
+    internal func _testRecordSequence(_ sequence: Int) {
+        recordSequence(sequence)
+    }
+
+    /// Test-only hook to seed a baseline location for jump filtering.
+    internal func _testSetLatestLocation(_ fix: LocationFix?) {
+        latestLocation = fix
+    }
+    #endif
 
     private func recordSequence(_ sequence: Int) {
         recentSequenceSet.insert(sequence)
@@ -1003,7 +1156,7 @@ public final class PetLocationManager: NSObject, ObservableObject {
         guard let fix = decodeLocationFix(from: data) else { return }
 
         Task { @MainActor in
-            self.handleLocationFix(fix)
+            self.handleLocationFix(fix, source: .watchConnectivity)
         }
     }
 }
@@ -1121,7 +1274,7 @@ extension PetLocationManager: WCSessionDelegate {
                     let fixes = try JSONDecoder().decode([LocationFix].self, from: batchData)
                     logger.notice("Received batched transfer with \(fixes.count) fixes (compact payload)")
                     Task { @MainActor in
-                        fixes.forEach { self.handleLocationFix($0) }
+                        fixes.forEach { self.handleLocationFix($0, source: .watchConnectivity) }
                     }
                 } catch {
                     logger.error("Failed to decode batched LocationFix array: \(error.localizedDescription, privacy: .public)")

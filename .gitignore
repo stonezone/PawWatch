@@ -81,12 +81,17 @@ iOSInjectionProject/
 .AppleDesktop
 Network Trash Folder
 Temporary Items
+
 .apdisk
 
 # AI Assistant Directories
 .cursor/
 .serena/
 .claude/
+.claude-os/
+.code/agents/
+agent-os/
+.derivedData/
 
 # Archive and backup directories
 archive*/
@@ -95,8 +100,14 @@ Archive*/
 backup*/
 Backup*/
 
+# Local logs / archives
+logs/
+documentation_archive.zip
+
 # Ignore all Markdown files everywhere
 *.md
+*.zip
+!pawWatchFeatureSources.zip
 
 # But keep these specific ones tracked
 !README.md          # main project description
@@ -154,4 +165,4 @@ dist/
 *.coverage
 .coverage
 .coverage.*
-htmlcov/.code/agents/
+htmlcov/

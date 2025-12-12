@@ -92,19 +92,30 @@ struct ContentView: View {
                     // MARK: - App Title
 
                     if #available(watchOS 26, *) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "pawprint.fill")
-                                .font(.title3)
-                                .foregroundStyle(.cyan.gradient)
-                                .symbolEffect(.breathe.pulse.byLayer, options: .repeating, value: locationManager.isTracking)
+                        VStack(spacing: 2) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "pawprint.fill")
+                                    .font(.title3)
+                                    .foregroundStyle(.cyan.gradient)
+                                    .symbolEffect(.breathe.pulse.byLayer, options: .repeating, value: locationManager.isTracking)
+                                Text("pawWatch")
+                                    .font(.title3)
+                                    .fontWeight(.bold)
+                            }
+
+                            Text(AppVersion.displayString)
+                                .font(.caption2.monospaced())
+                                .foregroundStyle(.secondary)
+                        }
+                    } else {
+                        VStack(spacing: 2) {
                             Text("pawWatch")
                                 .font(.title3)
                                 .fontWeight(.bold)
+                            Text(AppVersion.displayString)
+                                .font(.caption2.monospaced())
+                                .foregroundStyle(.secondary)
                         }
-                    } else {
-                        Text("pawWatch")
-                            .font(.title3)
-                            .fontWeight(.bold)
                     }
 
                     // MARK: - GPS Status Icon
