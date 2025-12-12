@@ -1,18 +1,21 @@
 import WatchKit
 import WatchConnectivity
+import OSLog
+
+private let appDelegateLogger = Logger(subsystem: "com.stonezone.pawWatch", category: "WatchAppDelegate")
 
 /// Watch app delegate for background tasks and WCSession setup (single-target app).
 class PawWatchAppDelegate: NSObject, WKApplicationDelegate {
 
     func applicationDidFinishLaunching() {
         // Initialize connectivity or other services as needed.
-        print("PawWatch App Delegate Launched")
+        appDelegateLogger.notice("App delegate finished launching")
     }
 
     /// Called by the system when recovering an active workout after a crash or reboot.
     func handleActiveWorkoutRecovery() {
         Task { @MainActor in
-            print("PawWatch App Delegate handling active workout recovery")
+            appDelegateLogger.notice("Handling active workout recovery")
             WatchLocationManager.shared.restoreState()
         }
     }

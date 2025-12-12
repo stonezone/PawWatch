@@ -1501,11 +1501,7 @@ extension WatchLocationProvider: WCSessionDelegate {
                     ConnectivityLog.verbose("Failed to send activation diagnostic: \(error.localizedDescription)")
                 }
             } else {
-                do {
-                    try session.updateApplicationContext(diagnostic)
-                } catch {
-                    ConnectivityLog.verbose("Failed to queue activation diagnostic: \(error.localizedDescription)")
-                }
+                _ = session.transferUserInfo(diagnostic)
             }
             #endif
             

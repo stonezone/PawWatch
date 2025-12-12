@@ -10,6 +10,9 @@
 
 import SwiftUI
 import WatchKit
+import OSLog
+
+private let lifecycleLogger = Logger(subsystem: "com.stonezone.pawWatch", category: "WatchLifecycle")
 
 @main
 struct pawWatch_Watch_App: App {
@@ -68,7 +71,7 @@ struct pawWatch_Watch_App: App {
         case .active:
             // App became active (foreground)
             // CRITICAL: Refresh connection status and restore tracking if needed
-            print("[pawWatch] App became active - refreshing state")
+            lifecycleLogger.notice("App became active; refreshing state")
 
             // Immediately update connection status to re-establish interactive messaging
             locationManager.updateConnectionStatus()
@@ -80,7 +83,7 @@ struct pawWatch_Watch_App: App {
             // App became inactive (temporary transition state)
             // Example: Control Center overlay, incoming call UI
             // GPS tracking continues via workout session - DO NOT stop
-            print("[pawWatch] App became inactive - tracking continues")
+            lifecycleLogger.info("App became inactive; tracking continues")
 
         case .background:
             // App moved to background
@@ -89,14 +92,14 @@ struct pawWatch_Watch_App: App {
             //   1. Application context (0.5s throttle, latest-only)
             //   2. File transfer (queued delivery, guaranteed)
             // Heartbeat task continues running in background
-            print("[pawWatch] App moved to background - heartbeat continues")
+            lifecycleLogger.info("App moved to background; heartbeat continues")
 
             // Final connection status update before backgrounding
             locationManager.updateConnectionStatus()
 
         @unknown default:
             // Future scene phase states
-            print("[pawWatch] Unknown scene phase: \(newPhase)")
+            lifecycleLogger.error("Unknown scene phase: \(String(describing: newPhase), privacy: .public)")
             break
         }
     }

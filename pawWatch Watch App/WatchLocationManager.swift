@@ -365,28 +365,17 @@ final class WatchLocationManager: WatchLocationProviderDelegate {
     /// 🔍 DIAGNOSTIC: Comprehensive WCSession state diagnosis
     /// Prints detailed pairing information to help troubleshoot connectivity issues
     private func diagnosePairingState() {
-        print("\n" + String(repeating: "=", count: 60))
-        print("🔍 WATCH: Connectivity Diagnostic Report")
-        print(String(repeating: "=", count: 60))
+        let companionInstalled = locationProvider.isCompanionAppInstalled
+        let reachable = locationProvider.isReachable
 
-        print("🔗 Connection Status:")
-        print("   isCompanionAppInstalled: \(locationProvider.isCompanionAppInstalled ? "✅ YES - iPhone app detected" : "❌ NO - iPhone app NOT detected")")
-        print("   isReachable: \(locationProvider.isReachable ? "✅ YES - Can send messages now" : "⚠️  NO - Phone sleeping or app backgrounded")")
+        logger.notice("Connectivity diagnostic: companionInstalled=\(companionInstalled) reachable=\(reachable)")
 
-        // Critical error conditions
-        if !locationProvider.isCompanionAppInstalled {
-            print("\n❌ CRITICAL ERROR: iPhone app not detected by WatchConnectivity")
-            print("   → This is the most common issue!")
-            print("   → Solution: Delete BOTH apps, clean build, reinstall iOS app FIRST, then Watch app")
+        #if DEBUG
+        if !companionInstalled {
+            logger.error("CRITICAL: iPhone app not detected by WatchConnectivity. Reinstall iOS app first, then Watch app.")
+        } else if !reachable {
+            logger.notice("WARNING: iPhone app installed but unreachable. Wake iPhone and open pawWatch.")
         }
-
-        if !locationProvider.isReachable && locationProvider.isCompanionAppInstalled {
-            print("\n⚠️  WARNING: iPhone app installed but unreachable")
-            print("   → iPhone might be locked or app backgrounded")
-            print("   → Try: Wake iPhone → Open pawWatch app → Then start Watch tracking")
-        }
-
-        print(String(repeating: "=", count: 60))
-        print("End Diagnostic Report\n")
+        #endif
     }
 }

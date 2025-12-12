@@ -4,17 +4,15 @@ This file consolidates issues found in the current `pawWatchFeature` code and gi
 
 ## 1. High‑priority production fixes
 
-- [ ] **Remove unguarded debug `print` usage in watch code**
+- [x] **Remove unguarded debug `print` usage in watch code**
   - **Why:** `print()` in release builds is noisy, can hurt performance, and some messages include internal diagnostics that shouldn’t ship.
-  - **Where:** `pawWatchPackage/Sources/pawWatchFeature/WatchLocationProvider.swift`:
-    - `configureWatchConnectivity()` (around ~743) prints multiple lines.
-    - `session(_:activationDidCompleteWith:error:)` (around ~1400) prints activation diagnostics.
+  - **Where:** watchOS targets (`pawWatch Watch App/*`).
   - **How:**
     1. Replace all `print(...)` calls with `ConnectivityLog.verbose/notice/error` or `logger` equivalents.
     2. If you still want the extra diagnostics for QA, wrap them in `#if DEBUG … #endif` so they compile out of Release.
     3. Verify with a Release build that no `print` output appears in Console.
 
-- [ ] **Stop clobbering application context with diagnostics**
+- [x] **Stop clobbering application context with diagnostics**
   - **Why:** `updateApplicationContext` is latest‑only; sending diagnostics overwrites any heartbeat/lock/runtime context currently in flight and can lead to confusing UI state on iPhone.
   - **Where:** `WatchLocationProvider.session(_:activationDidCompleteWith:error:)`.
   - **How:**
@@ -23,7 +21,7 @@ This file consolidates issues found in the current `pawWatchFeature` code and gi
     3. Ensure the normal heartbeat/lock/runtime context path remains the only Release `updateApplicationContext` usage.
     4. Validate: pair iPhone+Watch, background phone, confirm battery/lock/runtime fields still update after activation.
 
-- [ ] **Fix infinite/random animation trigger in map marker**
+- [x] **Fix infinite/random animation trigger in map marker**
   - **Why:** `.animation(..., value: UUID())` re‑triggers on every render and can cause constant animation + extra GPU work.
   - **Where:** `pawWatchPackage/Sources/pawWatchFeature/PetMapView.swift` → `PetMarkerView`.
   - **How:**
@@ -31,7 +29,7 @@ This file consolidates issues found in the current `pawWatchFeature` code and gi
     2. Tie the animation to meaningful state (e.g., `locationManager.latestLocation?.sequence` passed down, or `hasValidSize`).
     3. Verify: marker animates on new fixes only, and stays stable otherwise.
 
-- [ ] **Make HealthKit read‑permission detection correct**
+- [x] **Make HealthKit read‑permission detection correct**
   - **Why:** `refreshHealthAuthorizationState()` treats “no samples returned” as “not authorized,” which is false when the user is authorized but has zero HR samples. This can mislead settings UI.
   - **Where:** `pawWatchPackage/Sources/pawWatchFeature/PetLocationManager.swift` → `refreshHealthAuthorizationState()`.
   - **How:**
@@ -43,7 +41,7 @@ This file consolidates issues found in the current `pawWatchFeature` code and gi
        - Fresh install with no HR samples → should show “Authorized” after granting.
        - Deny HR permission → should show “Denied.”
 
-- [ ] **Remove redundant observation plumbing**
+- [x] **Remove redundant observation plumbing**
   - **Why:** `PetLocationManager` is both `@Observable` and `ObservableObject` and still imports Combine. This is extra surface area and can cause double‑notification patterns.
   - **Where:** `pawWatchPackage/Sources/pawWatchFeature/PetLocationManager.swift`.
   - **How:**
