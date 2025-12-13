@@ -1,8 +1,9 @@
 import WatchKit
 import WatchConnectivity
 import OSLog
+import pawWatchFeature
 
-private let appDelegateLogger = Logger(subsystem: "com.stonezone.pawWatch", category: "WatchAppDelegate")
+private let appDelegateLogger = Logger(subsystem: PawWatchLog.subsystem, category: "WatchAppDelegate")
 
 /// Watch app delegate for background tasks and WCSession setup (single-target app).
 class PawWatchAppDelegate: NSObject, WKApplicationDelegate {

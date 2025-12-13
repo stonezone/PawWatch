@@ -106,7 +106,7 @@ public enum WatchConnectivityIssue: LocalizedError {
 }
 
 private enum ConnectivityLog {
-    private static let logger = Logger(subsystem: "com.stonezone.pawWatch", category: "WatchConnectivity")
+    private static let logger = Logger(subsystem: PawWatchLog.subsystem, category: "WatchConnectivity")
 #if DEBUG
     private static let isVerbose = ProcessInfo.processInfo.environment["PAWWATCH_VERBOSE_WC_LOGS"] == "1"
 #else
@@ -131,8 +131,8 @@ private enum ConnectivityLog {
 
 @MainActor
 private final class ExtendedRuntimeCoordinator: NSObject, WKExtendedRuntimeSessionDelegate {
-    private let logger = Logger(subsystem: "com.stonezone.pawWatch", category: "ExtendedRuntime")
-    private let signposter = OSSignposter(subsystem: "com.stonezone.pawWatch", category: "ExtendedRuntime")
+    private let logger = Logger(subsystem: PawWatchLog.subsystem, category: "ExtendedRuntime")
+    private let signposter = OSSignposter(subsystem: PawWatchLog.subsystem, category: "ExtendedRuntime")
     private var session: WKExtendedRuntimeSession?
     private var restartTask: Task<Void, Never>?
     private var intervalState: OSSignpostIntervalState?
@@ -309,8 +309,8 @@ public final class WatchLocationProvider: NSObject {
     private var wcSession: WCSession { WCSession.default }
     private let encoder = JSONEncoder()
     private let fileManager = FileManager.default
-    private let logger = Logger(subsystem: "com.stonezone.pawWatch", category: "WatchLocationProvider")
-    private let signposter = OSSignposter(subsystem: "com.stonezone.pawWatch", category: "WatchLocationProvider")
+    private let logger = Logger(subsystem: PawWatchLog.subsystem, category: "WatchLocationProvider")
+    private let signposter = OSSignposter(subsystem: PawWatchLog.subsystem, category: "WatchLocationProvider")
     private var trackingIntervalState: OSSignpostIntervalState?
     private let runtimeCoordinator = ExtendedRuntimeCoordinator()
     private static let runtimePreferenceKey = RuntimePreferenceKey.runtimeOptimizationsEnabled
@@ -447,6 +447,8 @@ public final class WatchLocationProvider: NSObject {
 
     /// Current thermal degradation level (0 = normal, 1 = degraded, 2 = stopped)
     private var thermalDegradationLevel = 0
+    private var thermalRecoveryTask: Task<Void, Never>?
+    private let thermalRecoveryPollInterval: TimeInterval = 30
 
     // MARK: - Adaptive throttling state
 
@@ -546,6 +548,8 @@ public final class WatchLocationProvider: NSObject {
         // Reset intentional stop flag for new tracking session
         isIntentionallyStopped = false
         thermalDegradationLevel = 0
+        thermalRecoveryTask?.cancel()
+        thermalRecoveryTask = nil
         resetRestartCounter()  // CR-001 FIX: Reset counter for fresh tracking session
         requestAuthorizationsIfNeeded()
         startWorkoutSession(activity: activity)
@@ -620,6 +624,8 @@ public final class WatchLocationProvider: NSObject {
         reachabilityDebounceTask?.cancel()
         reachabilityDebounceTask = nil
         activationRetryTask?.cancel()
+        thermalRecoveryTask?.cancel()
+        thermalRecoveryTask = nil
         thermalDegradationLevel = 0
         locationManager.stopUpdatingLocation()
 
@@ -688,6 +694,8 @@ public final class WatchLocationProvider: NSObject {
         reachabilityDebounceTask = nil
         activationRetryTask?.cancel()
         activationRetryTask = nil
+        thermalRecoveryTask?.cancel()
+        thermalRecoveryTask = nil
 
         locationManager.stopUpdatingLocation()
 
@@ -733,6 +741,96 @@ public final class WatchLocationProvider: NSObject {
         stopBatteryHeartbeat()
         stopMinUpdateWatchdog()
         logger.log("Workout tracking stopped (thermal critical)")
+        startThermalRecoveryMonitorIfNeeded()
+    }
+
+    private func startThermalRecoveryMonitorIfNeeded() {
+        guard thermalDegradationLevel == 2 else { return }
+        guard thermalRecoveryTask == nil else { return }
+
+        thermalRecoveryTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(self.thermalRecoveryPollInterval))
+                guard !Task.isCancelled else { break }
+
+                let state = ProcessInfo.processInfo.thermalState
+                if state != .critical && state != .serious {
+                    self.handleThermalRecovery(reason: "poll")
+                    break
+                }
+            }
+
+            self.thermalRecoveryTask = nil
+        }
+    }
+
+    private func handleThermalRecovery(reason: String) {
+        guard thermalDegradationLevel > 0 else { return }
+
+        let wasFullyStopped = thermalDegradationLevel == 2
+        logger.notice("Thermal recovered (\(reason, privacy: .public)) from level \(thermalDegradationLevel, privacy: .public) - restoring normal operation")
+
+        thermalDegradationLevel = 0
+        isIntentionallyStopped = false
+        thermalRecoveryTask?.cancel()
+        thermalRecoveryTask = nil
+
+        restorePresetAfterThermalRecovery()
+
+        if wasFullyStopped {
+            restartAfterThermalCriticalRecovery()
+        }
+    }
+
+    private func restorePresetAfterThermalRecovery() {
+        if batteryOptimizationsEnabled {
+            let battery = latestBatteryLevel
+            if battery < 0.1 {
+                applyPreset(.saver)
+            } else if battery < 0.2 {
+                applyPreset(.balanced)
+            } else {
+                applyPreset(.aggressive)
+            }
+        } else {
+            applyPreset(.aggressive)
+        }
+    }
+
+    private func restartAfterThermalCriticalRecovery() {
+        logger.notice("Restarting tracking after thermal recovery from critical state")
+
+        resetRestartCounter()
+        forceImmediateSend = true
+        lastTransmittedFixDate = .distantPast
+
+        startWorkoutSession(activity: .other)
+
+        let auth = locationManager.authorizationStatus
+        switch auth {
+        case .authorizedAlways, .authorizedWhenInUse:
+            locationManager.startUpdatingLocation()
+        case .notDetermined:
+            locationManager.requestWhenInUseAuthorization()
+        case .denied, .restricted:
+            logger.error("Thermal recovery restart blocked: location permission denied")
+            delegate?.didFail(WatchConnectivityIssue.locationAuthorizationDenied)
+            return
+        @unknown default:
+            break
+        }
+
+        isWorkoutRunning = true
+        persistTrackingState()
+
+        if supportsExtendedRuntime {
+            runtimeCoordinator.updateTrackingState(isRunning: true)
+        }
+        startBatteryHeartbeat()
+        startMinUpdateWatchdog()
+        trackingIntervalState = signposter.beginInterval("TrackingSession")
     }
     
     // MARK: - Private Methods - Authorization
@@ -1376,39 +1474,7 @@ extension WatchLocationProvider: CLLocationManagerDelegate {
                 }
                 // Continue processing but at reduced rate
             } else if self.thermalDegradationLevel > 0 {
-                // Thermal recovered - restore normal operation
-                let wasFullyStopped = self.thermalDegradationLevel == 2
-                self.logger.log("Thermal recovered from level \(self.thermalDegradationLevel) - restoring normal operation")
-                self.thermalDegradationLevel = 0
-                self.isIntentionallyStopped = false
-
-                // Restore preset based on current battery level
-                if self.batteryOptimizationsEnabled {
-                    let battery = self.latestBatteryLevel
-                    if battery < 0.1 {
-                        self.applyPreset(.saver)
-                    } else if battery < 0.2 {
-                        self.applyPreset(.balanced)
-                    } else {
-                        self.applyPreset(.aggressive)
-                    }
-                } else {
-                    self.applyPreset(.aggressive)
-                }
-
-                // CR-002 FIX: If tracking was fully stopped due to thermal critical,
-                // we must restart location updates and workout session
-                if wasFullyStopped {
-                    self.logger.log("CR-002: Restarting tracking after thermal recovery from critical state")
-                    self.resetRestartCounter()  // Fresh start, reset retry counter
-                    self.isWorkoutRunning = true
-                    self.locationManager.startUpdatingLocation()
-                    self.startWorkoutSession(activity: .other)
-                    self.startBatteryHeartbeat()
-                    if self.supportsExtendedRuntime {
-                        self.runtimeCoordinator.updateTrackingState(isRunning: true)
-                    }
-                }
+                self.handleThermalRecovery(reason: "location-update")
             }
             
             let device = WKInterfaceDevice.current()

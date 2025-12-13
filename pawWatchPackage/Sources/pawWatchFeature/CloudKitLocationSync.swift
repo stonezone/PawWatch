@@ -22,7 +22,7 @@ public actor CloudKitLocationSync {
     public static let shared = CloudKitLocationSync()
     public static let locationSubscriptionID = "pawWatch.latest-pet-location.subscription"
 
-    private let logger = Logger(subsystem: "com.stonezone.pawWatch", category: "CloudKitSync")
+    private let logger = Logger(subsystem: PawWatchLog.subsystem, category: "CloudKitSync")
     private let container: CKContainer
     private let database: CKDatabase
 

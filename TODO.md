@@ -51,7 +51,7 @@ This file consolidates issues found in the current `pawWatchFeature` code and gi
 
 ## 2. Medium‑priority improvements
 
-- [ ] **Make filter thresholds configurable / mode‑aware**
+- [x] **Make filter thresholds configurable / mode‑aware**
   - **Why:** `maxHorizontalAccuracyMeters`, `maxJumpDistanceMeters`, and `maxFixStaleness` are hard‑coded. Emergency vs saver modes likely want different tolerances.
   - **Where:** `PetLocationManager.shouldAccept(_:)`.
   - **How:**
@@ -59,12 +59,12 @@ This file consolidates issues found in the current `pawWatchFeature` code and gi
     2. Store defaults in shared defaults for QA tuning.
     3. Add logs showing which thresholds are active.
 
-- [ ] **Standardize logger subsystem strings**
+- [x] **Standardize logger subsystem strings**
   - **Why:** Mixed casing (`com.stonezone.pawWatch` vs `com.stonezone.pawwatch`) makes filtering logs harder.
   - **Where:** `CloudKitLocationSync.swift`, `PetLocationManager.swift`, `WatchLocationProvider.swift`, `PerformanceMonitor.swift`.
   - **How:** pick one canonical subsystem and update all `Logger(...)`/`OSSignposter(...)` initializers.
 
-- [ ] **Review thermal recovery restart path**
+- [x] **Review thermal recovery restart path**
   - **Why:** Restart after `.critical` recovery manually re‑creates workout + location updates; ensure no duplicated sessions or missed delegate wiring.
   - **Where:** `WatchLocationProvider.locationManager(_:didUpdateLocations:)` thermal recovery block.
   - **How:**

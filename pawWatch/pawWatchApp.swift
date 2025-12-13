@@ -64,7 +64,7 @@ struct pawWatchApp: App {
 
 final class PawWatchAppDelegate: NSObject, UIApplicationDelegate {
     private let backgroundScheduler = BackgroundRefreshScheduler()
-    private let logger = Logger(subsystem: "com.stonezone.pawWatch", category: "AppDelegate")
+    private let logger = Logger(subsystem: PawWatchLog.subsystem, category: "AppDelegate")
 
     func application(
         _ application: UIApplication,
@@ -120,7 +120,7 @@ final class PawWatchAppDelegate: NSObject, UIApplicationDelegate {
 }
 
 enum CloudKitRelayPushHandler {
-    private static let logger = Logger(subsystem: "com.stonezone.pawWatch", category: "CloudKitRelayPush")
+    private static let logger = Logger(subsystem: PawWatchLog.subsystem, category: "CloudKitRelayPush")
 
     static func handle(
         userInfo: [AnyHashable: Any],
@@ -168,7 +168,7 @@ private final class BackgroundFetchCompletion: @unchecked Sendable {
 
 final class BackgroundRefreshScheduler: @unchecked Sendable {
     private let identifier = "com.stonezone.pawWatch.activity-refresh"
-    private let logger = Logger(subsystem: "com.stonezone.pawWatch", category: "BackgroundRefresh")
+    private let logger = Logger(subsystem: PawWatchLog.subsystem, category: "BackgroundRefresh")
 
     func register() {
         BGTaskScheduler.shared.register(forTaskWithIdentifier: identifier, using: nil) { [self] task in
@@ -224,7 +224,7 @@ final class BackgroundRefreshScheduler: @unchecked Sendable {
 }
 
 enum PushRegistrationController {
-    private static let logger = Logger(subsystem: "com.stonezone.pawWatch", category: "PushRegistration")
+    private static let logger = Logger(subsystem: PawWatchLog.subsystem, category: "PushRegistration")
 
     static func registerForRemoteNotifications() {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
@@ -248,7 +248,7 @@ enum PushRegistrationController {
 /// Handles silent push notifications requesting location updates from watch.
 /// Push payload format: { "aps": { "content-available": 1 }, "action": "request-location" }
 enum BackgroundLocationPushHandler {
-    private static let logger = Logger(subsystem: "com.stonezone.pawWatch", category: "LocationPush")
+    private static let logger = Logger(subsystem: PawWatchLog.subsystem, category: "LocationPush")
 
     /// Handle incoming push notification, returns true if this was a location request.
     static func handle(userInfo: [AnyHashable: Any]) -> Bool {

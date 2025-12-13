@@ -279,15 +279,51 @@ public final class PetLocationManager: NSObject {
         )
     }
 
-    private var fixAcceptancePolicy: FixAcceptancePolicy {
-        switch trackingMode {
-        case .emergency:
-            return .emergency
-        case .saver:
-            return .saver
-        case .auto, .balanced:
-            return .balanced
+    private enum FixAcceptancePolicyDefaultsKey {
+        enum Field: String {
+            case maxHorizontalAccuracyMeters
+            case maxFixStalenessSeconds
+            case maxJumpDistanceMeters
         }
+
+        static func key(mode: TrackingMode, field: Field) -> String {
+            "FixAcceptancePolicy.\(mode.rawValue).\(field.rawValue)"
+        }
+    }
+
+    private func registerFixAcceptancePolicyDefaults() {
+        let defaults: [String: Any] = [
+            FixAcceptancePolicyDefaultsKey.key(mode: .balanced, field: .maxHorizontalAccuracyMeters): FixAcceptancePolicy.balanced.maxHorizontalAccuracyMeters,
+            FixAcceptancePolicyDefaultsKey.key(mode: .balanced, field: .maxFixStalenessSeconds): FixAcceptancePolicy.balanced.maxFixStaleness,
+            FixAcceptancePolicyDefaultsKey.key(mode: .balanced, field: .maxJumpDistanceMeters): FixAcceptancePolicy.balanced.maxJumpDistanceMeters,
+            FixAcceptancePolicyDefaultsKey.key(mode: .saver, field: .maxHorizontalAccuracyMeters): FixAcceptancePolicy.saver.maxHorizontalAccuracyMeters,
+            FixAcceptancePolicyDefaultsKey.key(mode: .saver, field: .maxFixStalenessSeconds): FixAcceptancePolicy.saver.maxFixStaleness,
+            FixAcceptancePolicyDefaultsKey.key(mode: .saver, field: .maxJumpDistanceMeters): FixAcceptancePolicy.saver.maxJumpDistanceMeters,
+            FixAcceptancePolicyDefaultsKey.key(mode: .emergency, field: .maxHorizontalAccuracyMeters): FixAcceptancePolicy.emergency.maxHorizontalAccuracyMeters,
+            FixAcceptancePolicyDefaultsKey.key(mode: .emergency, field: .maxFixStalenessSeconds): FixAcceptancePolicy.emergency.maxFixStaleness,
+            FixAcceptancePolicyDefaultsKey.key(mode: .emergency, field: .maxJumpDistanceMeters): FixAcceptancePolicy.emergency.maxJumpDistanceMeters
+        ]
+
+        sharedDefaults.register(defaults: defaults)
+    }
+
+    private var fixAcceptancePolicy: FixAcceptancePolicy {
+        let mode: TrackingMode = trackingMode == .auto ? .balanced : trackingMode
+        let base: FixAcceptancePolicy = switch mode {
+        case .emergency: .emergency
+        case .saver: .saver
+        case .auto, .balanced: .balanced
+        }
+
+        let accuracy = sharedDefaults.double(forKey: FixAcceptancePolicyDefaultsKey.key(mode: mode, field: .maxHorizontalAccuracyMeters))
+        let staleness = sharedDefaults.double(forKey: FixAcceptancePolicyDefaultsKey.key(mode: mode, field: .maxFixStalenessSeconds))
+        let jump = sharedDefaults.double(forKey: FixAcceptancePolicyDefaultsKey.key(mode: mode, field: .maxJumpDistanceMeters))
+
+        return FixAcceptancePolicy(
+            maxHorizontalAccuracyMeters: accuracy > 0 ? accuracy : base.maxHorizontalAccuracyMeters,
+            maxFixStaleness: max(0, staleness),
+            maxJumpDistanceMeters: jump > 0 ? jump : base.maxJumpDistanceMeters
+        )
     }
     private var recentSequenceSet: Set<Int> = []
     private var recentSequenceOrder: [Int] = []
@@ -302,9 +338,9 @@ public final class PetLocationManager: NSObject {
     private let session: WCSession
     #endif
     private let locationManager: CLLocationManager
-    private let logger = Logger(subsystem: "com.stonezone.pawWatch", category: "PetLocationManager")
-    private let signposter = OSSignposter(subsystem: "com.stonezone.pawWatch", category: "PetLocationManager")
-    private let sessionSignposter = OSSignposter(subsystem: "com.stonezone.pawWatch", category: "SessionExport")
+    private let logger = Logger(subsystem: PawWatchLog.subsystem, category: "PetLocationManager")
+    private let signposter = OSSignposter(subsystem: PawWatchLog.subsystem, category: "PetLocationManager")
+    private let sessionSignposter = OSSignposter(subsystem: PawWatchLog.subsystem, category: "SessionExport")
     #if canImport(HealthKit)
     private let healthStore = HKHealthStore()
     private let heartRateType = HKObjectType.quantityType(forIdentifier: .heartRate)
@@ -351,6 +387,8 @@ public final class PetLocationManager: NSObject {
         let needsDefaultEmergencyCadence = storedEmergencyCadenceRaw == nil
 
         super.init()
+
+        registerFixAcceptancePolicyDefaults()
 
         // Set initial authorization status using instance property (iOS 14+)
         self.locationAuthorizationStatus = locationManager.authorizationStatus
@@ -403,6 +441,19 @@ public final class PetLocationManager: NSObject {
         #endif
 
         startStaleConnectionMonitor()
+
+        logFixAcceptancePolicy(reason: "init")
+    }
+
+    private func logFixAcceptancePolicy(reason: String) {
+        let policyMode: TrackingMode = trackingMode == .auto ? .balanced : trackingMode
+        let policy = fixAcceptancePolicy
+        logger.notice(
+            "Fix acceptance policy (\(reason, privacy: .public)) mode=\(trackingMode.rawValue, privacy: .public) mapped=\(policyMode.rawValue, privacy: .public) " +
+                "accuracy<=\(policy.maxHorizontalAccuracyMeters, privacy: .public)m " +
+                "jump<=\(policy.maxJumpDistanceMeters, privacy: .public)m " +
+                "historical>=\(policy.maxFixStaleness, privacy: .public)s"
+        )
     }
 
     deinit {
@@ -654,6 +705,7 @@ public final class PetLocationManager: NSObject {
     public func setTrackingMode(_ mode: TrackingMode) {
         let previousMode = trackingMode
         trackingMode = mode
+        logFixAcceptancePolicy(reason: "user-mode-change")
 
         if mode == .emergency {
             startEmergencyCloudRelay()
@@ -1315,7 +1367,10 @@ extension PetLocationManager: WCSessionDelegate {
         Task { @MainActor in
             if let battery { self.watchBatteryFraction = battery }
             if let modeRaw, let mode = TrackingMode(rawValue: modeRaw) {
-                self.trackingMode = mode
+                if self.trackingMode != mode {
+                    self.trackingMode = mode
+                    self.logFixAcceptancePolicy(reason: "watch-context")
+                }
             }
             if battery != nil || modeRaw != nil || locked != nil {
                 self.isWatchConnected = true

@@ -44,7 +44,7 @@ final class WatchLocationManager: WatchLocationProviderDelegate {
     private let locationProvider = WatchLocationProvider()
 
     /// CR-007 FIX: Structured logger for consistent logging
-    private let logger = Logger(subsystem: "com.stonezone.pawWatch", category: "WatchLocationManager")
+    private let logger = Logger(subsystem: PawWatchLog.subsystem, category: "WatchLocationManager")
 
     /// Whether GPS tracking is currently active
     var isTracking: Bool = false

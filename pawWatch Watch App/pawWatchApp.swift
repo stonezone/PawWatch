@@ -11,8 +11,9 @@
 import SwiftUI
 import WatchKit
 import OSLog
+import pawWatchFeature
 
-private let lifecycleLogger = Logger(subsystem: "com.stonezone.pawWatch", category: "WatchLifecycle")
+private let lifecycleLogger = Logger(subsystem: PawWatchLog.subsystem, category: "WatchLifecycle")
 
 @main
 struct pawWatch_Watch_App: App {

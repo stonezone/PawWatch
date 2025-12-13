@@ -2,7 +2,7 @@
 #
 # pawWatch log collector
 # ----------------------
-# Captures OSLog output for the pawWatch subsystem (`com.stonezone.pawwatch`).
+# Captures OSLog output for the pawWatch subsystem (`com.stonezone.pawWatch`).
 # Tips:
 #  * iPhone: plug in, open Console.app, select the device once so macOS trusts it,
 #    then this script can read `log stream` locally.
@@ -26,7 +26,7 @@ Options:
                          Defaults to logs/pawwatch-YYYYmmdd-HHMMSS.jsonl
   -h, --help             Show this help and exit
 
-The script wraps `log stream --style json --predicate 'subsystem == "com.stonezone.pawwatch"'`
+The script wraps `log stream --style json --predicate 'subsystem == "com.stonezone.pawWatch"'`
 so you can archive identical traces on both iPhone and paired Watch sessions.
 USAGE
 }
@@ -85,7 +85,7 @@ if [[ -n "$out_path" ]]; then
   mkdir -p "$(dirname "$out_path")"
 fi
 
-predicate='subsystem == "com.stonezone.pawwatch"'
+predicate='subsystem == "com.stonezone.pawWatch"'
 log_cmd=(log stream --style json --predicate "$predicate")
 
 echo "[collect_logs] Writing to $out_path"
