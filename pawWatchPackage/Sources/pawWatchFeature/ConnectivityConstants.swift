@@ -16,6 +16,7 @@ public enum ConnectivityConstants {
     public static let sequence = "sequence"
     public static let latestFix = "latestFix"
     public static let error = "error"
+    public static let petProfile = "petProfile"
     
     // MARK: - Actions
     public static let requestLocation = "requestLocation"
@@ -24,6 +25,8 @@ public enum ConnectivityConstants {
     public static let setMode = "setMode"
     public static let setRuntimeOptimizations = "setRuntimeOptimizations"
     public static let setIdleCadence = "setIdleCadence"
+    public static let setPetProfile = "setPetProfile"
+    public static let pingWatch = "ping-watch"
     
     // MARK: - Parameters
     public static let background = "background"

@@ -767,15 +767,15 @@ public final class WatchLocationProvider: NSObject {
     }
 
     private func handleThermalRecovery(reason: String) {
-        guard thermalDegradationLevel > 0 else { return }
+        guard self.thermalDegradationLevel > 0 else { return }
 
-        let wasFullyStopped = thermalDegradationLevel == 2
-        logger.notice("Thermal recovered (\(reason, privacy: .public)) from level \(thermalDegradationLevel, privacy: .public) - restoring normal operation")
+        let wasFullyStopped = self.thermalDegradationLevel == 2
+        logger.notice("Thermal recovered (\(reason, privacy: .public)) from level \(self.thermalDegradationLevel, privacy: .public) - restoring normal operation")
 
-        thermalDegradationLevel = 0
-        isIntentionallyStopped = false
-        thermalRecoveryTask?.cancel()
-        thermalRecoveryTask = nil
+        self.thermalDegradationLevel = 0
+        self.isIntentionallyStopped = false
+        self.thermalRecoveryTask?.cancel()
+        self.thermalRecoveryTask = nil
 
         restorePresetAfterThermalRecovery()
 
@@ -1709,6 +1709,20 @@ extension WatchLocationProvider: WCSessionDelegate {
         case ConnectivityConstants.stopTracking:
             scheduleRemoteStop()
             return ["status": "stop-requested"]
+        case ConnectivityConstants.setPetProfile:
+            guard let data = message[ConnectivityConstants.petProfile] as? Data else {
+                return ["status": "pet-profile-invalid"]
+            }
+            Task { @MainActor in
+                let ok = PetProfileStore.shared.applyRemoteProfileData(data)
+                self.logger.log("Pet profile update received (ok=\(ok))")
+            }
+            return ["status": "pet-profile-updated"]
+        case ConnectivityConstants.pingWatch:
+            Task { @MainActor in
+                WKInterfaceDevice.current().play(.notification)
+            }
+            return ["status": "pinged"]
         default:
             return ["status": "unknown-action"]
         }
@@ -1738,6 +1752,14 @@ extension WatchLocationProvider: WCSessionDelegate {
     
     /// Handles incoming message data (not currently used).
     nonisolated public func session(_ session: WCSession, didReceiveMessageData messageData: Data) {}
+
+    /// Handles queued user info from the phone (background delivery).
+    ///
+    /// Used for non-location commands that should eventually arrive even when
+    /// the watch app is not reachable for interactive messaging.
+    nonisolated public func session(_ session: WCSession, didReceiveUserInfo userInfo: [String : Any]) {
+        _ = handleIncomingMessage(userInfo)
+    }
 
     /// Handles updated application contexts when the phone queues commands while unreachable.
     nonisolated public func session(

@@ -12,6 +12,7 @@ import SwiftUI
 import Observation
 import WatchKit
 import CoreLocation
+import ImageIO
 import pawWatchFeature
 
 // MARK: - Content View
@@ -43,6 +44,7 @@ struct ContentView: View {
     @State private var lockEngagedAt: Date?
     @State private var showSettings = false
     @FocusState private var lockOverlayFocused: Bool
+    @Environment(PetProfileStore.self) private var petProfileStore
 
     private let unlockRotationThreshold = 1.75  // roughly one and a half turns
 
@@ -106,6 +108,43 @@ struct ContentView: View {
                             Text(AppVersion.displayString)
                                 .font(.caption2.monospaced())
                                 .foregroundStyle(.secondary)
+
+                            if shouldShowPetHeader {
+                                HStack(spacing: 8) {
+                                    ZStack {
+                                        Circle()
+                                            .fill(Color.secondary.opacity(0.18))
+                                            .frame(width: 28, height: 28)
+
+                                        if let avatar = petAvatarCGImage {
+                                            Image(decorative: avatar, scale: 1.0)
+                                                .resizable()
+                                                .scaledToFill()
+                                                .frame(width: 24, height: 24)
+                                                .clipShape(Circle())
+                                        } else {
+                                            Image(systemName: "pawprint.fill")
+                                                .font(.caption.weight(.semibold))
+                                                .foregroundStyle(.secondary)
+                                        }
+                                    }
+
+                                    VStack(alignment: .leading, spacing: 1) {
+                                        Text(petDisplayName)
+                                            .font(.caption.weight(.semibold))
+                                            .lineLimit(1)
+                                        if !petProfileStore.profile.type.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                            Text(petProfileStore.profile.type)
+                                                .font(.caption2)
+                                                .foregroundStyle(.secondary)
+                                                .lineLimit(1)
+                                        }
+                                    }
+
+                                    Spacer(minLength: 0)
+                                }
+                                .padding(.top, 4)
+                            }
                         }
                     } else {
                         VStack(spacing: 2) {
@@ -115,6 +154,43 @@ struct ContentView: View {
                             Text(AppVersion.displayString)
                                 .font(.caption2.monospaced())
                                 .foregroundStyle(.secondary)
+
+                            if shouldShowPetHeader {
+                                HStack(spacing: 8) {
+                                    ZStack {
+                                        Circle()
+                                            .fill(Color.secondary.opacity(0.18))
+                                            .frame(width: 28, height: 28)
+
+                                        if let avatar = petAvatarCGImage {
+                                            Image(decorative: avatar, scale: 1.0)
+                                                .resizable()
+                                                .scaledToFill()
+                                                .frame(width: 24, height: 24)
+                                                .clipShape(Circle())
+                                        } else {
+                                            Image(systemName: "pawprint.fill")
+                                                .font(.caption.weight(.semibold))
+                                                .foregroundStyle(.secondary)
+                                        }
+                                    }
+
+                                    VStack(alignment: .leading, spacing: 1) {
+                                        Text(petDisplayName)
+                                            .font(.caption.weight(.semibold))
+                                            .lineLimit(1)
+                                        if !petProfileStore.profile.type.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                            Text(petProfileStore.profile.type)
+                                                .font(.caption2)
+                                                .foregroundStyle(.secondary)
+                                                .lineLimit(1)
+                                        }
+                                    }
+
+                                    Spacer(minLength: 0)
+                                }
+                                .padding(.top, 4)
+                            }
                         }
                     }
 
@@ -422,6 +498,22 @@ struct ContentView: View {
     }
 
     // MARK: - Helper Methods
+    private var shouldShowPetHeader: Bool {
+        petAvatarCGImage != nil
+            || !petProfileStore.profile.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || !petProfileStore.profile.type.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var petDisplayName: String {
+        let trimmed = petProfileStore.profile.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "Pet" : trimmed
+    }
+
+    private var petAvatarCGImage: CGImage? {
+        guard let data = petProfileStore.profile.avatarPNGData else { return nil }
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
+        return CGImageSourceCreateImageAtIndex(source, 0, nil)
+    }
 
     /// Determines color for accuracy visualization based on accuracy value.
     ///

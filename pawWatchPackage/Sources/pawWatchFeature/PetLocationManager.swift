@@ -446,14 +446,10 @@ public final class PetLocationManager: NSObject {
     }
 
     private func logFixAcceptancePolicy(reason: String) {
-        let policyMode: TrackingMode = trackingMode == .auto ? .balanced : trackingMode
-        let policy = fixAcceptancePolicy
-        logger.notice(
-            "Fix acceptance policy (\(reason, privacy: .public)) mode=\(trackingMode.rawValue, privacy: .public) mapped=\(policyMode.rawValue, privacy: .public) " +
-                "accuracy<=\(policy.maxHorizontalAccuracyMeters, privacy: .public)m " +
-                "jump<=\(policy.maxJumpDistanceMeters, privacy: .public)m " +
-                "historical>=\(policy.maxFixStaleness, privacy: .public)s"
-        )
+        let policyMode: TrackingMode = self.trackingMode == .auto ? .balanced : self.trackingMode
+        let policy = self.fixAcceptancePolicy
+        let modeRaw = self.trackingMode.rawValue
+        logger.notice("Fix acceptance policy (\(reason, privacy: .public)) mode=\(modeRaw, privacy: .public) mapped=\(policyMode.rawValue, privacy: .public) accuracy<=\(policy.maxHorizontalAccuracyMeters, privacy: .public)m jump<=\(policy.maxJumpDistanceMeters, privacy: .public)m historical>=\(policy.maxFixStaleness, privacy: .public)s")
     }
 
     deinit {
@@ -665,6 +661,24 @@ public final class PetLocationManager: NSObject {
                 logger.notice("Queued stop command via application context")
             } catch {
                 logger.error("Failed to queue stop command: \(error.localizedDescription)")
+            }
+        }
+        #endif
+    }
+
+    /// Triggers a short haptic "ping" on the watch (requires reachability).
+    public func pingWatch() {
+        #if canImport(WatchConnectivity)
+        guard session.activationState == .activated else { return }
+        guard session.isReachable else {
+            errorMessage = "Apple Watch unreachable. Open the Watch app to enable pings."
+            return
+        }
+
+        let payload: [String: Any] = [ConnectivityConstants.action: ConnectivityConstants.pingWatch]
+        session.sendMessage(payload, replyHandler: nil) { error in
+            Task { @MainActor in
+                self.errorMessage = "Ping failed: \(error.localizedDescription)"
             }
         }
         #endif

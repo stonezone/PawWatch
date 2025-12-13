@@ -39,8 +39,38 @@ public struct PetMapView: View {
 
     // MARK: - State
 
+    private enum MapStyleChoice: String, CaseIterable, Identifiable {
+        case standard
+        case hybrid
+        case satellite
+
+        var id: String { rawValue }
+
+        var label: String {
+            switch self {
+            case .standard: return "Standard"
+            case .hybrid: return "Hybrid"
+            case .satellite: return "Satellite"
+            }
+        }
+
+        var mapStyle: MapStyle {
+            switch self {
+            case .standard:
+                return .standard(elevation: .flat)
+            case .hybrid:
+                return .hybrid(elevation: .flat)
+            case .satellite:
+                return .imagery(elevation: .flat)
+            }
+        }
+    }
+
+    @AppStorage("pawWatch.mapStyleChoice") private var mapStyleChoice: MapStyleChoice = .standard
+
     /// Map camera position
     @State private var cameraPosition: MapCameraPosition = .automatic
+    @State private var zoomScale: Double = 1.0
     /// Track if we have a valid size to prevent Metal crashes during transitions
     @State private var hasValidSize = false
     /// Last valid size for restoration
@@ -120,10 +150,56 @@ public struct PetMapView: View {
                 }
             }
         }
-        .mapStyle(.standard(elevation: .flat)) // Use flat to avoid iOS 26 Metal multisampling crash
+        .mapStyle(mapStyleChoice.mapStyle) // Use flat to avoid iOS 26 Metal multisampling crash
         .mapControls {
             MapUserLocationButton()
             MapCompass()
+        }
+        .overlay(alignment: .topTrailing) {
+            Menu {
+                Picker("Map style", selection: $mapStyleChoice) {
+                    ForEach(MapStyleChoice.allCases) { choice in
+                        Text(choice.label).tag(choice)
+                    }
+                }
+            } label: {
+                Image(systemName: "map.fill")
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+                    .padding(10)
+                    .background(.ultraThinMaterial, in: Circle())
+            }
+            .padding(12)
+        }
+        .overlay(alignment: .bottomTrailing) {
+            VStack(spacing: 10) {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        zoomScale = max(0.25, zoomScale * 0.7)
+                        updateCamera()
+                    }
+                } label: {
+                    Image(systemName: "plus.magnifyingglass")
+                        .font(.headline)
+                        .foregroundStyle(.primary)
+                        .padding(10)
+                        .background(.ultraThinMaterial, in: Circle())
+                }
+
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        zoomScale = min(8.0, zoomScale * 1.4)
+                        updateCamera()
+                    }
+                } label: {
+                    Image(systemName: "minus.magnifyingglass")
+                        .font(.headline)
+                        .foregroundStyle(.primary)
+                        .padding(10)
+                        .background(.ultraThinMaterial, in: Circle())
+                }
+            }
+            .padding(12)
         }
         .onAppear {
             updateCamera()
@@ -159,19 +235,41 @@ public struct PetMapView: View {
 
         // If owner location available, show both with padding
         if let ownerCoord = locationManager.ownerLocation?.coordinate {
-            let rect = MKMapRect(
-                coordinates: [petCoord, ownerCoord]
-            )
-            cameraPosition = .rect(rect.insetBy(dx: -250, dy: -250))
+            let rect = MKMapRect(coordinates: [petCoord, ownerCoord]).insetBy(dx: -250, dy: -250)
+            let region = regionFromRect(rect)
+            cameraPosition = .region(scaled(region, by: zoomScale))
         } else {
             // Show just pet with reasonable zoom
-            cameraPosition = .region(
-                MKCoordinateRegion(
-                    center: petCoord,
-                    span: MKCoordinateSpan(latitudeDelta: 0.002, longitudeDelta: 0.002)
-                )
+            let region = MKCoordinateRegion(
+                center: petCoord,
+                span: MKCoordinateSpan(latitudeDelta: 0.002, longitudeDelta: 0.002)
             )
+            cameraPosition = .region(scaled(region, by: zoomScale))
         }
+    }
+
+    private func scaled(_ region: MKCoordinateRegion, by scale: Double) -> MKCoordinateRegion {
+        let clampedScale = max(0.1, min(20.0, scale))
+        let latitudeDelta = max(0.0002, min(40.0, region.span.latitudeDelta * clampedScale))
+        let longitudeDelta = max(0.0002, min(40.0, region.span.longitudeDelta * clampedScale))
+        return MKCoordinateRegion(
+            center: region.center,
+            span: MKCoordinateSpan(latitudeDelta: latitudeDelta, longitudeDelta: longitudeDelta)
+        )
+    }
+
+    private func regionFromRect(_ rect: MKMapRect) -> MKCoordinateRegion {
+        let topLeft = MKMapPoint(x: rect.minX, y: rect.minY).coordinate
+        let bottomRight = MKMapPoint(x: rect.maxX, y: rect.maxY).coordinate
+        let center = CLLocationCoordinate2D(
+            latitude: (topLeft.latitude + bottomRight.latitude) / 2,
+            longitude: (topLeft.longitude + bottomRight.longitude) / 2
+        )
+        let span = MKCoordinateSpan(
+            latitudeDelta: abs(topLeft.latitude - bottomRight.latitude),
+            longitudeDelta: abs(topLeft.longitude - bottomRight.longitude)
+        )
+        return MKCoordinateRegion(center: center, span: span)
     }
 }
 
@@ -179,6 +277,7 @@ public struct PetMapView: View {
 
 /// Custom pet location marker with paw icon and Liquid Glass effect.
 struct PetMarkerView: View {
+    @Environment(PetProfileStore.self) private var petProfileStore
     let sequence: Int
 
     var body: some View {
@@ -189,7 +288,13 @@ struct PetMarkerView: View {
                 .frame(width: 48, height: 48)
                 .shadow(color: .red.opacity(0.4), radius: 8, x: 0, y: 4)
 
-            if let badge = pawBadge {
+            if let avatar = petAvatar {
+                Image(uiImage: avatar)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 32, height: 32)
+                    .clipShape(Circle())
+            } else if let badge = pawBadge {
                 Image(uiImage: badge)
                     .resizable()
                     .scaledToFit()
@@ -206,6 +311,11 @@ struct PetMarkerView: View {
 
     private var pawBadge: UIImage? {
         UIImage(named: "AppIcon") ?? UIImage(named: "AppIcon60x60@2x")
+    }
+
+    private var petAvatar: UIImage? {
+        guard let data = petProfileStore.profile.avatarPNGData else { return nil }
+        return UIImage(data: data)
     }
 }
 

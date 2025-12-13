@@ -30,12 +30,14 @@ struct pawWatch_Watch_App: App {
     /// allowing the iPhone to detect the Watch app
     /// Managed by SwiftUI @State to ensure a single instance per app lifecycle.
     @State private var locationManager = WatchLocationManager.shared
+    @State private var petProfileStore = PetProfileStore.shared
 
     // MARK: - Body
 
     var body: some Scene {
         WindowGroup {
             ContentView(locationManager: locationManager)
+                .environment(petProfileStore)
                 .task {
                     // Initialize connection status immediately on app launch
                     locationManager.updateConnectionStatus()

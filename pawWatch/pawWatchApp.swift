@@ -20,12 +20,14 @@ struct pawWatchApp: App {
     /// This guarantees that WCSession.delegate is configured as soon as the
     /// app launches, including background activations for queued transfers.
     @State private var locationManager: PetLocationManager
+    @State private var petProfileStore: PetProfileStore
 
     init() {
         // Create and register the shared location manager
         let manager = PetLocationManager()
         _locationManager = State(initialValue: manager)
         PetLocationManager.setShared(manager)
+        _petProfileStore = State(initialValue: PetProfileStore.shared)
 
 #if canImport(ActivityKit)
         LiveActivityBootstrapper.shared.startIfNeeded()
@@ -36,6 +38,7 @@ struct pawWatchApp: App {
         WindowGroup {
             ContentView()
                 .environment(locationManager)
+                .environment(petProfileStore)
                 .onOpenURL { url in
                     guard url.scheme == "pawwatch" else { return }
                     switch url.host?.lowercased() {
