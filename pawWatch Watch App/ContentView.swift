@@ -239,6 +239,8 @@ struct ContentView: View {
                         }
                         .buttonStyle(.bordered)
                         .tint(.orange)
+                        .accessibilityLabel("Restart workout")
+                        .accessibilityHint("Restart the tracking workout session to recover from an error")
                     }
 
                     // MARK: - GPS Details (when tracking)
@@ -342,6 +344,8 @@ struct ContentView: View {
                     .buttonStyle(.borderedProminent)
                     .tint(locationManager.isTracking ? .red : .green)
                     .padding(.top, 8)
+                    .accessibilityLabel(locationManager.isTracking ? "Stop tracking" : "Start tracking")
+                    .accessibilityHint(locationManager.isTracking ? "Stop GPS tracking and end workout session" : "Begin GPS tracking with workout session")
 
                     if locationManager.isTracking, !isTrackerLocked {
                         Button {
@@ -351,6 +355,8 @@ struct ContentView: View {
                         }
                         .buttonStyle(.bordered)
                         .tint(.blue)
+                        .accessibilityLabel("Lock tracker")
+                        .accessibilityHint("Lock the tracker to prevent accidental screen interactions during tracking")
                     }
 
                     NavigationLink {
@@ -362,6 +368,8 @@ struct ContentView: View {
                         Label("Settings", systemImage: "gearshape")
                     }
                     .buttonStyle(.bordered)
+                    .accessibilityLabel("Settings")
+                    .accessibilityHint("Open watch app settings")
 
                     NavigationLink {
                         RadialHistoryGlanceView(manager: locationManager)
@@ -369,6 +377,8 @@ struct ContentView: View {
                         Label("History", systemImage: "clock.arrow.circlepath")
                     }
                     .buttonStyle(.bordered)
+                    .accessibilityLabel("History")
+                    .accessibilityHint("View recent GPS location fixes")
                 }
                 .padding(.vertical)
             }
@@ -515,21 +525,6 @@ struct ContentView: View {
         return CGImageSourceCreateImageAtIndex(source, 0, nil)
     }
 
-    /// Determines color for accuracy visualization based on accuracy value.
-    ///
-    /// - Parameter accuracy: Horizontal accuracy in meters
-    /// - Returns: Color indicating accuracy quality (green=good, yellow=fair, red=poor)
-    private func accuracyColor(for accuracy: Double) -> Color {
-        switch accuracy {
-        case 0..<10:
-            return .green  // Excellent accuracy (<10m)
-        case 10..<25:
-            return .yellow  // Good accuracy (10-25m)
-        default:
-            return .red  // Poor accuracy (>25m)
-        }
-    }
-
     /// Calculates circle size for accuracy visualization.
     ///
     /// Maps accuracy to visual size:
@@ -547,273 +542,6 @@ struct ContentView: View {
             return 30  // Medium circle for good accuracy
         default:
             return 40  // Large circle for poor accuracy
-        }
-    }
-
-    /// Selects appropriate battery icon based on battery level.
-    ///
-    /// - Parameter batteryLevel: Battery level as fraction (0.0-1.0)
-    /// - Returns: SF Symbol name for battery icon
-private func batteryIcon(for batteryLevel: Double) -> String {
-        let percentage = batteryLevel * 100
-        switch percentage {
-        case 75...100:
-            return "battery.100"
-        case 50..<75:
-            return "battery.75"
-        case 25..<50:
-            return "battery.50"
-        case 10..<25:
-            return "battery.25"
-        default:
-            return "battery.0"
-        }
-    }
-}
-
-// MARK: - Glass Helpers
-
-// MARK: - Radial History Glance
-
-private struct RadialHistoryGlanceView: View {
-    @Bindable var manager: WatchLocationManager
-    private let maxItems = 8
-
-    var body: some View {
-        List {
-            if manager.recentFixes.isEmpty {
-                RadialHistoryEmptyState()
-                    .listRowBackground(Color.clear)
-            } else {
-                ForEach(manager.recentFixes.prefix(maxItems), id: \.sequence) { fix in
-                    GlassPill {
-                        RadialFixRow(fix: fix)
-                    }
-                    .listRowInsets(EdgeInsets(top: 2, leading: 6, bottom: 2, trailing: 6))
-                }
-            }
-        }
-        .listStyle(.carousel)
-        .navigationTitle("History")
-        .navigationBarTitleDisplayMode(.inline)
-        .background(WatchGlassBackground())
-    }
-}
-
-private struct RadialHistoryEmptyState: View {
-    var body: some View {
-        VStack(spacing: 8) {
-            Image(systemName: "location.slash")
-                .font(.title2)
-                .foregroundStyle(.secondary)
-            Text("No recent fixes")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Text("Start tracking to populate the glance.")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, alignment: .center)
-        .padding(.vertical, 32)
-    }
-}
-
-private struct RadialFixRow: View {
-    let fix: LocationFix
-    private let maxAge: TimeInterval = 15 * 60
-
-    var body: some View {
-        HStack(spacing: 10) {
-            RadialRing(
-                progress: progress(for: fix.timestamp),
-                color: accuracyColor(for: fix.horizontalAccuracyMeters),
-                size: 30,
-                lineWidth: 4
-            ) {
-                Text(timeAgoShort(since: fix.timestamp))
-                    .font(.system(size: 9, weight: .semibold, design: .rounded))
-                    .monospacedDigit()
-                    .minimumScaleFactor(0.7)
-            }
-
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
-                    Text(timeAgoLong(since: fix.timestamp))
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                        .monospacedDigit()
-
-                    HStack(spacing: 2) {
-                        Image(systemName: batteryIcon(for: fix.batteryFraction))
-                            .font(.caption2)
-                        Text("\(Int((fix.batteryFraction * 100).rounded()))%")
-                            .font(.caption2)
-                            .monospacedDigit()
-                    }
-                    .foregroundStyle(.secondary)
-                }
-
-                Text("±\(fix.horizontalAccuracyMeters, specifier: "%.0f") m")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-
-    // MARK: - Helpers
-
-    private func progress(for timestamp: Date) -> CGFloat {
-        let age = max(0, Date().timeIntervalSince(timestamp))
-        let clamped = max(0.2, 1 - age / maxAge)
-        return CGFloat(min(1, clamped))
-    }
-
-    private func timeAgoShort(since date: Date) -> String {
-        let seconds = max(0, Int(Date().timeIntervalSince(date)))
-        if seconds < 60 { return "\(seconds)s" }
-        let minutes = seconds / 60
-        if minutes < 60 { return "\(minutes)m" }
-        return "\(minutes / 60)h"
-    }
-
-    private func timeAgoLong(since date: Date) -> String {
-        let seconds = max(0, Int(Date().timeIntervalSince(date)))
-        if seconds < 60 { return "\(seconds)s ago" }
-        let minutes = seconds / 60
-        if minutes < 60 { return "\(minutes)m ago" }
-        return "\(minutes / 60)h ago"
-    }
-
-    private func accuracyColor(for accuracy: Double) -> Color {
-        switch accuracy {
-        case 0..<10: return .green
-        case 10..<25: return .yellow
-        default: return .orange
-        }
-    }
-
-    private func batteryIcon(for batteryLevel: Double) -> String {
-        let percentage = batteryLevel * 100
-        switch percentage {
-        case 75...100: return "battery.100"
-        case 50..<75: return "battery.75"
-        case 25..<50: return "battery.50"
-        case 10..<25: return "battery.25"
-        default: return "battery.0"
-        }
-    }
-}
-
-private struct RadialRing<Content: View>: View {
-    let progress: CGFloat
-    let color: Color
-    let size: CGFloat
-    let lineWidth: CGFloat
-    @ViewBuilder var content: Content
-
-    var body: some View {
-        ZStack {
-            Circle()
-                .stroke(Color.white.opacity(0.15), lineWidth: lineWidth)
-
-            Circle()
-                .trim(from: 0, to: progress)
-                .stroke(color, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
-                .rotationEffect(.degrees(-90))
-
-            content
-        }
-        .frame(width: size, height: size)
-    }
-}
-
-private struct GlassPill<Content: View>: View {
-    @ViewBuilder var content: Content
-
-    var body: some View {
-        if #available(watchOS 26, *) {
-            content
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .glassEffect(.regular, in: .capsule)
-        } else {
-            content
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(.thinMaterial, in: Capsule())
-        }
-    }
-}
-
-private struct GlassSkeleton: View {
-    let height: CGFloat
-    var body: some View {
-        RoundedRectangle(cornerRadius: 12, style: .continuous)
-            .fill(.ultraThinMaterial.opacity(0.3))
-            .frame(height: height)
-    }
-}
-
-private struct MetricTile: View {
-    let icon: String
-    let title: String
-    let value: String
-    let subtitle: String?
-    var tint: Color = .cyan
-
-    init(icon: String, title: String, value: String, subtitle: String? = nil, tint: Color = .cyan) {
-        self.icon = icon
-        self.title = title
-        self.value = value
-        self.subtitle = subtitle
-        self.tint = tint
-    }
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 6) {
-            Image(systemName: icon)
-                .font(.caption2)
-                .foregroundStyle(tint)
-                .imageScale(.small)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                Text(value)
-                    .font(.caption)
-                    .fontWeight(.semibold)
-                    .monospacedDigit()
-                if let subtitle, !subtitle.isEmpty {
-                    Text(subtitle)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
-private struct SmartStackHintView: View {
-    let latency: String
-    let drain: String
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 6) {
-            Image(systemName: "rectangle.stack.badge.play.fill")
-                .font(.caption2)
-                .foregroundStyle(.blue)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Smart Stack preview")
-                    .font(.caption)
-                    .fontWeight(.semibold)
-                Text("WidgetKit card will mirror \(latency) + \(drain) snapshot when Phase 6 lands.")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
         }
     }
 }
@@ -864,6 +592,8 @@ private extension ContentView {
             }
             .buttonStyle(.bordered)
             .tint(.red)
+            .accessibilityLabel("Emergency stop")
+            .accessibilityHint("Stop tracking immediately and unlock the tracker")
         }
         .padding()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -915,49 +645,8 @@ private extension ContentView {
     }
 }
 
-// MARK: - Lock Overlay Background
-
-private struct LockOverlayBackgroundModifier: ViewModifier {
-    func body(content: Content) -> some View {
-        if #available(watchOS 26, *) {
-            content
-                .glassEffect(.regular, in: .rect(cornerRadius: 18))
-        } else {
-            content
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        }
-    }
-}
-
 // MARK: - Preview
 
 #Preview {
     ContentView(locationManager: WatchLocationManager.shared)
-}
-
-// MARK: - Settings View
-
-private struct WatchSettingsView: View {
-    @Binding var optimizationsEnabled: Bool
-    @Binding var autoLockEnabled: Bool
-
-    var body: some View {
-        List {
-            Section("Battery") {
-                Toggle("Runtime Guard & Smart Polling", isOn: $optimizationsEnabled)
-                Text("Keeps the workout alive with WKExtendedRuntimeSession and slows GPS when stationary or low battery.")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-
-            Section("Water Lock") {
-                Toggle("Auto-Lock on Start", isOn: $autoLockEnabled)
-                Text("Automatically locks the tracker when you start tracking. Rotate the Digital Crown to unlock.")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .listStyle(.carousel)
-        .navigationTitle("Settings")
-    }
 }

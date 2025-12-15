@@ -55,7 +55,7 @@ public struct PetStatusCard: View {
                         .font(.title3.bold())
 
                     if let seconds = locationManager.secondsSinceLastUpdate {
-                        Text(timeAgoText(seconds))
+                        Text(SharedUtilities.timeAgoText(seconds))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -108,15 +108,6 @@ public struct PetStatusCard: View {
         .animation(.spring(response: 0.35, dampingFraction: 0.8), value: locationManager.latestLocation)
     }
 
-    private func timeAgoText(_ seconds: TimeInterval) -> String {
-        if seconds < 60 {
-            return String(format: "%.0fs ago", seconds)
-        } else if seconds < 3600 {
-            return String(format: "%.0fm ago", seconds / 60)
-        } else {
-            return String(format: "%.1fh ago", seconds / 3600)
-        }
-    }
 }
 
 private struct ForegroundDistanceNotice: View {
@@ -313,37 +304,23 @@ struct MetadataGrid: View {
 
     /// Accuracy color: green (<10m), yellow (<50m), red (>=50m)
     private var accuracyColor: Color {
-        if accuracy < 10 { return .green }
-        if accuracy < 50 { return .yellow }
-        return .red
+        SharedUtilities.accuracyColor(for: accuracy)
     }
 
     /// Battery color: green (>50%), yellow (20-50%), red (<20%)
     private var batteryColor: Color {
-        if battery > 0.5 { return .green }
-        if battery > 0.2 { return .yellow }
-        return .red
+        SharedUtilities.batteryColor(for: battery)
     }
 
     /// Dynamic battery icon based on level
     private var batteryIcon: String {
-        if battery > 0.75 { return "battery.100" }
-        if battery > 0.5 { return "battery.75" }
-        if battery > 0.25 { return "battery.50" }
-        return "battery.25"
+        SharedUtilities.batteryIcon(for: battery)
     }
 
     /// Relative time string (e.g., "5s ago", "2m ago")
     private var timeAgoText: String {
         guard let seconds = secondsSinceUpdate else { return "Unknown" }
-
-        if seconds < 60 {
-            return String(format: "%.0fs ago", seconds)
-        } else if seconds < 3600 {
-            return String(format: "%.0fm ago", seconds / 60)
-        } else {
-            return String(format: "%.1fh ago", seconds / 3600)
-        }
+        return SharedUtilities.timeAgoText(seconds)
     }
 
     /// Distance text (e.g., "15.2 m", "1.2 km", "Unknown")

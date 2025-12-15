@@ -170,6 +170,8 @@ public struct PetMapView: View {
                     .background(.ultraThinMaterial, in: Circle())
             }
             .padding(12)
+            .accessibilityLabel("Map style menu")
+            .accessibilityHint("Choose between standard, hybrid, or satellite map views")
         }
         .overlay(alignment: .bottomTrailing) {
             VStack(spacing: 10) {
@@ -185,6 +187,8 @@ public struct PetMapView: View {
                         .padding(10)
                         .background(.ultraThinMaterial, in: Circle())
                 }
+                .accessibilityLabel("Zoom in")
+                .accessibilityHint("Zoom in on the map to see more detail")
 
                 Button {
                     withAnimation(.easeInOut(duration: 0.2)) {
@@ -198,6 +202,8 @@ public struct PetMapView: View {
                         .padding(10)
                         .background(.ultraThinMaterial, in: Circle())
                 }
+                .accessibilityLabel("Zoom out")
+                .accessibilityHint("Zoom out on the map to see more area")
             }
             .padding(12)
         }
