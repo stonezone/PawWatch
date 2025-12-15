@@ -386,6 +386,13 @@ public final class PetLocationManager: NSObject {
         }
         let needsDefaultEmergencyCadence = storedEmergencyCadenceRaw == nil
 
+        // Initialize distance alerts
+        let storedAlertsEnabled = sharedDefaults.object(forKey: distanceAlertsEnabledKey) as? Bool
+        self.distanceAlertsEnabled = storedAlertsEnabled ?? false
+        
+        let storedThreshold = sharedDefaults.object(forKey: distanceAlertThresholdKey) as? Double
+        self.distanceAlertThreshold = storedThreshold ?? Self.defaultDistanceAlertThreshold
+
         super.init()
 
         registerFixAcceptancePolicyDefaults()
@@ -848,9 +855,130 @@ public final class PetLocationManager: NSObject {
         }
     }
 
-    /// Copy shown anywhere we remind users that distance relies on the foreground dashboard.
+    // MARK: - Background Distance Alerts
+    
+    /// Distance threshold in meters for background alerts
+    private let distanceAlertThresholdKey = "DistanceAlertThreshold"
+    private let distanceAlertsEnabledKey = "DistanceAlertsEnabled"
+    
+    /// Whether background distance alerts are enabled
+    public private(set) var distanceAlertsEnabled: Bool
+    
+    /// Distance threshold in meters that triggers an alert
+    public private(set) var distanceAlertThreshold: Double
+    
+    /// Timestamp of last distance alert to prevent spam
+    private var lastDistanceAlertTime: Date?
+    
+    /// Minimum interval between distance alerts (5 minutes)
+    private let distanceAlertCooldown: TimeInterval = 300
+    
+    /// Default distance thresholds (in meters)
+    public static let distanceAlertThresholdRange: ClosedRange<Double> = 10...1000
+    public static let defaultDistanceAlertThreshold: Double = 100
+    
+    /// Enable or disable background distance alerts
+    public func setDistanceAlertsEnabled(_ enabled: Bool) {
+        distanceAlertsEnabled = enabled
+        sharedDefaults.set(enabled, forKey: distanceAlertsEnabledKey)
+        
+        if enabled {
+            requestNotificationPermission()
+        }
+    }
+    
+    /// Update the distance threshold that triggers alerts
+    public func setDistanceAlertThreshold(_ meters: Double) {
+        let clamped = min(max(meters, Self.distanceAlertThresholdRange.lowerBound), 
+                         Self.distanceAlertThresholdRange.upperBound)
+        distanceAlertThreshold = clamped
+        sharedDefaults.set(clamped, forKey: distanceAlertThresholdKey)
+    }
+    
+    /// Request notification permission if not already granted
+    private func requestNotificationPermission() {
+        #if canImport(UserNotifications)
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { [weak self] granted, error in
+            if let error {
+                Task { @MainActor in
+                    self?.logger.error("Notification authorization failed: \(error.localizedDescription, privacy: .public)")
+                }
+            }
+            if !granted {
+                Task { @MainActor in
+                    self?.logger.notice("Notification authorization denied; distance alerts disabled")
+                    self?.distanceAlertsEnabled = false
+                }
+            }
+        }
+        #endif
+    }
+    
+    /// Check if distance threshold exceeded and send notification if needed
+    private func checkDistanceAlert() {
+        guard distanceAlertsEnabled else { return }
+        
+        guard let distance = distanceFromOwner else { return }
+        guard isDistanceFresh else { return }
+        
+        // Only alert if distance exceeds threshold
+        guard distance > distanceAlertThreshold else {
+            // Distance is back within threshold - reset cooldown for next alert
+            lastDistanceAlertTime = nil
+            return
+        }
+        
+        // Check cooldown to prevent spam
+        if let lastAlert = lastDistanceAlertTime {
+            let elapsed = Date().timeIntervalSince(lastAlert)
+            guard elapsed >= distanceAlertCooldown else {
+                return // Still in cooldown period
+            }
+        }
+        
+        scheduleDistanceExceededNotification(distance: distance)
+        lastDistanceAlertTime = Date()
+    }
+    
+    /// Send local notification when pet exceeds distance threshold
+    private func scheduleDistanceExceededNotification(distance: Double) {
+        #if canImport(UserNotifications)
+        let center = UNUserNotificationCenter.current()
+        let content = UNMutableNotificationContent()
+        content.title = "Pet Distance Alert"
+        
+        let distanceMeters = Int(distance)
+        let distanceFeet = Int(distance * 3.28084)
+        content.body = "Your pet is \(distanceMeters)m (\(distanceFeet)ft) away from you."
+        content.sound = .default
+        content.categoryIdentifier = "pawwatch.distance-alert"
+        
+        // Use same identifier to replace existing notification (prevent spam)
+        let request = UNNotificationRequest(
+            identifier: "pawwatch.distance-exceeded",
+            content: content,
+            trigger: nil
+        )
+        
+        center.add(request) { [weak self] error in
+            if let error {
+                self?.logger.error("Failed to schedule distance alert: \(error.localizedDescription, privacy: .public)")
+            } else {
+                self?.logger.notice("Distance alert sent: \(Int(distance))m")
+            }
+        }
+        #endif
+    }
+    
+    /// Copy shown anywhere we remind users about distance tracking capabilities.
     public var distanceUsageBlurb: String {
-        "Distance updates refresh while pawWatch stays open on your iPhone. Background alerts aren't supported yet."
+        if distanceAlertsEnabled {
+            let meters = Int(distanceAlertThreshold)
+            let feet = Int(distanceAlertThreshold * 3.28084)
+            return "Distance updates refresh while pawWatch is open. Background alerts enabled at \(meters)m (\(feet)ft)."
+        } else {
+            return "Distance updates refresh while pawWatch stays open. Enable background alerts in Settings."
+        }
     }
 
     #if canImport(HealthKit)
@@ -1094,6 +1222,9 @@ public final class PetLocationManager: NSObject {
         insertIntoHistory(locationFix)
         appendSessionSample(locationFix)
         PerformanceMonitor.shared.recordRemoteFix(locationFix, watchReachable: isWatchReachable)
+        
+        // Check distance alert after updating location
+        checkDistanceAlert()
 
         // Sync to CloudKit for offline recovery (throttled to prevent rate limiting)
         // CR-001 FIX: Only sync every 5 minutes to prevent CloudKit throttling and battery drain
@@ -1448,6 +1579,8 @@ extension PetLocationManager: CLLocationManagerDelegate {
             // horizontalAccuracy is a radius in meters, so LOWER is BETTER (more precise)
             if let bestLocation = locations.min(by: { $0.horizontalAccuracy < $1.horizontalAccuracy }) {
                 self.ownerLocation = bestLocation
+                // Check distance alert when owner location changes
+                self.checkDistanceAlert()
             }
         }
     }

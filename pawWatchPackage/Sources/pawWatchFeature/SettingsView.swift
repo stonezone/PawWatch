@@ -137,6 +137,52 @@ struct SettingsView: View {
                 .disabled(!locationManager.isWatchReachable)
             }
 
+            // MARK: - Distance Alerts
+            settingsCard(title: "Distance Alerts") {
+                VStack(alignment: .leading, spacing: 12) {
+                    Toggle("Enable Background Alerts", isOn: Binding(
+                        get: { locationManager.distanceAlertsEnabled },
+                        set: { locationManager.setDistanceAlertsEnabled($0) }
+                    ))
+                    
+                    if locationManager.distanceAlertsEnabled {
+                        Divider().opacity(0.3)
+                        
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Alert Distance")
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(.secondary)
+                            
+                            let currentMeters = locationManager.distanceAlertThreshold
+                            let currentFeet = currentMeters * 3.28084
+                            
+                            HStack {
+                                Text(useMetricUnits ? "\(Int(currentMeters))m" : "\(Int(currentFeet))ft")
+                                    .font(.system(.body, design: .monospaced).weight(.semibold))
+                                Spacer()
+                            }
+                            
+                            Slider(
+                                value: Binding(
+                                    get: { locationManager.distanceAlertThreshold },
+                                    set: { locationManager.setDistanceAlertThreshold($0) }
+                                ),
+                                in: PetLocationManager.distanceAlertThresholdRange,
+                                step: 10
+                            )
+                            
+                            Text("Get notified when your pet moves beyond this distance")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    } else {
+                        Text("Enable alerts to get notified when your pet moves too far away")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+
             // MARK: - Permissions (Simplified)
             if locationManager.needsLocationPermissionAction || locationManager.needsHealthPermissionAction {
                 settingsCard(title: "Permissions Needed") {

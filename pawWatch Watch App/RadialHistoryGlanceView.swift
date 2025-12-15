@@ -25,7 +25,7 @@ struct RadialHistoryGlanceView: View {
                     GlassPill {
                         RadialFixRow(fix: fix)
                     }
-                    .listRowInsets(EdgeInsets(top: 2, leading: 6, bottom: 2, trailing: 6))
+                    .listRowInsets(EdgeInsets(top: Spacing.xxxs, leading: Spacing.xs, bottom: Spacing.xxxs, trailing: Spacing.xs))
                 }
             }
         }
@@ -40,7 +40,7 @@ struct RadialHistoryGlanceView: View {
 
 struct RadialHistoryEmptyState: View {
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: Spacing.sm) {
             Image(systemName: "location.slash")
                 .font(.title2)
                 .foregroundStyle(.secondary)
@@ -63,12 +63,12 @@ struct RadialFixRow: View {
     private let maxAge: TimeInterval = 15 * 60
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: Spacing.sm) {
             RadialRing(
                 progress: progress(for: fix.timestamp),
                 color: SharedUtilities.accuracyColor(for: fix.horizontalAccuracyMeters),
-                size: 30,
-                lineWidth: 4
+                size: IconSize.xl - Spacing.xxxs,
+                lineWidth: Spacing.xxs
             ) {
                 Text(SharedUtilities.timeAgoShort(since: fix.timestamp))
                     .font(.system(size: 9, weight: .semibold, design: .rounded))
@@ -76,14 +76,14 @@ struct RadialFixRow: View {
                     .minimumScaleFactor(0.7)
             }
 
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
+            VStack(alignment: .leading, spacing: Spacing.xxxs) {
+                HStack(spacing: Spacing.xs) {
                     Text(SharedUtilities.timeAgoLong(since: fix.timestamp))
                         .font(.caption)
                         .fontWeight(.semibold)
                         .monospacedDigit()
 
-                    HStack(spacing: 2) {
+                    HStack(spacing: Spacing.xxxs) {
                         Image(systemName: SharedUtilities.batteryIcon(for: fix.batteryFraction))
                             .font(.caption2)
                         Text("\(Int((fix.batteryFraction * 100).rounded()))%")
@@ -123,7 +123,7 @@ struct RadialRing<Content: View>: View {
     var body: some View {
         ZStack {
             Circle()
-                .stroke(Color.white.opacity(0.15), lineWidth: lineWidth)
+                .stroke(Color.white.opacity(Opacity.xlow * 0.6), lineWidth: lineWidth)
 
             Circle()
                 .trim(from: 0, to: progress)

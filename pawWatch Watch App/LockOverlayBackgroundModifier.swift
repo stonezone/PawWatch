@@ -7,6 +7,7 @@
 //
 
 import SwiftUI
+import pawWatchFeature
 
 // MARK: - Lock Overlay Background Modifier
 
@@ -14,10 +15,10 @@ struct LockOverlayBackgroundModifier: ViewModifier {
     func body(content: Content) -> some View {
         if #available(watchOS 26, *) {
             content
-                .glassEffect(.regular, in: .rect(cornerRadius: 18))
+                .glassEffect(.regular, in: .rect(cornerRadius: CornerRadius.md + Spacing.xxxs))
         } else {
             content
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: CornerRadius.md + Spacing.xxxs, style: .continuous))
         }
     }
 }

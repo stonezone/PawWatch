@@ -7,6 +7,7 @@
 //
 
 import SwiftUI
+import pawWatchFeature
 
 // MARK: - Glass Pill
 
@@ -16,13 +17,13 @@ struct GlassPill<Content: View>: View {
     var body: some View {
         if #available(watchOS 26, *) {
             content
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
+                .padding(.horizontal, Spacing.md)
+                .padding(.vertical, Spacing.xs)
                 .glassEffect(.regular, in: .capsule)
         } else {
             content
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
+                .padding(.horizontal, Spacing.md)
+                .padding(.vertical, Spacing.xs)
                 .background(.thinMaterial, in: Capsule())
         }
     }
@@ -34,8 +35,8 @@ struct GlassSkeleton: View {
     let height: CGFloat
 
     var body: some View {
-        RoundedRectangle(cornerRadius: 12, style: .continuous)
-            .fill(.ultraThinMaterial.opacity(0.3))
+        RoundedRectangle(cornerRadius: CornerRadius.sm, style: .continuous)
+            .fill(.ultraThinMaterial.opacity(Opacity.medium * 0.5))
             .frame(height: height)
     }
 }

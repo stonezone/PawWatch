@@ -7,6 +7,7 @@
 //
 
 import SwiftUI
+import pawWatchFeature
 
 // MARK: - Metric Tile
 
@@ -26,13 +27,13 @@ struct MetricTile: View {
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 6) {
+        HStack(alignment: .top, spacing: Spacing.xs) {
             Image(systemName: icon)
                 .font(.caption2)
                 .foregroundStyle(tint)
                 .imageScale(.small)
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: Spacing.xxxs) {
                 Text(title)
                     .font(.caption2)
                     .foregroundStyle(.secondary)

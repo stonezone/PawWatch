@@ -89,13 +89,13 @@ struct ContentView: View {
     private var mainContent: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 12) {
+                VStack(spacing: Spacing.md) {
 
                     // MARK: - App Title
 
                     if #available(watchOS 26, *) {
-                        VStack(spacing: 2) {
-                            HStack(spacing: 6) {
+                        VStack(spacing: Spacing.xxxs) {
+                            HStack(spacing: Spacing.xs) {
                                 Image(systemName: "pawprint.fill")
                                     .font(.title3)
                                     .foregroundStyle(.cyan.gradient)
@@ -110,10 +110,10 @@ struct ContentView: View {
                                 .foregroundStyle(.secondary)
 
                             if shouldShowPetHeader {
-                                HStack(spacing: 8) {
+                                HStack(spacing: Spacing.sm) {
                                     ZStack {
                                         Circle()
-                                            .fill(Color.secondary.opacity(0.18))
+                                            .fill(Color.secondary.opacity(Opacity.xlow))
                                             .frame(width: 28, height: 28)
 
                                         if let avatar = petAvatarCGImage {
@@ -143,11 +143,11 @@ struct ContentView: View {
 
                                     Spacer(minLength: 0)
                                 }
-                                .padding(.top, 4)
+                                .padding(.top, Spacing.xxs)
                             }
                         }
                     } else {
-                        VStack(spacing: 2) {
+                        VStack(spacing: Spacing.xxxs) {
                             Text("pawWatch")
                                 .font(.title3)
                                 .fontWeight(.bold)
@@ -156,10 +156,10 @@ struct ContentView: View {
                                 .foregroundStyle(.secondary)
 
                             if shouldShowPetHeader {
-                                HStack(spacing: 8) {
+                                HStack(spacing: Spacing.sm) {
                                     ZStack {
                                         Circle()
-                                            .fill(Color.secondary.opacity(0.18))
+                                            .fill(Color.secondary.opacity(Opacity.xlow))
                                             .frame(width: 28, height: 28)
 
                                         if let avatar = petAvatarCGImage {
@@ -189,7 +189,7 @@ struct ContentView: View {
 
                                     Spacer(minLength: 0)
                                 }
-                                .padding(.top, 4)
+                                .padding(.top, Spacing.xxs)
                             }
                         }
                     }
@@ -199,7 +199,7 @@ struct ContentView: View {
                     if #available(watchOS 26, *) {
                         ZStack {
                             Circle()
-                                .fill(locationManager.isTracking ? Color.green.opacity(0.2) : Color.secondary.opacity(0.1))
+                                .fill(locationManager.isTracking ? Color.green.opacity(Opacity.xlow) : Color.secondary.opacity(0.1))
                                 .frame(width: 70, height: 70)
                             Image(systemName: locationManager.isTracking ? "location.fill" : "location.slash")
                                 .font(.system(size: 36))
@@ -246,13 +246,13 @@ struct ContentView: View {
                     // MARK: - GPS Details (when tracking)
 
                     if locationManager.isTracking, let fix = locationManager.currentFix {
-                        VStack(spacing: 8) {
+                        VStack(spacing: Spacing.sm) {
 
                             // Coordinates
-                            HStack(spacing: 4) {
+                            HStack(spacing: Spacing.xxs) {
                                 Image(systemName: "globe")
                                     .font(.caption2)
-                                VStack(alignment: .leading, spacing: 2) {
+                                VStack(alignment: .leading, spacing: Spacing.xxxs) {
                                     Text("Lat: \(fix.coordinate.latitude, specifier: "%.6f")")
                                         .font(.caption2)
                                         .monospaced()
@@ -264,7 +264,7 @@ struct ContentView: View {
                             .foregroundStyle(.secondary)
 
                             // Accuracy
-                            HStack(spacing: 4) {
+                            HStack(spacing: Spacing.xxs) {
                                 Image(systemName: "scope")
                                     .font(.caption2)
                                 Text("Accuracy: ±\(fix.horizontalAccuracyMeters, specifier: "%.1f")m")
@@ -276,16 +276,16 @@ struct ContentView: View {
                             Circle()
                                 .stroke(
                                     accuracyColor(for: fix.horizontalAccuracyMeters),
-                                    lineWidth: 2
+                                    lineWidth: Spacing.xxxs
                                 )
                                 .frame(width: accuracyCircleSize(for: fix.horizontalAccuracyMeters))
                                 .overlay {
                                     Circle()
-                                        .fill(accuracyColor(for: fix.horizontalAccuracyMeters).opacity(0.2))
+                                        .fill(accuracyColor(for: fix.horizontalAccuracyMeters).opacity(Opacity.xlow))
                                 }
 
                             // Speed
-                            HStack(spacing: 4) {
+                            HStack(spacing: Spacing.xxs) {
                                 Image(systemName: "speedometer")
                                     .font(.caption2)
                                 Text("Speed: \(fix.speedMetersPerSecond * 3.6, specifier: "%.1f") km/h")
@@ -295,7 +295,7 @@ struct ContentView: View {
 
                             // Altitude (if available)
                             if let altitude = fix.altitudeMeters {
-                                HStack(spacing: 4) {
+                                HStack(spacing: Spacing.xxs) {
                                     Image(systemName: "mountain.2")
                                         .font(.caption2)
                                     Text("Altitude: \(altitude, specifier: "%.0f")m")
@@ -305,7 +305,7 @@ struct ContentView: View {
                             }
 
                             // Battery
-                            HStack(spacing: 4) {
+                            HStack(spacing: Spacing.xxs) {
                                 Image(systemName: batteryIcon(for: fix.batteryFraction))
                                     .font(.caption2)
                                 Text("Battery: \(fix.batteryFraction * 100, specifier: "%.0f")%")
@@ -314,7 +314,7 @@ struct ContentView: View {
                             .foregroundStyle(.secondary)
 
                             // Update frequency
-                            HStack(spacing: 4) {
+                            HStack(spacing: Spacing.xxs) {
                                 Image(systemName: "waveform.path.ecg")
                                     .font(.caption2)
                                 Text("Update: \(locationManager.updateFrequency, specifier: "%.2f") Hz")
@@ -322,16 +322,16 @@ struct ContentView: View {
                             }
                             .foregroundStyle(.secondary)
                         }
-                        .padding(.vertical, 8)
+                        .padding(.vertical, Spacing.sm)
                     } else {
                         GlassSkeleton(height: 60)
-                            .padding(.vertical, 8)
+                            .padding(.vertical, Spacing.sm)
                     }
 
                     metricsSection
 
                     reachabilityPill
-                        .padding(.top, 4)
+                        .padding(.top, Spacing.xxs)
 
                     // MARK: - Tracking Control Button
 
@@ -343,7 +343,7 @@ struct ContentView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(locationManager.isTracking ? .red : .green)
-                    .padding(.top, 8)
+                    .padding(.top, Spacing.sm)
                     .accessibilityLabel(locationManager.isTracking ? "Stop tracking" : "Start tracking")
                     .accessibilityHint(locationManager.isTracking ? "Stop GPS tracking and end workout session" : "Begin GPS tracking with workout session")
 
@@ -393,8 +393,8 @@ struct ContentView: View {
     @ViewBuilder
     private var metricsSection: some View {
         if locationManager.isTracking || locationManager.gpsLatencyAverageMS > 0 {
-            VStack(spacing: 6) {
-                HStack(spacing: 6) {
+            VStack(spacing: Spacing.xs) {
+                HStack(spacing: Spacing.xs) {
                     GlassPill {
                         MetricTile(
                             icon: "waveform.path", 
@@ -550,11 +550,11 @@ struct ContentView: View {
 
 private extension ContentView {
     var lockOverlay: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: Spacing.sm) {
             if #available(watchOS 26, *) {
                 ZStack {
                     Circle()
-                        .fill(.cyan.opacity(0.2))
+                        .fill(.cyan.opacity(Opacity.xlow))
                         .frame(width: 50, height: 50)
                     Image(systemName: "lock.fill")
                         .font(.title2)
