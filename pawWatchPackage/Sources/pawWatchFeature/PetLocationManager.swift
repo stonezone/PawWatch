@@ -898,16 +898,18 @@ public final class PetLocationManager: NSObject {
     /// Request notification permission if not already granted
     private func requestNotificationPermission() {
         #if canImport(UserNotifications)
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { [weak self] granted, error in
-            if let error {
-                Task { @MainActor in
-                    self?.logger.error("Notification authorization failed: \(error.localizedDescription, privacy: .public)")
+        Task {
+            do {
+                let granted = try await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge])
+                if !granted {
+                    await MainActor.run {
+                        self.logger.notice("Notification authorization denied; distance alerts disabled")
+                        self.distanceAlertsEnabled = false
+                    }
                 }
-            }
-            if !granted {
-                Task { @MainActor in
-                    self?.logger.notice("Notification authorization denied; distance alerts disabled")
-                    self?.distanceAlertsEnabled = false
+            } catch {
+                await MainActor.run {
+                    self.logger.error("Notification authorization failed: \(error.localizedDescription, privacy: .public)")
                 }
             }
         }
