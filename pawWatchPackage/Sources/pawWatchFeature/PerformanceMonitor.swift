@@ -87,12 +87,17 @@ public final class PerformanceMonitor: NSObject {
     public func recordBattery(level rawLevel: Double) {
         let now = Date()
         let elapsed = now.timeIntervalSince(lastBatteryTimestamp)
+
+        // P4-04: Minimum elapsed time threshold (60s) before computing drain
         guard elapsed > 60 else { return }
+
         var sanitizedLevel = rawLevel
         if !sanitizedLevel.isFinite { sanitizedLevel = lastBatteryLevel }
         sanitizedLevel = sanitizedLevel.clamped(to: 0...1)
 
         let delta = lastBatteryLevel - sanitizedLevel
+
+        // P4-04: Clamp drain to max(0, computed) - treat rising battery as zero drain
         if delta <= 0 {
             lastBatteryLevel = sanitizedLevel
             lastBatteryTimestamp = now
@@ -101,9 +106,11 @@ public final class PerformanceMonitor: NSObject {
         }
 
         let hours = max(elapsed / 3600, 0.01)
-        let instant = (delta / hours) * 100
+        let instant = max(0, (delta / hours) * 100) // P4-04: Clamp to non-negative
         batteryDrainPerHourInstant = instant
-        let smoothed = smoothingFactor * instant + (1 - smoothingFactor) * batteryDrainPerHourSmoothed
+
+        // P4-04: Apply smoothing with 70% previous, 30% new (more stable)
+        let smoothed = 0.7 * batteryDrainPerHourSmoothed + 0.3 * instant
         batteryDrainPerHourSmoothed = smoothed.isFinite ? smoothed : batteryDrainPerHourSmoothed
 
         lastBatteryLevel = sanitizedLevel

@@ -18,13 +18,6 @@ import WatchKit
 struct WatchGlassTheme {
     static let current = WatchGlassTheme()
 
-    // Darker, more vibrant gradients for circular display legibility
-    let backgroundGradient: [Color] = [
-        Color(red: 0.08, green: 0.14, blue: 0.24),
-        Color(red: 0.15, green: 0.21, blue: 0.32),
-        Color(red: 0.12, green: 0.18, blue: 0.28)
-    ]
-
     let accentPrimary = Color(red: 0.60, green: 0.85, blue: 1.0)  // Brighter cyan
     let accentSecondary = Color(red: 0.92, green: 0.55, blue: 0.76)  // Vibrant pink
     let chromeStroke = Color.white.opacity(0.4)
@@ -48,6 +41,16 @@ struct WatchGlassTheme {
         case .critical: return .red
         }
     }
+}
+
+/// Glass effect intensity for hierarchical visual design.
+enum WatchGlassIntensity {
+    /// Full glass effect for primary interactive elements
+    case primary
+    /// Subtle glass effect for secondary content
+    case secondary
+    /// Minimal or no glass effect to reduce visual noise
+    case minimal
 }
 
 enum StatusCondition {
@@ -88,10 +91,12 @@ struct WatchGlassBackground: View {
 struct WatchGlassPill<Content: View>: View {
     private let theme = WatchGlassTheme.current
     private let prominent: Bool
+    private let intensity: WatchGlassIntensity
     @ViewBuilder var content: Content
 
-    init(prominent: Bool = false, @ViewBuilder content: () -> Content) {
+    init(prominent: Bool = false, intensity: WatchGlassIntensity = .secondary, @ViewBuilder content: () -> Content) {
         self.prominent = prominent
+        self.intensity = intensity
         self.content = content()
     }
 
@@ -108,8 +113,8 @@ struct WatchGlassPill<Content: View>: View {
         content
             .padding(.horizontal, prominent ? 14 : 10)
             .padding(.vertical, prominent ? 8 : 5)
-            .glassEffect(prominent ? .regular.interactive() : .regular, in: .capsule)
-            .shadow(color: theme.chromeShadow.opacity(0.5), radius: prominent ? 4 : 2, x: 0, y: 1)
+            .modifier(ModernGlassModifier(intensity: intensity, shape: .capsule, prominent: prominent))
+            .shadow(color: theme.chromeShadow.opacity(intensity == .primary ? 0.5 : 0.2), radius: prominent ? 4 : 2, x: 0, y: 1)
     }
 
     private var legacyPill: some View {
@@ -121,32 +126,86 @@ struct WatchGlassPill<Content: View>: View {
             .overlay(
                 Capsule()
                     .strokeBorder(
-                        theme.chromeStroke.opacity(0.5),
-                        lineWidth: 0.5
+                        theme.chromeStroke.opacity(intensity == .primary ? 0.5 : 0.2),
+                        lineWidth: intensity == .minimal ? 0 : 0.5
                     )
             )
-            .shadow(color: theme.chromeShadow, radius: prominent ? 6 : 4, x: 0, y: 2)
+            .shadow(color: theme.chromeShadow, radius: intensity == .primary ? (prominent ? 6 : 4) : 2, x: 0, y: intensity == .primary ? 2 : 1)
     }
 
     private var glassBackgroundLegacy: some View {
         ZStack {
-            // Base material
-            Capsule()
-                .fill(.ultraThinMaterial)
+            if intensity != .minimal {
+                // Base material
+                Capsule()
+                    .fill(.ultraThinMaterial)
 
-            // Subtle gradient overlay for depth
-            Capsule()
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color.white.opacity(0.08),
-                            Color.white.opacity(0.03)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
+                // Subtle gradient overlay for depth
+                if intensity == .primary {
+                    Capsule()
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color.white.opacity(0.08),
+                                    Color.white.opacity(0.03)
+                                ],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                }
+            }
         }
+    }
+}
+
+@available(watchOS 26, *)
+private struct ModernGlassModifier: ViewModifier {
+    let intensity: WatchGlassIntensity
+    let shape: GlassShape
+    let prominent: Bool
+
+    enum GlassShape {
+        case capsule
+        case roundedRect(CGFloat)
+    }
+
+    func body(content: Content) -> some View {
+        switch intensity {
+        case .primary:
+            switch shape {
+            case .capsule:
+                content.glassEffect(prominent ? .regular.interactive() : .regular, in: .capsule)
+            case .roundedRect(let radius):
+                content.glassEffect(prominent ? .regular.interactive() : .regular, in: .rect(cornerRadius: radius))
+            }
+        case .secondary:
+            switch shape {
+            case .capsule:
+                content.glassEffect(.regular, in: .capsule)
+            case .roundedRect(let radius):
+                content.glassEffect(.regular, in: .rect(cornerRadius: radius))
+            }
+        case .minimal:
+            switch shape {
+            case .capsule:
+                content.background(Color.white.opacity(0.1), in: AnyShape(Capsule()))
+            case .roundedRect:
+                content.background(Color.white.opacity(0.1), in: AnyShape(RoundedRectangle(cornerRadius: 12)))
+            }
+        }
+    }
+}
+
+private struct AnyShape: Shape {
+    private let _path: @Sendable (CGRect) -> Path
+
+    init<S: Shape>(_ shape: S) {
+        _path = { rect in shape.path(in: rect) }
+    }
+
+    func path(in rect: CGRect) -> Path {
+        _path(rect)
     }
 }
 
@@ -156,9 +215,11 @@ struct WatchGlassPill<Content: View>: View {
 /// On watchOS 26+, uses native .glassEffect() API.
 struct WatchGlassCard<Content: View>: View {
     private let theme = WatchGlassTheme.current
+    private let intensity: WatchGlassIntensity
     @ViewBuilder var content: Content
 
-    init(@ViewBuilder content: () -> Content) {
+    init(intensity: WatchGlassIntensity = .secondary, @ViewBuilder content: () -> Content) {
+        self.intensity = intensity
         self.content = content()
     }
 
@@ -174,8 +235,8 @@ struct WatchGlassCard<Content: View>: View {
     private var modernCard: some View {
         content
             .padding(12)
-            .glassEffect(.regular.interactive(), in: .rect(cornerRadius: theme.cardCornerRadius))
-            .shadow(color: theme.chromeShadow.opacity(0.4), radius: 6, x: 0, y: 2)
+            .modifier(ModernGlassModifier(intensity: intensity, shape: .roundedRect(theme.cardCornerRadius), prominent: false))
+            .shadow(color: theme.chromeShadow.opacity(intensity == .primary ? 0.4 : 0.2), radius: intensity == .primary ? 6 : 4, x: 0, y: 2)
             .padding(.horizontal, theme.bezelInset)
     }
 
@@ -190,18 +251,18 @@ struct WatchGlassCard<Content: View>: View {
                             .strokeBorder(
                                 LinearGradient(
                                     colors: [
-                                        theme.chromeStroke,
-                                        theme.chromeStroke.opacity(0.2)
+                                        theme.chromeStroke.opacity(intensity == .primary ? 1.0 : 0.4),
+                                        theme.chromeStroke.opacity(intensity == .primary ? 0.2 : 0.1)
                                     ],
                                     startPoint: .topLeading,
                                     endPoint: .bottomTrailing
                                 ),
-                                lineWidth: 1
+                                lineWidth: intensity == .minimal ? 0 : 1
                             )
                     )
             )
             .clipShape(RoundedRectangle(cornerRadius: theme.cardCornerRadius, style: .continuous))
-            .shadow(color: theme.chromeShadow, radius: 8, x: 0, y: 3)
+            .shadow(color: theme.chromeShadow, radius: intensity == .primary ? 8 : 4, x: 0, y: intensity == .primary ? 3 : 2)
             .padding(.horizontal, theme.bezelInset)
     }
 }
@@ -210,6 +271,7 @@ struct WatchGlassCard<Content: View>: View {
 
 /// Animated shimmer effect for GPS initialization and loading states.
 struct WatchGlassShimmer: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var animationPhase: CGFloat = 0
     let height: CGFloat
 
@@ -225,23 +287,25 @@ struct WatchGlassShimmer: View {
                     LinearGradient(
                         colors: [
                             .clear,
-                            Color.white.opacity(0.3),
+                            Color.white.opacity(reduceMotion ? 0.15 : 0.3),
                             .clear
                         ],
                         startPoint: .leading,
                         endPoint: .trailing
                     )
-                    .offset(x: animationPhase * geometry.size.width - geometry.size.width)
+                    .offset(x: reduceMotion ? 0 : (animationPhase * geometry.size.width - geometry.size.width))
                     .blur(radius: 4)
                 )
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .frame(height: height)
                 .onAppear {
-                    withAnimation(
-                        .easeInOut(duration: 1.5)
-                        .repeatForever(autoreverses: false)
-                    ) {
-                        animationPhase = 2.0
+                    if !reduceMotion {
+                        withAnimation(
+                            .easeInOut(duration: 1.5)
+                            .repeatForever(autoreverses: false)
+                        ) {
+                            animationPhase = 2.0
+                        }
                     }
                 }
         }
@@ -251,6 +315,7 @@ struct WatchGlassShimmer: View {
 
 /// Pulsing shimmer for active GPS acquisition.
 struct WatchGPSPulse: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isPulsing = false
 
     var body: some View {
@@ -258,8 +323,8 @@ struct WatchGPSPulse: View {
             .fill(
                 RadialGradient(
                     colors: [
-                        Color.blue.opacity(0.6),
-                        Color.blue.opacity(0.2),
+                        Color.blue.opacity(reduceMotion ? 0.5 : 0.6),
+                        Color.blue.opacity(reduceMotion ? 0.3 : 0.2),
                         .clear
                     ],
                     center: .center,
@@ -268,15 +333,16 @@ struct WatchGPSPulse: View {
                 )
             )
             .frame(width: 60, height: 60)
-            .scaleEffect(isPulsing ? 1.3 : 1.0)
-            .opacity(isPulsing ? 0.3 : 0.7)
+            .scaleEffect(reduceMotion ? 1.0 : (isPulsing ? 1.3 : 1.0))
+            .opacity(reduceMotion ? 0.5 : (isPulsing ? 0.3 : 0.7))
             .animation(
-                .easeInOut(duration: 1.5)
-                .repeatForever(autoreverses: true),
+                reduceMotion ? nil : .easeInOut(duration: 1.5).repeatForever(autoreverses: true),
                 value: isPulsing
             )
             .onAppear {
-                isPulsing = true
+                if !reduceMotion {
+                    isPulsing = true
+                }
             }
     }
 }
@@ -427,10 +493,7 @@ struct WatchMetricBadge: View {
     @available(watchOS 26, *)
     private var modernBadge: some View {
         HStack(spacing: 6) {
-            Image(systemName: icon)
-                .font(.system(size: 12))
-                .foregroundStyle(theme.statusColor(for: status))
-                .symbolEffect(.pulse.byLayer, options: status == .excellent ? .repeating : .default, value: status)
+            badgeIcon
 
             Text(value)
                 .font(.system(size: 13, weight: .semibold, design: .rounded))
@@ -446,6 +509,15 @@ struct WatchMetricBadge: View {
                     lineWidth: 0.5
                 )
         )
+    }
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var badgeIcon: some View {
+        Image(systemName: icon)
+            .font(.system(size: 12))
+            .foregroundStyle(theme.statusColor(for: status))
+            .symbolEffect(.pulse.byLayer, options: (status == .excellent && !reduceMotion) ? .repeating : .default, isActive: !reduceMotion)
     }
 
     private var legacyBadge: some View {

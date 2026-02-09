@@ -12,19 +12,43 @@ import pawWatchFeature
 // MARK: - Glass Pill
 
 struct GlassPill<Content: View>: View {
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var highContrast
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @ViewBuilder var content: Content
 
     var body: some View {
         if #available(watchOS 26, *) {
-            content
-                .padding(.horizontal, Spacing.md)
-                .padding(.vertical, Spacing.xs)
-                .glassEffect(.regular, in: .capsule)
+            if reduceTransparency {
+                content
+                    .foregroundStyle(.primary)
+                    .padding(.horizontal, Spacing.md)
+                    .padding(.vertical, Spacing.xs)
+                    .background(Color.black.opacity(0.85), in: Capsule())
+            } else {
+                // P3-08: Increased contrast - always use .primary for glass backgrounds
+                content
+                    .foregroundStyle(.primary)
+                    .padding(.horizontal, Spacing.md)
+                    .padding(.vertical, Spacing.xs)
+                    .background(highContrast ? Color.black.opacity(0.5) : Color.clear)
+                    .glassEffect(.regular, in: .capsule)
+            }
         } else {
-            content
-                .padding(.horizontal, Spacing.md)
-                .padding(.vertical, Spacing.xs)
-                .background(.thinMaterial, in: Capsule())
+            if reduceTransparency {
+                content
+                    .foregroundStyle(.primary)
+                    .padding(.horizontal, Spacing.md)
+                    .padding(.vertical, Spacing.xs)
+                    .background(Color.black.opacity(0.85), in: Capsule())
+            } else {
+                // P3-08: Increased contrast - always use .primary for glass backgrounds
+                content
+                    .foregroundStyle(.primary)
+                    .padding(.horizontal, Spacing.md)
+                    .padding(.vertical, Spacing.xs)
+                    .background(highContrast ? Color.black.opacity(0.5) : Color.clear)
+                    .background(.thinMaterial, in: Capsule())
+            }
         }
     }
 }

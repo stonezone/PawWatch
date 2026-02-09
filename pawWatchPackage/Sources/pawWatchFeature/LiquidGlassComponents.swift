@@ -291,6 +291,8 @@ struct GlassPillButton: View {
 struct LiquidGlassTabBar<Selection: Hashable>: View {
     @Binding private var selection: Selection
     private let items: [(icon: String, title: String, tag: Selection)]
+    // P2-02: Track which tabs have badge indicators
+    private let badgedTabs: Set<Selection>
     private let onSelect: (Selection) -> Void
     private let theme = LiquidGlassTheme.current
 
@@ -302,10 +304,12 @@ struct LiquidGlassTabBar<Selection: Hashable>: View {
     init(
         selection: Binding<Selection>,
         items: [(icon: String, title: String, tag: Selection)],
+        badgedTabs: Set<Selection> = [],
         onSelect: @escaping (Selection) -> Void
     ) {
         self._selection = selection
         self.items = items
+        self.badgedTabs = badgedTabs
         self.onSelect = onSelect
     }
 
@@ -318,7 +322,7 @@ struct LiquidGlassTabBar<Selection: Hashable>: View {
     private func navigateToIndex(_ index: Int) {
         let clampedIndex = max(0, min(items.count - 1, index))
         if clampedIndex != selectedIndex {
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+            withAnimation(Animations.standard) {
                 selection = items[clampedIndex].tag
                 onSelect(items[clampedIndex].tag)
                 Haptics.selection()
@@ -352,7 +356,7 @@ struct LiquidGlassTabBar<Selection: Hashable>: View {
                     )
                     .frame(width: itemWidth - 8, height: 56)
                     .offset(x: currentOffset)
-                    .animation(isDragging ? nil : .spring(response: 0.35, dampingFraction: 0.8), value: selectedIndex)
+                    .animation(isDragging ? nil : Animations.standard, value: selectedIndex)
                     .gesture(
                         DragGesture(minimumDistance: 10)
                             .onChanged { value in
@@ -381,22 +385,37 @@ struct LiquidGlassTabBar<Selection: Hashable>: View {
                 HStack(spacing: 0) {
                     ForEach(Array(items.enumerated()), id: \.element.tag) { index, item in
                         Button {
-                            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                            withAnimation(Animations.standard) {
                                 selection = item.tag
                                 onSelect(item.tag)
                                 Haptics.selection()
                             }
                         } label: {
-                            VStack(spacing: 4) {
-                                Image(systemName: item.icon)
-                                    .font(.system(size: 20, weight: selection == item.tag ? .semibold : .regular))
-                                    .symbolVariant(selection == item.tag ? .fill : .none)
-                                    .symbolEffect(.bounce, value: selection == item.tag)
+                            // P2-02: Badge indicator overlay
+                            ZStack(alignment: .topTrailing) {
+                                VStack(spacing: 4) {
+                                    Image(systemName: item.icon)
+                                        .font(.system(size: 20, weight: selection == item.tag ? .semibold : .regular))
+                                        .symbolVariant(selection == item.tag ? .fill : .none)
+                                        .symbolEffect(.bounce, value: selection == item.tag)
 
-                                Text(item.title)
-                                    .font(.system(size: 11, weight: selection == item.tag ? .semibold : .medium))
+                                    Text(item.title)
+                                        .font(.system(size: 11, weight: selection == item.tag ? .semibold : .medium))
+                                }
+                                .foregroundStyle(selection == item.tag ? theme.accentPrimary : .secondary)
+
+                                // P2-02: Badge indicator
+                                if badgedTabs.contains(item.tag) {
+                                    Circle()
+                                        .fill(.red.gradient)
+                                        .frame(width: 10, height: 10)
+                                        .overlay(
+                                            Circle()
+                                                .strokeBorder(.white.opacity(0.5), lineWidth: 1)
+                                        )
+                                        .offset(x: 8, y: -8)
+                                }
                             }
-                            .foregroundStyle(selection == item.tag ? theme.accentPrimary : .secondary)
                             .frame(maxWidth: .infinity)
                             .frame(height: 56)
                             .contentShape(Rectangle())
@@ -404,6 +423,7 @@ struct LiquidGlassTabBar<Selection: Hashable>: View {
                         .buttonStyle(.plain)
                         .accessibilityLabel(item.title)
                         .accessibilityAddTraits(selection == item.tag ? .isSelected : [])
+                        .accessibilityHint(badgedTabs.contains(item.tag) ? "Has unread notifications" : "")
                     }
                 }
                 .padding(.horizontal, 8)
@@ -447,7 +467,7 @@ struct LiquidGlassTabBar<Selection: Hashable>: View {
                     )
                     .frame(width: itemWidth - 8, height: 52)
                     .offset(x: currentOffset)
-                    .animation(isDragging ? nil : .spring(response: 0.35, dampingFraction: 0.8), value: selectedIndex)
+                    .animation(isDragging ? nil : Animations.standard, value: selectedIndex)
                     .gesture(
                         DragGesture(minimumDistance: 10)
                             .onChanged { value in
@@ -476,21 +496,36 @@ struct LiquidGlassTabBar<Selection: Hashable>: View {
                 HStack(spacing: 0) {
                     ForEach(Array(items.enumerated()), id: \.element.tag) { index, item in
                         Button {
-                            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                            withAnimation(Animations.standard) {
                                 selection = item.tag
                                 onSelect(item.tag)
                                 Haptics.selection()
                             }
                         } label: {
-                            VStack(spacing: 4) {
-                                Image(systemName: item.icon)
-                                    .font(.system(size: 18, weight: selection == item.tag ? .semibold : .regular))
-                                    .symbolVariant(selection == item.tag ? .fill : .none)
+                            // P2-02: Badge indicator overlay
+                            ZStack(alignment: .topTrailing) {
+                                VStack(spacing: 4) {
+                                    Image(systemName: item.icon)
+                                        .font(.system(size: 18, weight: selection == item.tag ? .semibold : .regular))
+                                        .symbolVariant(selection == item.tag ? .fill : .none)
 
-                                Text(item.title)
-                                    .font(.system(size: 10, weight: selection == item.tag ? .semibold : .medium))
+                                    Text(item.title)
+                                        .font(.system(size: 10, weight: selection == item.tag ? .semibold : .medium))
+                                }
+                                .foregroundStyle(selection == item.tag ? theme.accentPrimary : .secondary)
+
+                                // P2-02: Badge indicator
+                                if badgedTabs.contains(item.tag) {
+                                    Circle()
+                                        .fill(.red.gradient)
+                                        .frame(width: 9, height: 9)
+                                        .overlay(
+                                            Circle()
+                                                .strokeBorder(.white.opacity(0.5), lineWidth: 0.5)
+                                        )
+                                        .offset(x: 8, y: -8)
+                                }
                             }
-                            .foregroundStyle(selection == item.tag ? theme.accentPrimary : .secondary)
                             .frame(maxWidth: .infinity)
                             .frame(height: 52)
                             .contentShape(Rectangle())
@@ -498,6 +533,7 @@ struct LiquidGlassTabBar<Selection: Hashable>: View {
                         .buttonStyle(.plain)
                         .accessibilityLabel(item.title)
                         .accessibilityAddTraits(selection == item.tag ? .isSelected : [])
+                        .accessibilityHint(badgedTabs.contains(item.tag) ? "Has unread notifications" : "")
                     }
                 }
                 .padding(.horizontal, 8)

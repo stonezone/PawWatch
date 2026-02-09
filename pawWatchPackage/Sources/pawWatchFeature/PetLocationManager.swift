@@ -194,6 +194,9 @@ public final class PetLocationManager: NSObject {
     /// Most recent GPS fix from Apple Watch (nil if no data received)
     public private(set) var latestLocation: LocationFix?
 
+    /// Predicted location when GPS is unavailable (dead reckoning)
+    public private(set) var predictedLocation: PredictedLocation?
+
     /// Last N GPS fixes for trail visualization (oldest first)
     public private(set) var locationHistory: [LocationFix] = []
 
@@ -241,6 +244,16 @@ public final class PetLocationManager: NSObject {
     public private(set) var watchIdleFullFixInterval: TimeInterval?
     public private(set) var emergencyCadencePreset: EmergencyCadencePreset
 
+    /// P4-05: Connectivity health status for UI display
+    public private(set) var connectivityHealth: ConnectivityHealth = .unknown
+
+    public enum ConnectivityHealth: String, Sendable {
+        case excellent   // Recent successful message
+        case degraded    // Falling back to file transfer
+        case unreachable // No successful delivery in 5+ minutes
+        case unknown
+    }
+
     // MARK: - Constants
 
     public static let trailHistoryLimitRange: ClosedRange<Int> = 50...500
@@ -273,9 +286,9 @@ public final class PetLocationManager: NSObject {
             maxJumpDistanceMeters: 3_000
         )
         static let emergency = FixAcceptancePolicy(
-            maxHorizontalAccuracyMeters: 150,
-            maxFixStaleness: 300,
-            maxJumpDistanceMeters: 10_000
+            maxHorizontalAccuracyMeters: 15,
+            maxFixStaleness: 60,
+            maxJumpDistanceMeters: 500
         )
     }
 
@@ -332,6 +345,18 @@ public final class PetLocationManager: NSObject {
     private var lastCloudKitSync: Date?
     private let cloudKitSyncInterval: TimeInterval = 300 // 5 minutes
 
+    // P4-01: Track consecutive decode failures
+    private var consecutiveDecodeFailures: Int = 0
+    private let maxConsecutiveDecodeFailures = 5
+
+    // P4-02: Deduplicate fixes by sequence on iOS
+    private var recentSequenceCache: Set<Int> = []
+
+    // P4-05: Track last successful message for connectivity health
+    private var lastSuccessfulMessageTime: Date?
+    private let connectivityExcellentThreshold: TimeInterval = 60 // 1 minute
+    private let connectivityUnreachableThreshold: TimeInterval = 300 // 5 minutes
+
     // MARK: - Dependencies
 
     #if canImport(WatchConnectivity)
@@ -351,7 +376,12 @@ public final class PetLocationManager: NSObject {
     private let maxSessionSamples = 10_000
     /// Task for monitoring stale connections. Marked nonisolated(unsafe) because
     /// Task.cancel() is thread-safe and we need to call it from deinit.
-    nonisolated(unsafe) private var staleConnectionTask: Task<Void, Never>?
+    @ObservationIgnored nonisolated(unsafe) private var staleConnectionTask: Task<Void, Never>?
+
+    // MARK: - Geofence Monitoring
+
+    /// Geofence monitor for safe zone alerts
+    public let geofenceMonitor: GeofenceMonitor
 
     // MARK: - Initialization
 
@@ -363,6 +393,7 @@ public final class PetLocationManager: NSObject {
         #endif
         self.locationManager = CLLocationManager()
         self.sharedDefaults = UserDefaults(suiteName: PerformanceSnapshotStore.suiteName) ?? .standard
+        self.geofenceMonitor = GeofenceMonitor(userDefaultsSuiteName: PerformanceSnapshotStore.suiteName)
         let storedLimit = sharedDefaults.object(forKey: trailHistoryLimitKey) as? Int
         self.trailHistoryLimit = storedLimit.map(Self.clampTrailHistoryLimit) ?? Self.defaultTrailHistoryLimit
         let storedRuntime = sharedDefaults.object(forKey: runtimePreferenceKey) as? Bool
@@ -536,6 +567,20 @@ public final class PetLocationManager: NSObject {
         return age <= maxDistanceLocationAge
     }
 
+    /// Best available location for display (predicted or actual).
+    /// Returns predicted location if GPS is stale, otherwise returns actual location.
+    public var displayLocation: LocationFix.Coordinate? {
+        if let predicted = predictedLocation {
+            return predicted.coordinate
+        }
+        return latestLocation?.coordinate
+    }
+
+    /// Whether the current display location is a prediction vs actual GPS.
+    public var isShowingPrediction: Bool {
+        return predictedLocation != nil
+    }
+
     /// Battery level as percentage (0-100)
     public var batteryLevel: Double {
         latestLocation?.batteryFraction ?? 0.0
@@ -604,6 +649,8 @@ public final class PetLocationManager: NSObject {
             errorHandler: { error in
                 Task { @MainActor in
                     self.errorMessage = "Failed to request update: \(error.localizedDescription)"
+                    // P4-05: Update connectivity health on send failure
+                    self.updateConnectivityHealth(success: false)
                 }
             }
         )
@@ -660,6 +707,8 @@ public final class PetLocationManager: NSObject {
             session.sendMessage(payload, replyHandler: nil) { error in
                 Task { @MainActor in
                     self.logger.error("Failed to send stop command: \(error.localizedDescription)")
+                    // P4-05: Update connectivity health on send failure
+                    self.updateConnectivityHealth(success: false)
                 }
             }
         } else {
@@ -686,6 +735,8 @@ public final class PetLocationManager: NSObject {
         session.sendMessage(payload, replyHandler: nil) { error in
             Task { @MainActor in
                 self.errorMessage = "Ping failed: \(error.localizedDescription)"
+                // P4-05: Update connectivity health on send failure
+                self.updateConnectivityHealth(success: false)
             }
         }
         #endif
@@ -764,6 +815,8 @@ public final class PetLocationManager: NSObject {
             session.sendMessage(payload, replyHandler: nil) { error in
                 Task { @MainActor in
                     self.errorMessage = "Failed to send mode: \(error.localizedDescription)"
+                    // P4-05: Update connectivity health on send failure
+                    self.updateConnectivityHealth(success: false)
                 }
             }
         } else {
@@ -788,6 +841,8 @@ public final class PetLocationManager: NSObject {
             session.sendMessage(payload, replyHandler: nil) { error in
                 Task { @MainActor in
                     self.errorMessage = "Failed to update runtime guard: \(error.localizedDescription)"
+                    // P4-05: Update connectivity health on send failure
+                    self.updateConnectivityHealth(success: false)
                 }
             }
         } else {
@@ -813,6 +868,8 @@ public final class PetLocationManager: NSObject {
             session.sendMessage(payload, replyHandler: nil) { error in
                 Task { @MainActor in
                     self.errorMessage = "Failed to update idle cadence: \(error.localizedDescription)"
+                    // P4-05: Update connectivity health on send failure
+                    self.updateConnectivityHealth(success: false)
                 }
             }
         } else {
@@ -1132,6 +1189,8 @@ public final class PetLocationManager: NSObject {
     // MARK: - Private Helpers
 
     /// Starts a periodic monitor that flags when the Watch connection has gone stale.
+    /// Also updates predicted location when GPS is unavailable.
+    /// P4-05: Now also periodically updates connectivity health
     private func startStaleConnectionMonitor() {
         staleConnectionTask?.cancel()
         staleConnectionTask = Task { @MainActor [weak self] in
@@ -1139,6 +1198,16 @@ public final class PetLocationManager: NSObject {
                 try? await Task.sleep(for: .seconds(60))
                 guard let self = self else { return }
                 self.checkForStaleConnection()
+                self.updatePredictedLocation()
+                // P4-05: Periodically re-evaluate connectivity health
+                if let lastSuccess = self.lastSuccessfulMessageTime {
+                    let elapsed = Date().timeIntervalSince(lastSuccess)
+                    if elapsed > self.connectivityUnreachableThreshold {
+                        self.connectivityHealth = .unreachable
+                    } else if elapsed > self.connectivityExcellentThreshold {
+                        self.connectivityHealth = .degraded
+                    }
+                }
             }
         }
     }
@@ -1161,6 +1230,18 @@ public final class PetLocationManager: NSObject {
             // Fresh data within threshold clears stale state.
             isConnectionStale = false
         }
+    }
+
+    /// Update predicted location based on last known fix and elapsed time.
+    @MainActor
+    private func updatePredictedLocation() {
+        guard let baseFix = latestLocation else {
+            predictedLocation = nil
+            return
+        }
+
+        // Generate prediction if GPS is stale
+        predictedLocation = PredictedLocation.predict(from: baseFix)
     }
 
     private func scheduleStaleConnectionNotification() {
@@ -1187,7 +1268,16 @@ public final class PetLocationManager: NSObject {
 
     /// Process incoming LocationFix and update state.
     private func handleLocationFix(_ locationFix: LocationFix, source: LocationUpdateSource = .watchConnectivity) {
-        guard shouldAccept(locationFix) else { return }
+        // Begin performance instrumentation
+        let processingState = PerformanceInstrumentation.beginLocationProcessing(sequence: locationFix.sequence)
+        defer {
+            PerformanceInstrumentation.endLocationProcessing(processingState, accepted: true)
+        }
+
+        guard shouldAccept(locationFix) else {
+            PerformanceInstrumentation.endLocationProcessing(processingState, accepted: false)
+            return
+        }
 
         recordSequence(locationFix.sequence)
 
@@ -1216,6 +1306,9 @@ public final class PetLocationManager: NSObject {
             }
 
             watchBatteryFraction = locationFix.batteryFraction
+
+            // Clear predicted location when we get fresh GPS data
+            predictedLocation = nil
         }
 
         logger.debug("Received fix accuracy=\(locationFix.horizontalAccuracyMeters, privacy: .public)")
@@ -1224,9 +1317,14 @@ public final class PetLocationManager: NSObject {
         insertIntoHistory(locationFix)
         appendSessionSample(locationFix)
         PerformanceMonitor.shared.recordRemoteFix(locationFix, watchReachable: isWatchReachable)
-        
+
         // Check distance alert after updating location
         checkDistanceAlert()
+
+        // Check geofence boundaries
+        Task {
+            await geofenceMonitor.processLocation(locationFix)
+        }
 
         // Sync to CloudKit for offline recovery (throttled to prevent rate limiting)
         // CR-001 FIX: Only sync every 5 minutes to prevent CloudKit throttling and battery drain
@@ -1235,8 +1333,13 @@ public final class PetLocationManager: NSObject {
             if lastCloudKitSync == nil || now.timeIntervalSince(lastCloudKitSync!) >= cloudKitSyncInterval {
                 lastCloudKitSync = now
                 Task.detached {
+                    let uploadState = PerformanceInstrumentation.beginCloudKitUpload()
                     await CloudKitLocationSync.shared.saveLocation(locationFix)
+                    PerformanceInstrumentation.endCloudKitUpload(uploadState, success: true)
                 }
+            } else {
+                let timeSince = now.timeIntervalSince(lastCloudKitSync!)
+                PerformanceInstrumentation.recordCloudKitThrottle(timeSinceLastSync: timeSince)
             }
         }
     }
@@ -1245,8 +1348,18 @@ public final class PetLocationManager: NSObject {
     /// Internal so unit tests can validate thresholds.
     func shouldAccept(_ fix: LocationFix) -> Bool {
         let policy = fixAcceptancePolicy
+
+        // P4-02: Check new dedupe cache first
+        if recentSequenceCache.contains(fix.sequence) {
+            logger.info("Dropping duplicate fix seq=\(fix.sequence) (cache hit)")
+            PerformanceInstrumentation.recordDuplicateSequence(sequence: fix.sequence)
+            return false
+        }
+
+        // Legacy duplicate check for backward compatibility
         if recentSequenceSet.contains(fix.sequence) {
             logger.debug("Dropping duplicate fix seq=\(fix.sequence)")
+            PerformanceInstrumentation.recordDuplicateSequence(sequence: fix.sequence)
             return false
         }
 
@@ -1257,6 +1370,7 @@ public final class PetLocationManager: NSObject {
 
         if fix.horizontalAccuracyMeters > policy.maxHorizontalAccuracyMeters {
             logger.info("Dropping low-quality fix accuracy=\(fix.horizontalAccuracyMeters)")
+            PerformanceInstrumentation.recordFixRejection(reason: "poor_accuracy", sequence: fix.sequence)
             return false
         }
 
@@ -1267,6 +1381,7 @@ public final class PetLocationManager: NSObject {
                 let jump = distanceBetween(current.coordinate, fix.coordinate)
                 if jump > policy.maxJumpDistanceMeters {
                     logger.info("Dropping implausible jump distance=\(jump)")
+                    PerformanceInstrumentation.recordFixRejection(reason: "implausible_jump", sequence: fix.sequence)
                     return false
                 }
             }
@@ -1288,6 +1403,22 @@ public final class PetLocationManager: NSObject {
     #endif
 
     private func recordSequence(_ sequence: Int) {
+        // P4-02: Add to new cache
+        recentSequenceCache.insert(sequence)
+
+        // Prune cache if it exceeds capacity (remove oldest half)
+        if recentSequenceCache.count > 200 {
+            // Clear oldest half by keeping only recent sequences
+            // Since we can't easily track insertion order in a Set, we clear the entire cache
+            // The sequence numbers will naturally be recent due to ongoing tracking
+            let keepCount = 100
+            let sortedSequences = recentSequenceCache.sorted()
+            let toKeep = Set(sortedSequences.suffix(keepCount))
+            recentSequenceCache = toKeep
+            logger.debug("Pruned sequence cache from 200+ to \(keepCount) entries")
+        }
+
+        // Legacy sequence tracking
         recentSequenceSet.insert(sequence)
         recentSequenceOrder.append(sequence)
         if recentSequenceOrder.count > recentSequenceCapacity {
@@ -1299,9 +1430,28 @@ public final class PetLocationManager: NSObject {
     }
 
     private func insertIntoHistory(_ fix: LocationFix) {
-        // Ring-buffer style history: append newest fixes and trim oldest
-        locationHistory.append(fix)
+        // P4-03: Insert maintaining descending timestamp order using binary search
+        // This ensures late-arriving file transfers appear at correct chronological position
+        let insertIndex = insertionIndex(for: fix.timestamp)
+        locationHistory.insert(fix, at: insertIndex)
         pruneHistoryIfNeeded()
+    }
+
+    // P4-03: Binary search helper for ordered insertion by timestamp
+    private func insertionIndex(for timestamp: Date) -> Int {
+        var low = 0
+        var high = locationHistory.count
+
+        while low < high {
+            let mid = (low + high) / 2
+            if locationHistory[mid].timestamp < timestamp {
+                low = mid + 1
+            } else {
+                high = mid
+            }
+        }
+
+        return low
     }
 
     private func distanceBetween(_ lhs: LocationFix.Coordinate, _ rhs: LocationFix.Coordinate) -> Double {
@@ -1336,15 +1486,56 @@ public final class PetLocationManager: NSObject {
         persistRuntimePreference(enabled)
     }
 
+    /// P4-05: Update connectivity health based on message delivery timing
+    private func updateConnectivityHealth(success: Bool, isFileTransfer: Bool = false) {
+        if success {
+            lastSuccessfulMessageTime = Date()
+            if isFileTransfer {
+                connectivityHealth = .degraded
+            } else {
+                connectivityHealth = .excellent
+            }
+        } else {
+            // Check time since last success
+            if let lastSuccess = lastSuccessfulMessageTime {
+                let elapsed = Date().timeIntervalSince(lastSuccess)
+                if elapsed > connectivityUnreachableThreshold {
+                    connectivityHealth = .unreachable
+                } else if elapsed > connectivityExcellentThreshold {
+                    connectivityHealth = .degraded
+                }
+            } else {
+                connectivityHealth = .unreachable
+            }
+        }
+    }
+
     /// Decode a LocationFix from raw Data produced by the watch.
+    /// P4-01: Now logs errors and tracks consecutive failures
     nonisolated private func decodeLocationFix(from data: Data) -> LocationFix? {
         do {
-            return try JSONDecoder().decode(LocationFix.self, from: data)
+            let fix = try JSONDecoder().decode(LocationFix.self, from: data)
+            // Reset failure counter on success
+            Task { @MainActor in
+                self.consecutiveDecodeFailures = 0
+            }
+            return fix
         } catch {
+            // P4-01: Log JSON decode failures with full error details
             Task { @MainActor in
                 self.logger.error("Failed to decode LocationFix: \(error.localizedDescription, privacy: .public)")
                 self.signposter.emitEvent("FixDecodeError")
-                self.errorMessage = "Received invalid location data from Apple Watch."
+
+                // Track consecutive failures
+                self.consecutiveDecodeFailures += 1
+
+                // P4-01: After 5+ consecutive failures, set user-visible error
+                if self.consecutiveDecodeFailures >= self.maxConsecutiveDecodeFailures {
+                    self.errorMessage = "Data sync error — check watch app"
+                    self.logger.error("Consecutive decode failures: \(self.consecutiveDecodeFailures)")
+                } else {
+                    self.errorMessage = "Received invalid location data from Apple Watch."
+                }
             }
             return nil
         }
@@ -1444,6 +1635,8 @@ extension PetLocationManager: WCSessionDelegate {
             Task { @MainActor in
                 self.isWatchConnected = true
                 self.isWatchReachable = true
+                // P4-05: Update connectivity health on successful message
+                self.updateConnectivityHealth(success: true, isFileTransfer: false)
             }
             handleLocationFixData(data)
         }
@@ -1463,6 +1656,8 @@ extension PetLocationManager: WCSessionDelegate {
     ) {
         Task { @MainActor in
             self.isWatchConnected = true
+            // P4-05: UserInfo transfer indicates degraded connectivity (queued delivery)
+            self.updateConnectivityHealth(success: true, isFileTransfer: true)
         }
 
         // Check for batched transfer (QUEUE FLOODING FIX)
@@ -1477,6 +1672,10 @@ extension PetLocationManager: WCSessionDelegate {
                     }
                 } catch {
                     logger.error("Failed to decode batched LocationFix array: \(error.localizedDescription, privacy: .public)")
+                    Task { @MainActor in
+                        // P4-05: Failed decode indicates connectivity issues
+                        self.updateConnectivityHealth(success: false)
+                    }
                 }
                 return
             }
@@ -1542,6 +1741,8 @@ extension PetLocationManager: WCSessionDelegate {
         Task { @MainActor in
             self.isWatchConnected = true
             self.isWatchReachable = true
+            // P4-05: Update connectivity health on successful message
+            self.updateConnectivityHealth(success: true, isFileTransfer: false)
         }
         handleLocationFixData(messageData)
     }
@@ -1558,9 +1759,13 @@ extension PetLocationManager: WCSessionDelegate {
             do {
                 let data = try Data(contentsOf: fileURL)
                 self.isWatchConnected = true
+                // P4-05: File transfer indicates degraded connectivity
+                self.updateConnectivityHealth(success: true, isFileTransfer: true)
                 self.handleLocationFixData(data)
             } catch {
                 self.errorMessage = "Failed to decode file transfer: \(error.localizedDescription)"
+                // P4-05: Failed file transfer indicates connectivity issues
+                self.updateConnectivityHealth(success: false)
             }
         }
     }

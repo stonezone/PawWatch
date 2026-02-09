@@ -44,9 +44,49 @@ struct ContentView: View {
     @State private var lockEngagedAt: Date?
     @State private var showSettings = false
     @FocusState private var lockOverlayFocused: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(PetProfileStore.self) private var petProfileStore
+    @State private var showEmergencyStopConfirmation = false
+    @State private var hasEverHadFix = false
+    @State private var previousAccuracyLevel: AccuracyLevel = .unknown
 
-    private let unlockRotationThreshold = 1.75  // roughly one and a half turns
+    private let unlockRotationThreshold = 1.25  // P2-08: reduced from 1.75 to match Apple's Water Lock
+
+    // P1-04: GPS accuracy levels for degradation alerts
+    enum AccuracyLevel: Comparable {
+        case unknown
+        case excellent    // <20m
+        case good         // 20-50m
+        case fair         // 50-100m
+        case poor         // 100-200m
+        case critical     // >200m
+
+        init(accuracy: Double) {
+            switch accuracy {
+            case 0..<20: self = .excellent
+            case 20..<50: self = .good
+            case 50..<100: self = .fair
+            case 100..<200: self = .poor
+            default: self = .critical
+            }
+        }
+
+        var warningText: String? {
+            switch self {
+            case .poor: return "GPS signal poor — location may be inaccurate"
+            case .critical: return "GPS signal critical — location unreliable"
+            default: return nil
+            }
+        }
+
+        var warningColor: Color {
+            switch self {
+            case .poor: return .orange
+            case .critical: return .red
+            default: return .secondary
+            }
+        }
+    }
 
     // MARK: - Body
 
@@ -61,7 +101,7 @@ struct ContentView: View {
                     .transition(.opacity.combined(with: .scale))
             }
         }
-        .animation(.easeInOut(duration: 0.2), value: isTrackerLocked)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: isTrackerLocked)
         .onAppear {
             locationManager.setBatteryOptimizationsEnabled(batteryOptimizationsEnabled)
             locationManager.restoreState()
@@ -84,6 +124,22 @@ struct ContentView: View {
                 resetCrownTracking()
             }
         }
+        .onChange(of: locationManager.currentFix) { _, newFix in
+            // P1-05: Track if we've ever had a fix to differentiate "acquiring" vs "lost"
+            if newFix != nil {
+                hasEverHadFix = true
+            }
+
+            // P1-04: Monitor GPS accuracy degradation
+            if let fix = newFix {
+                let newLevel = AccuracyLevel(accuracy: fix.horizontalAccuracyMeters)
+                if newLevel >= .poor && previousAccuracyLevel < .poor {
+                    // Transitioned to poor or critical accuracy
+                    WKInterfaceDevice.current().play(.notification)
+                }
+                previousAccuracyLevel = newLevel
+            }
+        }
     }
 
     private var mainContent: some View {
@@ -91,162 +147,51 @@ struct ContentView: View {
             ScrollView {
                 VStack(spacing: Spacing.md) {
 
-                    // MARK: - App Title
+                    // MARK: - P1-01: Compact Pet Header (Critical Info First)
 
-                    if #available(watchOS 26, *) {
-                        VStack(spacing: Spacing.xxxs) {
-                            HStack(spacing: Spacing.xs) {
+                    if shouldShowPetHeader {
+                        HStack(spacing: Spacing.sm) {
+                            if let avatar = petAvatarCGImage {
+                                Image(decorative: avatar, scale: 1.0)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 24, height: 24)
+                                    .clipShape(Circle())
+                            } else {
                                 Image(systemName: "pawprint.fill")
-                                    .font(.title3)
-                                    .foregroundStyle(.cyan.gradient)
-                                    .symbolEffect(.breathe.pulse.byLayer, options: .repeating, value: locationManager.isTracking)
-                                Text("pawWatch")
-                                    .font(.title3)
-                                    .fontWeight(.bold)
+                                    .font(.caption)
+                                    .foregroundStyle(.cyan)
                             }
 
-                            Text(AppVersion.displayString)
-                                .font(.caption2.monospaced())
-                                .foregroundStyle(.secondary)
+                            Text(petDisplayName)
+                                .font(.caption.weight(.semibold))
+                                .lineLimit(1)
 
-                            if shouldShowPetHeader {
-                                HStack(spacing: Spacing.sm) {
-                                    ZStack {
-                                        Circle()
-                                            .fill(Color.secondary.opacity(Opacity.xlow))
-                                            .frame(width: 28, height: 28)
-
-                                        if let avatar = petAvatarCGImage {
-                                            Image(decorative: avatar, scale: 1.0)
-                                                .resizable()
-                                                .scaledToFill()
-                                                .frame(width: 24, height: 24)
-                                                .clipShape(Circle())
-                                        } else {
-                                            Image(systemName: "pawprint.fill")
-                                                .font(.caption.weight(.semibold))
-                                                .foregroundStyle(.secondary)
-                                        }
-                                    }
-
-                                    VStack(alignment: .leading, spacing: 1) {
-                                        Text(petDisplayName)
-                                            .font(.caption.weight(.semibold))
-                                            .lineLimit(1)
-                                        if !petProfileStore.profile.type.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                                            Text(petProfileStore.profile.type)
-                                                .font(.caption2)
-                                                .foregroundStyle(.secondary)
-                                                .lineLimit(1)
-                                        }
-                                    }
-
-                                    Spacer(minLength: 0)
-                                }
-                                .padding(.top, Spacing.xxs)
-                            }
-                        }
-                    } else {
-                        VStack(spacing: Spacing.xxxs) {
-                            Text("pawWatch")
-                                .font(.title3)
-                                .fontWeight(.bold)
-                            Text(AppVersion.displayString)
-                                .font(.caption2.monospaced())
-                                .foregroundStyle(.secondary)
-
-                            if shouldShowPetHeader {
-                                HStack(spacing: Spacing.sm) {
-                                    ZStack {
-                                        Circle()
-                                            .fill(Color.secondary.opacity(Opacity.xlow))
-                                            .frame(width: 28, height: 28)
-
-                                        if let avatar = petAvatarCGImage {
-                                            Image(decorative: avatar, scale: 1.0)
-                                                .resizable()
-                                                .scaledToFill()
-                                                .frame(width: 24, height: 24)
-                                                .clipShape(Circle())
-                                        } else {
-                                            Image(systemName: "pawprint.fill")
-                                                .font(.caption.weight(.semibold))
-                                                .foregroundStyle(.secondary)
-                                        }
-                                    }
-
-                                    VStack(alignment: .leading, spacing: 1) {
-                                        Text(petDisplayName)
-                                            .font(.caption.weight(.semibold))
-                                            .lineLimit(1)
-                                        if !petProfileStore.profile.type.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                                            Text(petProfileStore.profile.type)
-                                                .font(.caption2)
-                                                .foregroundStyle(.secondary)
-                                                .lineLimit(1)
-                                        }
-                                    }
-
-                                    Spacer(minLength: 0)
-                                }
-                                .padding(.top, Spacing.xxs)
-                            }
+                            Spacer(minLength: 0)
                         }
                     }
 
-                    // MARK: - GPS Status Icon
-
-                    if #available(watchOS 26, *) {
-                        ZStack {
-                            Circle()
-                                .fill(locationManager.isTracking ? Color.green.opacity(Opacity.xlow) : Color.secondary.opacity(0.1))
-                                .frame(width: 70, height: 70)
-                            Image(systemName: locationManager.isTracking ? "location.fill" : "location.slash")
-                                .font(.system(size: 36))
-                                .foregroundStyle(locationManager.isTracking ? AnyShapeStyle(.green.gradient) : AnyShapeStyle(.secondary))
-                                .symbolEffect(.bounce.byLayer, value: locationManager.isTracking)
-                        }
-                        .glassEffect(.regular, in: .circle)
-                    } else {
-                        Image(systemName: locationManager.isTracking ? "location.fill" : "location.slash")
-                            .font(.system(size: 50))
-                            .foregroundStyle(locationManager.isTracking ? .green : .secondary)
-                            .symbolEffect(.pulse, isActive: locationManager.isTracking)
-                    }
-
-                    // MARK: - Status Message
-
-                    GlassPill {
-                        Text(locationManager.statusMessage)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
-                            .frame(maxWidth: .infinity)
-                    }
-
-                    // MARK: - Error Message (if present)
-
-                    if let errorMessage = locationManager.errorMessage {
-                        Text(errorMessage)
-                            .font(.caption2)
-                            .foregroundStyle(.red)
-                            .multilineTextAlignment(.center)
-                            .frame(maxWidth: .infinity)
-                            .padding(.horizontal)
-
-                        Button("Restart Workout") {
-                            locationManager.restartTracking()
-                        }
-                        .buttonStyle(.bordered)
-                        .tint(.orange)
-                        .accessibilityLabel("Restart workout")
-                        .accessibilityHint("Restart the tracking workout session to recover from an error")
-                    }
-
-                    // MARK: - GPS Details (when tracking)
+                    // MARK: - P1-01: GPS Details FIRST (Critical for Pet Safety)
 
                     if locationManager.isTracking, let fix = locationManager.currentFix {
                         VStack(spacing: Spacing.sm) {
+
+                            // P1-04: GPS Accuracy Warning Banner (Critical)
+                            let accuracyLevel = AccuracyLevel(accuracy: fix.horizontalAccuracyMeters)
+                            if let warningText = accuracyLevel.warningText {
+                                HStack(spacing: Spacing.xxs) {
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .font(.caption2)
+                                    Text(warningText)
+                                        .font(.caption2)
+                                        .fontWeight(.medium)
+                                }
+                                .foregroundStyle(accuracyLevel.warningColor)
+                                .padding(.vertical, Spacing.xxs)
+                                .padding(.horizontal, Spacing.xs)
+                                .background(accuracyLevel.warningColor.opacity(0.15))
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                            }
 
                             // Coordinates
                             HStack(spacing: Spacing.xxs) {
@@ -268,6 +213,15 @@ struct ContentView: View {
                                 Image(systemName: "scope")
                                     .font(.caption2)
                                 Text("Accuracy: ±\(fix.horizontalAccuracyMeters, specifier: "%.1f")m")
+                                    .font(.caption2)
+                            }
+                            .foregroundStyle(.secondary)
+
+                            // Time since fix
+                            HStack(spacing: Spacing.xxs) {
+                                Image(systemName: "clock")
+                                    .font(.caption2)
+                                Text("Updated: \(timeSinceFix(fix.timestamp))")
                                     .font(.caption2)
                             }
                             .foregroundStyle(.secondary)
@@ -323,9 +277,108 @@ struct ContentView: View {
                             .foregroundStyle(.secondary)
                         }
                         .padding(.vertical, Spacing.sm)
+                    } else if locationManager.isTracking {
+                        // P1-05: Enhanced GPS Loss State
+                        VStack(spacing: Spacing.xs) {
+                            if hasEverHadFix {
+                                // GPS was working but is now lost
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .font(.title3)
+                                    .foregroundStyle(.orange)
+
+                                Text("GPS signal lost")
+                                    .font(.caption)
+                                    .fontWeight(.semibold)
+
+                                Text("Move to an open area for better signal")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                    .multilineTextAlignment(.center)
+                            } else {
+                                // Still acquiring initial GPS lock
+                                ProgressView()
+                                    .tint(.cyan)
+
+                                Text("Acquiring GPS signal...")
+                                    .font(.caption)
+                                    .fontWeight(.semibold)
+
+                                Text("Move to an open area for better signal")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                    .multilineTextAlignment(.center)
+                            }
+                        }
+                        .padding(.vertical, Spacing.md)
+                    }
+
+                    // MARK: - P2-07: History Link (Moved Up for Accessibility)
+
+                    if locationManager.isTracking || locationManager.gpsLatencyAverageMS > 0 {
+                        NavigationLink {
+                            RadialHistoryGlanceView(manager: locationManager)
+                        } label: {
+                            Label("History", systemImage: "clock.arrow.circlepath")
+                        }
+                        .buttonStyle(.bordered)
+                        .accessibilityLabel("History")
+                        .accessibilityHint("View recent GPS location fixes")
+                    }
+
+                    // MARK: - P1-01: GPS Status Icon (Moved Below Critical Data)
+                    // P3-08: Removed glass effect from decorative icon to reduce visual noise
+
+                    if #available(watchOS 26, *) {
+                        ZStack {
+                            Circle()
+                                .fill(locationManager.isTracking ? Color.green.opacity(Opacity.xlow) : Color.secondary.opacity(0.1))
+                                .frame(width: 50, height: 50)
+
+                            if reduceMotion {
+                                Image(systemName: locationManager.isTracking ? "location.fill" : "location.slash")
+                                    .font(.system(size: 24))
+                                    .foregroundStyle(locationManager.isTracking ? AnyShapeStyle(.green.gradient) : AnyShapeStyle(.secondary))
+                            } else {
+                                Image(systemName: locationManager.isTracking ? "location.fill" : "location.slash")
+                                    .font(.system(size: 24))
+                                    .foregroundStyle(locationManager.isTracking ? AnyShapeStyle(.green.gradient) : AnyShapeStyle(.secondary))
+                                    .symbolEffect(.bounce.byLayer, value: locationManager.isTracking)
+                            }
+                        }
                     } else {
-                        GlassSkeleton(height: 60)
-                            .padding(.vertical, Spacing.sm)
+                        Image(systemName: locationManager.isTracking ? "location.fill" : "location.slash")
+                            .font(.system(size: 36))
+                            .foregroundStyle(locationManager.isTracking ? .green : .secondary)
+                            .symbolEffect(.pulse, isActive: locationManager.isTracking && !reduceMotion)
+                    }
+
+                    // MARK: - Status Message
+                    // P3-08: Primary glass effect for main status pill
+                    GlassPill {
+                        Text(locationManager.statusMessage)
+                            .font(.caption)
+                            .foregroundStyle(.primary)  // P3-08: Increased contrast
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: .infinity)
+                    }
+
+                    // MARK: - Error Message (if present)
+
+                    if let errorMessage = locationManager.errorMessage {
+                        Text(errorMessage)
+                            .font(.caption2)
+                            .foregroundStyle(.red)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: .infinity)
+                            .padding(.horizontal)
+
+                        Button("Restart Workout") {
+                            locationManager.restartTracking()
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(.orange)
+                        .accessibilityLabel("Restart workout")
+                        .accessibilityHint("Restart the tracking workout session to recover from an error")
                     }
 
                     metricsSection
@@ -370,15 +423,6 @@ struct ContentView: View {
                     .buttonStyle(.bordered)
                     .accessibilityLabel("Settings")
                     .accessibilityHint("Open watch app settings")
-
-                    NavigationLink {
-                        RadialHistoryGlanceView(manager: locationManager)
-                    } label: {
-                        Label("History", systemImage: "clock.arrow.circlepath")
-                    }
-                    .buttonStyle(.bordered)
-                    .accessibilityLabel("History")
-                    .accessibilityHint("View recent GPS location fixes")
                 }
                 .padding(.vertical)
             }
@@ -394,28 +438,31 @@ struct ContentView: View {
     private var metricsSection: some View {
         if locationManager.isTracking || locationManager.gpsLatencyAverageMS > 0 {
             VStack(spacing: Spacing.xs) {
+                // P3-08: Removed glass effects from secondary metric tiles to reduce visual noise
                 HStack(spacing: Spacing.xs) {
-                    GlassPill {
-                        MetricTile(
-                            icon: "waveform.path", 
-                            title: "GPS Latency",
-                            value: formattedLatency(locationManager.gpsLatencyAverageMS),
-                            subtitle: "p95 \(formattedLatency(locationManager.gpsLatencyP95MS))",
-                            tint: .mint
-                        )
-                    }
+                    MetricTile(
+                        icon: "waveform.path",
+                        title: "GPS Latency",
+                        value: formattedLatency(locationManager.gpsLatencyAverageMS),
+                        subtitle: "p95 \(formattedLatency(locationManager.gpsLatencyP95MS))",
+                        tint: .mint
+                    )
+                    .padding(.horizontal, Spacing.sm)
+                    .padding(.vertical, Spacing.xs)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: CornerRadius.sm))
                     .frame(maxWidth: .infinity)
 
-                    GlassPill {
-                        MetricTile(
-                            icon: "bolt.fill",
-                            title: "Drain / hr",
-                            value: formattedDrain(locationManager.batteryDrainPerHour),
-                            subtitle: "Inst " + formattedDrain(locationManager.batteryDrainPerHourInstant) +
-                                " · " + (batteryOptimizationsEnabled ? "Optimized" : "Performance"),
-                            tint: batteryOptimizationsEnabled ? .green : .orange
-                        )
-                    }
+                    MetricTile(
+                        icon: "bolt.fill",
+                        title: "Drain / hr",
+                        value: formattedDrain(locationManager.batteryDrainPerHour),
+                        subtitle: "Inst " + formattedDrain(locationManager.batteryDrainPerHourInstant) +
+                            " · " + (batteryOptimizationsEnabled ? "Optimized" : "Performance"),
+                        tint: batteryOptimizationsEnabled ? .green : .orange
+                    )
+                    .padding(.horizontal, Spacing.sm)
+                    .padding(.vertical, Spacing.xs)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: CornerRadius.sm))
                     .frame(maxWidth: .infinity)
                 }
             }
@@ -423,25 +470,29 @@ struct ContentView: View {
         }
     }
 
+    // P3-08: Removed glass effect from reachability to reduce visual noise
     private var reachabilityPill: some View {
-        GlassPill {
-            MetricTile(
-                icon: locationManager.isPhoneReachable ? "iphone.radiowaves.left.and.right" : "iphone.slash",
-                title: "Reachability",
-                value: locationManager.isPhoneReachable ? "Reachable" : "Offline",
-                subtitle: locationManager.connectionStatus,
-                tint: locationManager.isPhoneReachable ? .green : .orange
-            )
-        }
+        MetricTile(
+            icon: locationManager.isPhoneReachable ? "iphone.radiowaves.left.and.right" : "iphone.slash",
+            title: "Reachability",
+            value: locationManager.isPhoneReachable ? "Reachable" : "Offline",
+            subtitle: locationManager.connectionStatus,
+            tint: locationManager.isPhoneReachable ? .green : .orange
+        )
+        .padding(.horizontal, Spacing.sm)
+        .padding(.vertical, Spacing.xs)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: CornerRadius.sm))
     }
 
+    // P3-08: Removed glass effect from Smart Stack hint to reduce visual noise
     private var smartStackHint: some View {
-        GlassPill {
-            SmartStackHintView(
-                latency: formattedLatency(locationManager.gpsLatencyAverageMS),
-                drain: formattedDrain(locationManager.batteryDrainPerHour)
-            )
-        }
+        SmartStackHintView(
+            latency: formattedLatency(locationManager.gpsLatencyAverageMS),
+            drain: formattedDrain(locationManager.batteryDrainPerHour)
+        )
+        .padding(.horizontal, Spacing.sm)
+        .padding(.vertical, Spacing.xs)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: CornerRadius.sm))
     }
 
     // MARK: - Actions
@@ -455,6 +506,22 @@ struct ContentView: View {
         guard value.isFinite, abs(value) > 0.05 else { return "—" }
         let clamped = max(-25, min(25, value))
         return String(format: "%.1f%%/h", clamped)
+    }
+
+    private func timeSinceFix(_ timestamp: Date) -> String {
+        let elapsed = Date().timeIntervalSince(timestamp)
+        if elapsed < 5 {
+            return "just now"
+        } else if elapsed < 60 {
+            return "\(Int(elapsed))s ago"
+        } else if elapsed < 3600 {
+            let minutes = Int(elapsed) / 60
+            return "\(minutes)m ago"
+        } else {
+            let hours = Int(elapsed) / 3600
+            let minutes = (Int(elapsed) % 3600) / 60
+            return "\(hours)h \(minutes)m ago"
+        }
     }
 
     /// Toggles GPS tracking on/off.
@@ -471,8 +538,12 @@ struct ContentView: View {
     private func toggleTracking() {
         if locationManager.isTracking {
             locationManager.stopTracking()
+            // P1-03: Haptic feedback on stop
+            WKInterfaceDevice.current().play(.stop)
             disengageLock()
         } else {
+            // P1-03: Haptic feedback on start
+            WKInterfaceDevice.current().play(.start)
             locationManager.startTracking()
             // Auto-engage lock mode when tracking starts (like water lock) if enabled
             if autoLockEnabled {
@@ -559,7 +630,7 @@ private extension ContentView {
                     Image(systemName: "lock.fill")
                         .font(.title2)
                         .foregroundStyle(.cyan.gradient)
-                        .symbolEffect(.pulse.byLayer, options: .repeating)
+                        .symbolEffect(.pulse.byLayer, options: .repeating, isActive: !reduceMotion)
                 }
                 .glassEffect(.regular, in: .circle)
             } else {
@@ -577,16 +648,17 @@ private extension ContentView {
                 .foregroundStyle(.secondary)
 
             if let lockEngagedAt {
-                TimelineView(.periodic(from: .now, by: 1)) { _ in
+                // P2-09: Reduced update frequency from 1s to 60s to save battery
+                TimelineView(.periodic(from: .now, by: 60)) { _ in
                     Text("Locked for \(formattedLockDuration(since: lockEngagedAt))")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
             }
 
+            // P1-02: Emergency Stop with confirmation dialog
             Button(role: .destructive) {
-                locationManager.stopTracking()
-                disengageLock()
+                showEmergencyStopConfirmation = true
             } label: {
                 Label("Emergency Stop", systemImage: "exclamationmark.triangle")
             }
@@ -594,6 +666,17 @@ private extension ContentView {
             .tint(.red)
             .accessibilityLabel("Emergency stop")
             .accessibilityHint("Stop tracking immediately and unlock the tracker")
+            .confirmationDialog(
+                "Stop tracking? You will lose real-time pet location.",
+                isPresented: $showEmergencyStopConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("Stop Tracking", role: .destructive) {
+                    locationManager.stopTracking()
+                    disengageLock()
+                }
+                Button("Cancel", role: .cancel) { }
+            }
         }
         .padding()
         .frame(maxWidth: .infinity, maxHeight: .infinity)

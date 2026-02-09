@@ -82,62 +82,130 @@ public struct PetMapView: View {
         // CRITICAL FIX: Multi-layer protection against Metal multisampling crash
         // iOS 26 Map with CAMetalLayer crashes if size becomes zero during view lifecycle
         GeometryReader { geometry in
-            let isValidSize = geometry.size.width >= 20 && geometry.size.height >= 20
+            let isValidSize = geometry.size.width >= MapConstants.minRenderSize && geometry.size.height >= MapConstants.minRenderSize
 
             Group {
                 if isValidSize && hasValidSize {
                     mapContent
                         // Ensure explicit minimum frame to prevent layout collapse
                         .frame(
-                            minWidth: 20,
+                            minWidth: MapConstants.minRenderSize,
                             idealWidth: geometry.size.width,
                             maxWidth: .infinity,
-                            minHeight: 20,
+                            minHeight: MapConstants.minRenderSize,
                             idealHeight: geometry.size.height,
                             maxHeight: .infinity
                         )
                         // Clip any overflow to prevent Metal from rendering outside bounds
                         .clipped()
                 } else {
-                    // Placeholder with matching background while waiting for valid size
-                    Color(.systemBackground)
-                        .opacity(0.5)
+                    // P1-08: Improved loading state with proper feedback
+                    mapLoadingView
                 }
             }
             .task(id: isValidSize) {
                 guard isValidSize else { return }
                 lastValidSize = geometry.size
                 // Delay to ensure Metal layer is ready - using Swift Concurrency for proper cancellation
-                try? await Task.sleep(for: .milliseconds(100))
+                try? await Task.sleep(for: .milliseconds(MapConstants.renderDelayMs))
                 guard !Task.isCancelled else { return }
                 hasValidSize = true
             }
         }
         // Prevent map from ever having zero intrinsic size
-        .frame(minWidth: 20, minHeight: 20)
+        .frame(minWidth: MapConstants.minRenderSize, minHeight: MapConstants.minRenderSize)
+        // Accessibility
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(accessibilityMapLabel)
+        .accessibilityHint("Map showing pet and owner locations. Swipe to explore markers.")
+    }
+
+    /// Dynamic accessibility label based on current map state
+    private var accessibilityMapLabel: String {
+        let hasPet = locationManager.latestLocation != nil
+        let hasOwner = locationManager.ownerLocation != nil
+
+        return AccessibilityHelper.formatMapRegion(
+            hasPetLocation: hasPet,
+            hasOwnerLocation: hasOwner
+        )
+    }
+
+    /// P1-08: Loading view shown while map initializes
+    private var mapLoadingView: some View {
+        VStack(spacing: Spacing.md) {
+            ProgressView()
+                .controlSize(.large)
+                .tint(LiquidGlassTheme.current.accentPrimary)
+
+            Text("Loading map...")
+                .font(Typography.body)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(.systemBackground).opacity(0.95))
     }
 
     /// The actual map content, separated to prevent zero-size Metal rendering crashes
     @ViewBuilder
     private var mapContent: some View {
         Map(position: $cameraPosition) {
-            // Pet location marker
+            // Pet location marker (actual or predicted)
             if let petLocation = locationManager.latestLocation {
-                Annotation(
-                    "Pet",
-                    coordinate: CLLocationCoordinate2D(
-                        latitude: petLocation.coordinate.latitude,
-                        longitude: petLocation.coordinate.longitude
+                let coordinate = CLLocationCoordinate2D(
+                    latitude: petLocation.coordinate.latitude,
+                    longitude: petLocation.coordinate.longitude
+                )
+
+                Annotation("Pet", coordinate: coordinate) {
+                    PetMarkerView(
+                        sequence: petLocation.sequence,
+                        isPredicted: false
                     )
-                ) {
-                    PetMarkerView(sequence: petLocation.sequence)
                 }
             }
 
-            // Movement trail (polyline connecting historical fixes)
+            // Predicted location marker (if available and different from actual)
+            if let predicted = locationManager.predictedLocation,
+               locationManager.latestLocation != nil {
+                let predictedCoord = CLLocationCoordinate2D(
+                    latitude: predicted.coordinate.latitude,
+                    longitude: predicted.coordinate.longitude
+                )
+
+                Annotation("Predicted", coordinate: predictedCoord) {
+                    PredictedMarkerView(prediction: predicted)
+                }
+
+                // Show confidence radius as a circle overlay
+                MapCircle(
+                    center: predictedCoord,
+                    radius: predicted.confidenceRadius
+                )
+                .foregroundStyle(.blue.opacity(0.15))
+                .stroke(.blue.opacity(0.5), lineWidth: 2)
+            }
+
+            // P6-04: Movement trail colored by recency
             if locationManager.locationHistory.count >= 2 {
-                MapPolyline(coordinates: trailCoordinates)
-                    .stroke(.blue.opacity(0.7), lineWidth: 3)
+                // Segment trail into recent (solid blue) and older (faded, dashed) portions
+                let recentCount = min(locationManager.locationHistory.count, MapConstants.trailRecentCount)
+                let olderCount = locationManager.locationHistory.count - recentCount
+
+                // Older trail (faded and dashed)
+                if olderCount >= MapConstants.trailMinFixCount {
+                    let olderCoords = Array(trailCoordinates.prefix(olderCount + 1))
+                    MapPolyline(coordinates: olderCoords)
+                        .stroke(.blue.opacity(0.3), style: StrokeStyle(lineWidth: MapConstants.trailOlderLineWidth, dash: MapConstants.trailDashPattern))
+                }
+
+                // Recent trail (solid bright blue)
+                if recentCount >= MapConstants.trailMinFixCount {
+                    let recentStartIndex = max(0, trailCoordinates.count - recentCount)
+                    let recentCoords = Array(trailCoordinates.suffix(from: recentStartIndex))
+                    MapPolyline(coordinates: recentCoords)
+                        .stroke(.blue.opacity(0.8), lineWidth: MapConstants.trailRecentLineWidth)
+                }
             }
 
             // Owner location marker
@@ -156,63 +224,71 @@ public struct PetMapView: View {
             MapCompass()
         }
         .overlay(alignment: .topTrailing) {
-            Menu {
-                Picker("Map style", selection: $mapStyleChoice) {
-                    ForEach(MapStyleChoice.allCases) { choice in
-                        Text(choice.label).tag(choice)
+            // P3-12: Safe area aware map style control
+            GeometryReader { geometry in
+                Menu {
+                    Picker("Map style", selection: $mapStyleChoice) {
+                        ForEach(MapStyleChoice.allCases) { choice in
+                            Text(choice.label).tag(choice)
+                        }
                     }
+                } label: {
+                    Image(systemName: "map.fill")
+                        .font(.headline)
+                        .foregroundStyle(.primary)
+                        .padding(10)
+                        .background(.ultraThinMaterial, in: Circle())
                 }
-            } label: {
-                Image(systemName: "map.fill")
-                    .font(.headline)
-                    .foregroundStyle(.primary)
-                    .padding(10)
-                    .background(.ultraThinMaterial, in: Circle())
+                .padding(adaptiveControlPadding(for: geometry.size))
+                .accessibilityLabel("Map style menu")
+                .accessibilityHint("Choose between standard, hybrid, or satellite map views")
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
             }
-            .padding(12)
-            .accessibilityLabel("Map style menu")
-            .accessibilityHint("Choose between standard, hybrid, or satellite map views")
         }
         .overlay(alignment: .bottomTrailing) {
-            VStack(spacing: 10) {
-                Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        zoomScale = max(0.25, zoomScale * 0.7)
-                        updateCamera()
+            // P3-12: Safe area aware zoom controls
+            GeometryReader { geometry in
+                VStack(spacing: adaptiveControlSpacing(for: geometry.size)) {
+                    Button {
+                        withAnimation(Animations.quickEase) {
+                            zoomScale = max(MapConstants.zoomScaleMin, zoomScale * MapConstants.zoomInFactor)
+                            updateCamera()
+                        }
+                    } label: {
+                        Image(systemName: "plus.magnifyingglass")
+                            .font(.headline)
+                            .foregroundStyle(.primary)
+                            .padding(10)
+                            .background(.ultraThinMaterial, in: Circle())
                     }
-                } label: {
-                    Image(systemName: "plus.magnifyingglass")
-                        .font(.headline)
-                        .foregroundStyle(.primary)
-                        .padding(10)
-                        .background(.ultraThinMaterial, in: Circle())
-                }
-                .accessibilityLabel("Zoom in")
-                .accessibilityHint("Zoom in on the map to see more detail")
+                    .accessibilityLabel("Zoom in")
+                    .accessibilityHint("Zoom in on the map to see more detail")
 
-                Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        zoomScale = min(8.0, zoomScale * 1.4)
-                        updateCamera()
+                    Button {
+                        withAnimation(Animations.quickEase) {
+                            zoomScale = min(MapConstants.zoomScaleMax, zoomScale * MapConstants.zoomOutFactor)
+                            updateCamera()
+                        }
+                    } label: {
+                        Image(systemName: "minus.magnifyingglass")
+                            .font(.headline)
+                            .foregroundStyle(.primary)
+                            .padding(10)
+                            .background(.ultraThinMaterial, in: Circle())
                     }
-                } label: {
-                    Image(systemName: "minus.magnifyingglass")
-                        .font(.headline)
-                        .foregroundStyle(.primary)
-                        .padding(10)
-                        .background(.ultraThinMaterial, in: Circle())
+                    .accessibilityLabel("Zoom out")
+                    .accessibilityHint("Zoom out on the map to see more area")
                 }
-                .accessibilityLabel("Zoom out")
-                .accessibilityHint("Zoom out on the map to see more area")
+                .padding(adaptiveControlPadding(for: geometry.size))
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
             }
-            .padding(12)
         }
         .onAppear {
             updateCamera()
         }
         .onChange(of: locationManager.latestLocation) { _, _ in
             // Smooth camera update when pet moves
-            withAnimation(.easeInOut(duration: 1.0)) {
+            withAnimation(Animations.mapCamera) {
                 updateCamera()
             }
         }
@@ -241,23 +317,23 @@ public struct PetMapView: View {
 
         // If owner location available, show both with padding
         if let ownerCoord = locationManager.ownerLocation?.coordinate {
-            let rect = MKMapRect(coordinates: [petCoord, ownerCoord]).insetBy(dx: -250, dy: -250)
+            let rect = MKMapRect(coordinates: [petCoord, ownerCoord]).insetBy(dx: MapConstants.boundingRectInset, dy: MapConstants.boundingRectInset)
             let region = regionFromRect(rect)
             cameraPosition = .region(scaled(region, by: zoomScale))
         } else {
             // Show just pet with reasonable zoom
             let region = MKCoordinateRegion(
                 center: petCoord,
-                span: MKCoordinateSpan(latitudeDelta: 0.002, longitudeDelta: 0.002)
+                span: MKCoordinateSpan(latitudeDelta: MapConstants.defaultSpanDelta, longitudeDelta: MapConstants.defaultSpanDelta)
             )
             cameraPosition = .region(scaled(region, by: zoomScale))
         }
     }
 
     private func scaled(_ region: MKCoordinateRegion, by scale: Double) -> MKCoordinateRegion {
-        let clampedScale = max(0.1, min(20.0, scale))
-        let latitudeDelta = max(0.0002, min(40.0, region.span.latitudeDelta * clampedScale))
-        let longitudeDelta = max(0.0002, min(40.0, region.span.longitudeDelta * clampedScale))
+        let clampedScale = max(MapConstants.scaleDeltaMin, min(MapConstants.scaleDeltaMax, scale))
+        let latitudeDelta = max(MapConstants.coordDeltaMin, min(MapConstants.coordDeltaMax, region.span.latitudeDelta * clampedScale))
+        let longitudeDelta = max(MapConstants.coordDeltaMin, min(MapConstants.coordDeltaMax, region.span.longitudeDelta * clampedScale))
         return MKCoordinateRegion(
             center: region.center,
             span: MKCoordinateSpan(latitudeDelta: latitudeDelta, longitudeDelta: longitudeDelta)
@@ -277,6 +353,28 @@ public struct PetMapView: View {
         )
         return MKCoordinateRegion(center: center, span: span)
     }
+
+    // P3-12: Adaptive control spacing for small screens
+    private func adaptiveControlSpacing(for size: CGSize) -> CGFloat {
+        // Reduce spacing on smaller screens (iPhone SE)
+        if size.height < MapConstants.smallScreenHeight {
+            return Spacing.xs
+        } else if size.height < MapConstants.mediumScreenHeight {
+            return Spacing.sm
+        } else {
+            return Spacing.sm + Spacing.xxxs
+        }
+    }
+
+    // P3-12: Adaptive padding to prevent overlap with safe areas
+    private func adaptiveControlPadding(for size: CGSize) -> CGFloat {
+        // Use smaller padding on compact devices
+        if size.width < MapConstants.compactScreenWidth {
+            return Spacing.sm
+        } else {
+            return Spacing.md
+        }
+    }
 }
 
 // MARK: - Pet Marker
@@ -285,34 +383,37 @@ public struct PetMapView: View {
 struct PetMarkerView: View {
     @Environment(PetProfileStore.self) private var petProfileStore
     let sequence: Int
+    let isPredicted: Bool
 
     var body: some View {
         ZStack {
             // Liquid Glass background
             Circle()
-                .fill(.red.gradient)
-                .frame(width: 48, height: 48)
-                .shadow(color: .red.opacity(0.4), radius: 8, x: 0, y: 4)
+                .fill(isPredicted ? Color.orange.gradient : Color.red.gradient)
+                .frame(width: MapConstants.petMarkerSize, height: MapConstants.petMarkerSize)
+                .shadow(color: (isPredicted ? Color.orange : Color.red).opacity(0.4), radius: 8, x: 0, y: 4)
 
             if let avatar = petAvatar {
                 Image(uiImage: avatar)
                     .resizable()
                     .scaledToFill()
-                    .frame(width: 32, height: 32)
+                    .frame(width: MapConstants.petMarkerIconSize, height: MapConstants.petMarkerIconSize)
                     .clipShape(Circle())
+                    .opacity(isPredicted ? 0.7 : 1.0)
             } else if let badge = pawBadge {
                 Image(uiImage: badge)
                     .resizable()
                     .scaledToFit()
-                    .frame(width: 32, height: 32)
+                    .frame(width: MapConstants.petMarkerIconSize, height: MapConstants.petMarkerIconSize)
                     .clipShape(Circle())
+                    .opacity(isPredicted ? 0.7 : 1.0)
             } else {
                 Image(systemName: "pawprint.fill")
-                    .font(.system(size: 22, weight: .bold))
-                    .foregroundStyle(.white)
+                    .font(.system(size: IconSize.tabBar, weight: .bold))
+                    .foregroundStyle(.white.opacity(isPredicted ? 0.7 : 1.0))
             }
         }
-        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: sequence) // Liquid bounce on new fixes
+        .animation(Animations.quick, value: sequence) // Liquid bounce on new fixes
     }
 
     private var pawBadge: UIImage? {
@@ -325,6 +426,39 @@ struct PetMarkerView: View {
     }
 }
 
+// MARK: - Predicted Marker
+
+/// Marker view for predicted pet location with uncertainty indicator.
+struct PredictedMarkerView: View {
+    let prediction: PredictedLocation
+
+    var body: some View {
+        VStack(spacing: 4) {
+            ZStack {
+                // Semi-transparent background to indicate prediction
+                Circle()
+                    .fill(.orange.gradient.opacity(0.6))
+                    .frame(width: MapConstants.predictedMarkerSize, height: MapConstants.predictedMarkerSize)
+                    .shadow(color: .orange.opacity(0.3), radius: 6, x: 0, y: 3)
+
+                // Question mark icon to indicate uncertainty
+                Image(systemName: "questionmark")
+                    .font(.system(size: IconSize.button, weight: .bold))
+                    .foregroundStyle(.white)
+            }
+
+            // Time elapsed label
+            Text(prediction.timeAgoDescription)
+                .font(.caption2)
+                .fontWeight(.semibold)
+                .foregroundStyle(.orange)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(.ultraThinMaterial, in: Capsule())
+        }
+    }
+}
+
 // MARK: - Owner Marker
 
 /// Custom owner location marker with person icon and Liquid Glass effect.
@@ -334,12 +468,12 @@ struct OwnerMarkerView: View {
             // Liquid Glass background
             Circle()
                 .fill(.green.gradient)
-                .frame(width: 44, height: 44)
+                .frame(width: MapConstants.ownerMarkerSize, height: MapConstants.ownerMarkerSize)
                 .shadow(color: .green.opacity(0.4), radius: 8, x: 0, y: 4)
 
             // Person icon
             Image(systemName: "person.fill")
-                .font(.system(size: 20, weight: .bold))
+                .font(.system(size: IconSize.md, weight: .bold))
                 .foregroundStyle(.white)
         }
     }

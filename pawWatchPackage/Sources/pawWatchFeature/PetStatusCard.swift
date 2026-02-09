@@ -54,7 +54,11 @@ public struct PetStatusCard: View {
                     Text("Pet Location")
                         .font(.title3.bold())
 
-                    if let seconds = locationManager.secondsSinceLastUpdate {
+                    if let predicted = locationManager.predictedLocation {
+                        Text("Predicted location (\(predicted.timeAgoDescription))")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    } else if let seconds = locationManager.secondsSinceLastUpdate {
                         Text(SharedUtilities.timeAgoText(seconds))
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -77,10 +81,31 @@ public struct PetStatusCard: View {
             }
 
             // Coordinates with improved layout
-            if let location = locationManager.latestLocation {
+            if let predicted = locationManager.predictedLocation {
+                // Show predicted coordinates with visual distinction
+                VStack(spacing: 8) {
+                    CoordinatesRow(
+                        latitude: predicted.coordinate.latitude,
+                        longitude: predicted.coordinate.longitude,
+                        isPredicted: true
+                    )
+
+                    // Show prediction info
+                    HStack(spacing: 12) {
+                        Label(predicted.methodDescription, systemImage: "dot.radiowaves.left.and.right")
+                            .font(.caption2)
+                            .foregroundStyle(.orange)
+
+                        Text("±\(Int(predicted.confidenceRadius))m")
+                            .font(.caption2.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            } else if let location = locationManager.latestLocation {
                 CoordinatesRow(
                     latitude: location.coordinate.latitude,
-                    longitude: location.coordinate.longitude
+                    longitude: location.coordinate.longitude,
+                    isPredicted: false
                 )
             } else {
                 NoDataView()
@@ -89,12 +114,14 @@ public struct PetStatusCard: View {
             // Enhanced metadata grid
             if let location = locationManager.latestLocation {
                 let batteryValue = locationManager.watchBatteryFraction ?? location.batteryFraction
+                let accuracy = locationManager.predictedLocation?.confidenceRadius ?? location.horizontalAccuracyMeters
                 MetadataGrid(
-                    accuracy: location.horizontalAccuracyMeters,
+                    accuracy: accuracy,
                     battery: batteryValue,
                     secondsSinceUpdate: locationManager.secondsSinceLastUpdate,
                     distanceFromOwner: locationManager.distanceFromOwner,
-                    useMetricUnits: useMetricUnits
+                    useMetricUnits: useMetricUnits,
+                    isPredicted: locationManager.predictedLocation != nil
                 )
             }
 
@@ -105,7 +132,7 @@ public struct PetStatusCard: View {
                 ErrorBanner(message: error)
             }
         }
-        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: locationManager.latestLocation)
+        .animation(Animations.standard, value: locationManager.latestLocation)
     }
 
 }
@@ -155,8 +182,8 @@ struct ConnectionStatusView: View {
         .padding(.vertical, 6)
         .background(statusColor.opacity(0.1))
         .clipShape(Capsule())
-        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: isConnected)
-        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: isReachable)
+        .animation(Animations.standard, value: isConnected)
+        .animation(Animations.standard, value: isReachable)
     }
 
     private var statusColor: Color {
@@ -178,6 +205,13 @@ struct ConnectionStatusView: View {
 struct CoordinatesRow: View {
     let latitude: Double
     let longitude: Double
+    let isPredicted: Bool
+
+    init(latitude: Double, longitude: Double, isPredicted: Bool = false) {
+        self.latitude = latitude
+        self.longitude = longitude
+        self.isPredicted = isPredicted
+    }
 
     var body: some View {
         HStack(spacing: 20) {
@@ -190,7 +224,7 @@ struct CoordinatesRow: View {
 
                 Text(String(format: "%.6f°", latitude))
                     .font(.system(.title3, design: .monospaced).weight(.semibold))
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(isPredicted ? .orange : .primary)
             }
 
             Divider()
@@ -206,14 +240,14 @@ struct CoordinatesRow: View {
 
                 Text(String(format: "%.6f°", longitude))
                     .font(.system(.title3, design: .monospaced).weight(.semibold))
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(isPredicted ? .orange : .primary)
             }
         }
         .padding(.vertical, 16)
         .padding(.horizontal, 20)
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color.primary.opacity(0.03))
+                .fill((isPredicted ? Color.orange : Color.primary).opacity(0.03))
         )
     }
 }
@@ -251,6 +285,23 @@ struct MetadataGrid: View {
     let secondsSinceUpdate: TimeInterval?
     let distanceFromOwner: Double?
     let useMetricUnits: Bool
+    let isPredicted: Bool
+
+    init(
+        accuracy: Double,
+        battery: Double,
+        secondsSinceUpdate: TimeInterval?,
+        distanceFromOwner: Double?,
+        useMetricUnits: Bool,
+        isPredicted: Bool = false
+    ) {
+        self.accuracy = accuracy
+        self.battery = battery
+        self.secondsSinceUpdate = secondsSinceUpdate
+        self.distanceFromOwner = distanceFromOwner
+        self.useMetricUnits = useMetricUnits
+        self.isPredicted = isPredicted
+    }
 
     private let theme = LiquidGlassTheme.current
 
@@ -262,13 +313,13 @@ struct MetadataGrid: View {
             ],
             spacing: 12
         ) {
-            // GPS Accuracy
+            // GPS Accuracy (or confidence radius for predictions)
             MetadataItem(
-                icon: "scope",
-                title: "Accuracy",
+                icon: isPredicted ? "questionmark.circle.fill" : "scope",
+                title: isPredicted ? "Confidence" : "Accuracy",
                 value: MeasurementDisplay.accuracy(accuracy, useMetric: useMetricUnits),
-                color: accuracyColor,
-                isHighlighted: accuracy < 10
+                color: isPredicted ? .orange : accuracyColor,
+                isHighlighted: !isPredicted && accuracy < 10
             )
 
             // Battery Level
@@ -387,7 +438,7 @@ struct MetadataItem: View {
             x: 0,
             y: 4
         )
-        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: value)
+        .animation(Animations.standard, value: value)
     }
 }
 

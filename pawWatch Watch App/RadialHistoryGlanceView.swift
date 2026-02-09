@@ -21,11 +21,13 @@ struct RadialHistoryGlanceView: View {
                 RadialHistoryEmptyState()
                     .listRowBackground(Color.clear)
             } else {
+                // P3-08: Removed glass effect from history list items to reduce visual noise
                 ForEach(manager.recentFixes.prefix(maxItems), id: \.sequence) { fix in
-                    GlassPill {
-                        RadialFixRow(fix: fix)
-                    }
-                    .listRowInsets(EdgeInsets(top: Spacing.xxxs, leading: Spacing.xs, bottom: Spacing.xxxs, trailing: Spacing.xs))
+                    RadialFixRow(fix: fix)
+                        .padding(.horizontal, Spacing.sm)
+                        .padding(.vertical, Spacing.xs)
+                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: CornerRadius.sm))
+                        .listRowInsets(EdgeInsets(top: Spacing.xxxs, leading: Spacing.xs, bottom: Spacing.xxxs, trailing: Spacing.xs))
                 }
             }
         }
@@ -39,6 +41,8 @@ struct RadialHistoryGlanceView: View {
 // MARK: - Radial History Empty State
 
 struct RadialHistoryEmptyState: View {
+    @Environment(\.dismiss) private var dismiss
+
     var body: some View {
         VStack(spacing: Spacing.sm) {
             Image(systemName: "location.slash")
@@ -50,6 +54,21 @@ struct RadialHistoryEmptyState: View {
             Text("Start tracking to populate the glance.")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
+
+            Button {
+                dismiss()
+            } label: {
+                HStack(spacing: Spacing.xxxs) {
+                    Image(systemName: "location.fill")
+                        .font(.caption2)
+                    Text("Start Tracking")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                }
+                .foregroundStyle(.blue)
+            }
+            .buttonStyle(.borderedProminent)
+            .padding(.top, Spacing.xxs)
         }
         .frame(maxWidth: .infinity, alignment: .center)
         .padding(.vertical, 32)
@@ -100,6 +119,9 @@ struct RadialFixRow: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(accessibilityDescription)
+        .accessibilityHint("Double tap to view details")
     }
 
     // MARK: - Helpers
@@ -108,6 +130,13 @@ struct RadialFixRow: View {
         let age = max(0, Date().timeIntervalSince(timestamp))
         let clamped = max(0.2, 1 - age / maxAge)
         return CGFloat(min(1, clamped))
+    }
+
+    private var accessibilityDescription: String {
+        let timeAgo = SharedUtilities.timeAgoLong(since: fix.timestamp)
+        let accuracy = Int(fix.horizontalAccuracyMeters.rounded())
+        let battery = Int((fix.batteryFraction * 100).rounded())
+        return "GPS fix from \(timeAgo) ago, accuracy plus or minus \(accuracy) meters, battery \(battery) percent"
     }
 }
 

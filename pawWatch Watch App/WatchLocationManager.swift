@@ -187,7 +187,7 @@ final class WatchLocationManager: WatchLocationProviderDelegate {
         guard wasTracking, !isTracking else { return }
 
         if let modeRaw = savedModeRaw {
-            locationProvider.restoreTrackingMode(from: modeRaw)
+            locationProvider.restoreWatchTrackingMode(from: modeRaw)
         }
 
         startTracking()

@@ -32,6 +32,86 @@ import Testing
     #expect(manager.shouldAccept(old) == true)
 }
 
+// MARK: - Emergency Mode Policy Tests
+
+@Test("Emergency mode accepts fixes at 15m accuracy threshold")
+func emergencyModeAcceptsFixAtThreshold() async {
+    let manager = PetLocationManager()
+    manager.setTrackingMode(.emergency)
+
+    // Fix at exactly 15m should be accepted
+    let fix = makeFix(sequence: 100, timestamp: Date(), accuracy: 15.0, coordinate: .init(latitude: 37.0, longitude: -122.0))
+    #expect(manager.shouldAccept(fix) == true)
+}
+
+@Test("Emergency mode rejects fixes above 15m accuracy threshold")
+func emergencyModeRejectsFixAboveThreshold() async {
+    let manager = PetLocationManager()
+    manager.setTrackingMode(.emergency)
+
+    // Fix at 15.1m should be rejected
+    let fix = makeFix(sequence: 101, timestamp: Date(), accuracy: 15.1, coordinate: .init(latitude: 37.0, longitude: -122.0))
+    #expect(manager.shouldAccept(fix) == false)
+}
+
+@Test("Emergency mode accepts fixes below 15m accuracy threshold")
+func emergencyModeAcceptsFixBelowThreshold() async {
+    let manager = PetLocationManager()
+    manager.setTrackingMode(.emergency)
+
+    // Fix at 10m should be accepted
+    let fix = makeFix(sequence: 102, timestamp: Date(), accuracy: 10.0, coordinate: .init(latitude: 37.0, longitude: -122.0))
+    #expect(manager.shouldAccept(fix) == true)
+}
+
+@Test("Emergency mode rejects jumps over 500m within 5 seconds")
+func emergencyModeRejectsLargeJump() async {
+    let manager = PetLocationManager()
+    manager.setTrackingMode(.emergency)
+
+    let now = Date()
+    let baseline = makeFix(sequence: 200, timestamp: now, accuracy: 10.0, coordinate: .init(latitude: 37.0, longitude: -122.0))
+    manager._testSetLatestLocation(baseline)
+
+    // Jump of ~600m should be rejected (0.0054 degrees latitude ≈ 600m)
+    let jumped = makeFix(sequence: 201, timestamp: now.addingTimeInterval(1), accuracy: 10.0, coordinate: .init(latitude: 37.0054, longitude: -122.0))
+    #expect(manager.shouldAccept(jumped) == false)
+}
+
+@Test("Emergency mode accepts jumps under 500m within 5 seconds")
+func emergencyModeAcceptsSmallJump() async {
+    let manager = PetLocationManager()
+    manager.setTrackingMode(.emergency)
+
+    let now = Date()
+    let baseline = makeFix(sequence: 210, timestamp: now, accuracy: 10.0, coordinate: .init(latitude: 37.0, longitude: -122.0))
+    manager._testSetLatestLocation(baseline)
+
+    // Jump of ~400m should be accepted (0.0036 degrees latitude ≈ 400m)
+    let jumped = makeFix(sequence: 211, timestamp: now.addingTimeInterval(1), accuracy: 10.0, coordinate: .init(latitude: 37.0036, longitude: -122.0))
+    #expect(manager.shouldAccept(jumped) == true)
+}
+
+@Test("Emergency mode accepts stale fixes within 60 seconds")
+func emergencyModeAcceptsStaleFix() async {
+    let manager = PetLocationManager()
+    manager.setTrackingMode(.emergency)
+
+    // Fix that is 59 seconds old should be accepted
+    let fix = makeFix(sequence: 300, timestamp: Date().addingTimeInterval(-59), accuracy: 10.0, coordinate: .init(latitude: 37.0, longitude: -122.0))
+    #expect(manager.shouldAccept(fix) == true)
+}
+
+@Test("Emergency mode allows very stale fixes for historical trail")
+func emergencyModeAllowsVeryStaleFixForTrail() async {
+    let manager = PetLocationManager()
+    manager.setTrackingMode(.emergency)
+
+    // Fix that is 120 seconds old should still be accepted for trail history
+    let fix = makeFix(sequence: 301, timestamp: Date().addingTimeInterval(-120), accuracy: 10.0, coordinate: .init(latitude: 37.0, longitude: -122.0))
+    #expect(manager.shouldAccept(fix) == true)
+}
+
 private func makeFix(sequence: Int, timestamp: Date, accuracy: Double, coordinate: LocationFix.Coordinate) -> LocationFix {
     LocationFix(
         timestamp: timestamp,

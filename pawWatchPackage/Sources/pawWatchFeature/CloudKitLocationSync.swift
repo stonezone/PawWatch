@@ -52,6 +52,14 @@ public actor CloudKitLocationSync {
         // OPTIMIZATION: Check account status first to prevent error spam
         guard await checkAccountStatus() else { return }
 
+        // Track battery impact of CloudKit upload
+        await BatteryProfiler.shared.startActivity(.cloudKitUpload)
+        defer {
+            Task {
+                await BatteryProfiler.shared.endActivity(.cloudKitUpload)
+            }
+        }
+
         let record = CKRecord(recordType: locationRecordType, recordID: latestLocationID)
 
         // Store as JSON data for flexibility

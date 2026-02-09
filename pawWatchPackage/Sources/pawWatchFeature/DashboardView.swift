@@ -1,5 +1,6 @@
 #if os(iOS)
 import SwiftUI
+import CoreLocation
 
 /// Dashboard view showing live tracking status, map, and quick stats
 @MainActor
@@ -7,6 +8,8 @@ struct DashboardView: View {
     @Environment(PetLocationManager.self) private var locationManager
     let useMetricUnits: Bool
     @State private var isRefreshing = false
+    // P2-01: Track initial loading state
+    @State private var isInitialLoad = true
 
     private var hasLocation: Bool { locationManager.latestLocation != nil }
     private var isConnected: Bool { locationManager.isWatchConnected }
@@ -19,23 +22,33 @@ struct DashboardView: View {
             }
             .padding(.top, 24)
 
-            // Connection/Status Hero Card
-            if !isConnected {
-                OnboardingCard()
+            // P2-01: Show loading skeleton during initial connection resolution
+            if isInitialLoad {
+                LoadingSkeletonCard()
                     .parallaxCard(index: 0)
-            } else if !hasLocation {
-                WaitingForDataCard()
-                    .parallaxCard(index: 0)
+                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
             } else {
-                // Quick Stats Strip
-                QuickStatsStrip(
-                    accuracy: locationManager.latestLocation?.horizontalAccuracyMeters,
-                    battery: locationManager.watchBatteryFraction ?? locationManager.latestLocation?.batteryFraction,
-                    distance: locationManager.distanceFromOwner,
-                    lastUpdate: locationManager.secondsSinceLastUpdate,
-                    useMetric: useMetricUnits
-                )
-                .parallaxCard(index: 0)
+                // Connection/Status Hero Card
+                if !isConnected {
+                    OnboardingCard()
+                        .parallaxCard(index: 0)
+                        .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                } else if !hasLocation {
+                    WaitingForDataCard()
+                        .parallaxCard(index: 0)
+                        .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                } else {
+                    // Quick Stats Strip
+                    QuickStatsStrip(
+                        accuracy: locationManager.latestLocation?.horizontalAccuracyMeters,
+                        battery: locationManager.watchBatteryFraction ?? locationManager.latestLocation?.batteryFraction,
+                        distance: locationManager.distanceFromOwner,
+                        lastUpdate: locationManager.secondsSinceLastUpdate,
+                        useMetric: useMetricUnits
+                    )
+                    .parallaxCard(index: 0)
+                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                }
             }
 
             // Map with overlaid status
@@ -59,15 +72,22 @@ struct DashboardView: View {
                         )
                 }
 
-                // Floating status badge
-                if isConnected {
-                    LiveStatusBadge(
-                        isReachable: locationManager.isWatchReachable,
-                        secondsAgo: locationManager.secondsSinceLastUpdate,
-                        updateSource: locationManager.latestUpdateSource
-                    )
-                    .padding(16)
+                VStack(alignment: .leading, spacing: 8) {
+                    // Floating status badge
+                    if isConnected {
+                        LiveStatusBadge(
+                            isReachable: locationManager.isWatchReachable,
+                            secondsAgo: locationManager.secondsSinceLastUpdate,
+                            updateSource: locationManager.latestUpdateSource
+                        )
+                    }
+
+                    // P4-05: Connectivity health indicator (only show when degraded or worse)
+                    if isConnected && (locationManager.connectivityHealth == .degraded || locationManager.connectivityHealth == .unreachable) {
+                        ConnectivityHealthBadge(health: locationManager.connectivityHealth)
+                    }
                 }
+                .padding(16)
             }
             .parallaxCard(index: 1)
 
@@ -102,17 +122,25 @@ struct DashboardView: View {
             Spacer(minLength: 60)
         }
         .refreshable { await performRefresh() }
+        // P2-01: Clear loading state once connection is established
+        .task {
+            // Wait a short time to allow connection to resolve
+            try? await Task.sleep(for: .milliseconds(500))
+            withAnimation(Animations.standard) {
+                isInitialLoad = false
+            }
+        }
     }
 
     @MainActor
     private func performRefresh() async {
         guard !isRefreshing else { return }
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+        withAnimation(Animations.standard) {
             isRefreshing = true
         }
         locationManager.requestUpdate(force: true)
         try? await Task.sleep(for: .milliseconds(800))
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+        withAnimation(Animations.standard) {
             isRefreshing = false
         }
     }
@@ -133,12 +161,12 @@ private struct DashboardHeader: View {
 
                 VStack(alignment: .leading, spacing: Spacing.xxxs) {
                     Text("pawWatch")
-                        .font(.system(size: 26, weight: .bold, design: .rounded))
+                        .font(Typography.pageTitle)
                     Text("Live Tracking")
-                        .font(.system(size: 13, weight: .medium))
+                        .font(Typography.label)
                         .foregroundStyle(.secondary)
                     Text(AppVersion.displayString)
-                        .font(.system(size: 11, weight: .medium, design: .monospaced))
+                        .font(Typography.labelUppercase)
                         .foregroundStyle(.secondary)
                 }
             }
@@ -164,7 +192,7 @@ private struct DashboardHeader: View {
                     .frame(width: 52, height: 52)
 
                 Image(systemName: "pawprint.fill")
-                    .font(.system(size: 24, weight: .semibold))
+                    .font(.system(size: IconSize.lg, weight: .semibold))
                     .foregroundStyle(.white)
                     .symbolEffect(.breathe.pulse.byLayer, options: .repeating)
             }
@@ -193,7 +221,7 @@ private struct DashboardHeader: View {
         if #available(iOS 26, *) {
             Button(action: onRefresh) {
                 Image(systemName: "arrow.clockwise")
-                    .font(.system(size: 18, weight: .semibold))
+                    .font(.system(size: IconSize.button, weight: .semibold))
                     .foregroundStyle(theme.accentPrimary)
                     .rotationEffect(.degrees(isRefreshing ? 360 : 0))
                     .animation(
@@ -235,6 +263,64 @@ private struct DashboardHeader: View {
             .accessibilityLabel("Refresh location")
             .accessibilityHint(isRefreshing ? "Currently refreshing" : "Double tap to request fresh location data")
         }
+    }
+}
+
+// MARK: - Loading Skeleton Card (P2-01)
+
+private struct LoadingSkeletonCard: View {
+    private let theme = LiquidGlassTheme.current
+    @State private var shimmerPhase: CGFloat = 0
+
+    var body: some View {
+        GlassCard(cornerRadius: theme.cornerRadiusCard, padding: 20) {
+            HStack(spacing: 16) {
+                // Animated circle placeholder
+                Circle()
+                    .fill(shimmerGradient)
+                    .frame(width: 56, height: 56)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    // Title placeholder
+                    RoundedRectangle(cornerRadius: CornerRadius.xs / 2)
+                        .fill(shimmerGradient)
+                        .frame(width: 150, height: Spacing.lg)
+
+                    // Subtitle placeholder
+                    RoundedRectangle(cornerRadius: CornerRadius.xs / 2)
+                        .fill(shimmerGradient)
+                        .frame(width: 200, height: Spacing.md)
+                }
+
+                Spacer()
+
+                // Spinner placeholder
+                ProgressView()
+                    .controlSize(.small)
+            }
+        }
+        .task {
+            // Shimmer animation
+            while !Task.isCancelled {
+                withAnimation(.linear(duration: 1.5).repeatForever(autoreverses: false)) {
+                    shimmerPhase = 1
+                }
+                try? await Task.sleep(for: .seconds(1.5))
+            }
+        }
+        .accessibilityLabel("Loading connection status")
+    }
+
+    private var shimmerGradient: LinearGradient {
+        LinearGradient(
+            colors: [
+                Color.primary.opacity(0.05),
+                Color.primary.opacity(0.12),
+                Color.primary.opacity(0.05)
+            ],
+            startPoint: .leading,
+            endPoint: .trailing
+        )
     }
 }
 
@@ -347,17 +433,21 @@ private struct QuickStatsStrip: View {
 
     var body: some View {
         HStack(spacing: 10) {
+            // P3-04: Add status label for colorblind users
             QuickStatItem(
                 icon: "scope",
                 value: accuracy.map { MeasurementDisplay.accuracy($0, useMetric: useMetric) } ?? "-",
                 color: accuracyColor,
+                statusLabel: accuracyStatusLabel,
                 accessibilityLabel: "GPS accuracy"
             )
 
+            // P3-04: Add status label for colorblind users
             QuickStatItem(
                 icon: batteryIcon,
                 value: battery.map { String(format: "%.0f%%", $0 * 100) } ?? "-",
                 color: batteryColor,
+                statusLabel: batteryStatusLabel,
                 accessibilityLabel: "Watch battery"
             )
 
@@ -365,6 +455,7 @@ private struct QuickStatsStrip: View {
                 icon: "ruler",
                 value: distance.map { MeasurementDisplay.distance($0, useMetric: useMetric) } ?? "-",
                 color: .cyan,
+                statusLabel: nil,
                 accessibilityLabel: "Distance from you"
             )
 
@@ -372,6 +463,7 @@ private struct QuickStatsStrip: View {
                 icon: "clock",
                 value: timeAgoText,
                 color: .purple,
+                statusLabel: nil,
                 accessibilityLabel: "Time since last update"
             )
         }
@@ -405,12 +497,29 @@ private struct QuickStatsStrip: View {
         if seconds < 3600 { return String(format: "%.0fm", seconds / 60) }
         return String(format: "%.1fh", seconds / 3600)
     }
+
+    // P3-04: Colorblind-accessible status labels
+    private var accuracyStatusLabel: String? {
+        guard let acc = accuracy else { return nil }
+        if acc < 10 { return "Good" }
+        if acc < 50 { return "Fair" }
+        return "Poor"
+    }
+
+    private var batteryStatusLabel: String? {
+        guard let bat = battery else { return nil }
+        if bat > 0.5 { return "Good" }
+        if bat > 0.2 { return "Fair" }
+        return "Low"
+    }
 }
 
 private struct QuickStatItem: View {
     let icon: String
     let value: String
     let color: Color
+    // P3-04: Optional status label for colorblind accessibility
+    let statusLabel: String?
     let accessibilityLabel: String
     private let theme = LiquidGlassTheme.current
 
@@ -424,47 +533,65 @@ private struct QuickStatItem: View {
 
     @available(iOS 26, *)
     private var modernStatItem: some View {
-        VStack(spacing: 6) {
-            // Clean icon with subtle color - no animation unless this is accuracy
+        VStack(spacing: Spacing.xxs) {
+            // Clean icon with subtle color
             Image(systemName: icon)
-                .font(.system(size: 16, weight: .medium))
+                .font(.system(size: IconSize.sm, weight: .medium))
                 .foregroundStyle(color)
 
             Text(value)
-                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .font(Typography.dataSmall)
                 .foregroundStyle(.primary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
+
+            // P3-04: Status label for colorblind users
+            if let statusLabel = statusLabel {
+                Text(statusLabel)
+                    .font(Typography.labelUppercase)
+                    .foregroundStyle(.secondary)
+                    .textCase(.uppercase)
+                    .tracking(0.3)
+            }
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 14)
+        .padding(.vertical, Spacing.md)
         .glassEffect(.regular, in: .rect(cornerRadius: 16))
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityLabel)
-        .accessibilityValue(value)
+        .accessibilityValue(statusLabel != nil ? "\(value), \(statusLabel!)" : value)
     }
 
     private var legacyStatItem: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: Spacing.xxs) {
             Image(systemName: icon)
-                .font(.system(size: 14, weight: .medium))
+                .font(.system(size: IconSize.sm, weight: .medium))
                 .foregroundStyle(color)
 
             Text(value)
-                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .font(Typography.label)
                 .foregroundStyle(.primary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
+
+            // P3-04: Status label for colorblind users
+            if let statusLabel = statusLabel {
+                Text(statusLabel)
+                    .font(Typography.labelUppercase)
+                    .foregroundStyle(.secondary)
+                    .textCase(.uppercase)
+                    .tracking(0.3)
+            }
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 12)
+        .padding(.vertical, Spacing.md)
         .background(
             RoundedRectangle(cornerRadius: theme.cornerRadiusSmall, style: .continuous)
                 .fill(.ultraThinMaterial)
         )
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityLabel)
-        .accessibilityValue(value)
+        .accessibilityValue(statusLabel != nil ? "\(value), \(statusLabel!)" : value)
     }
 }
 
@@ -490,19 +617,19 @@ private struct LiveStatusBadge: View {
 
     @available(iOS 26, *)
     private var modernBadge: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: Spacing.sm) {
             Circle()
                 .fill(statusColor.gradient)
-                .frame(width: 10, height: 10)
-                .shadow(color: statusColor.opacity(0.8), radius: 6)
+                .frame(width: IconSize.xs, height: IconSize.xs)
+                .shadow(color: statusColor.opacity(0.8), radius: Spacing.xs)
                 .symbolEffect(.pulse, options: isReachable ? .repeating : .default, value: isReachable)
 
             Text(statusText)
-                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .font(Typography.label)
                 .foregroundStyle(.primary)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 8)
+        .padding(.horizontal, Spacing.md)
+        .padding(.vertical, Spacing.sm)
         .glassEffect(.regular.interactive(), in: .capsule)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Connection status")
@@ -510,18 +637,18 @@ private struct LiveStatusBadge: View {
     }
 
     private var legacyBadge: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: Spacing.xs) {
             Circle()
                 .fill(statusColor)
-                .frame(width: 8, height: 8)
-                .shadow(color: statusColor.opacity(0.6), radius: 4)
+                .frame(width: Spacing.sm, height: Spacing.sm)
+                .shadow(color: statusColor.opacity(0.6), radius: Spacing.xxs)
 
             Text(statusText)
-                .font(.caption2.weight(.semibold))
+                .font(Typography.captionSmall.weight(.semibold))
                 .foregroundStyle(.white)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
+        .padding(.horizontal, Spacing.sm)
+        .padding(.vertical, Spacing.xs)
         .background(
             Capsule()
                 .fill(.ultraThinMaterial)
@@ -569,40 +696,88 @@ private struct CoordinatesCard: View {
     let latitude: Double
     let longitude: Double
     private let theme = LiquidGlassTheme.current
+    @State private var addressText: String?
 
     var body: some View {
-        GlassCard(cornerRadius: theme.cornerRadiusCard - 4, padding: 16) {
-            HStack(spacing: 0) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Label("Latitude", systemImage: "arrow.up")
-                        .font(.caption2.weight(.medium))
-                        .foregroundStyle(.secondary)
+        GlassCard(cornerRadius: theme.cornerRadiusCard - 4, padding: Spacing.lg) {
+            VStack(spacing: Spacing.md) {
+                HStack(spacing: 0) {
+                    VStack(alignment: .leading, spacing: Spacing.xxs) {
+                        Label("Latitude", systemImage: "arrow.up")
+                            .font(Typography.captionSmall.weight(.medium))
+                            .foregroundStyle(.secondary)
 
-                    Text(String(format: "%.6f°", latitude))
-                        .font(.system(.callout, design: .monospaced).weight(.semibold))
+                        Text(String(format: "%.6f°", latitude))
+                            .font(.system(.callout, design: .monospaced).weight(.semibold))
+                    }
+
+                    Spacer()
+
+                    Divider()
+                        .frame(height: 36)
+                        .padding(.horizontal, Spacing.lg)
+
+                    Spacer()
+
+                    VStack(alignment: .trailing, spacing: Spacing.xxs) {
+                        Label("Longitude", systemImage: "arrow.right")
+                            .font(Typography.captionSmall.weight(.medium))
+                            .foregroundStyle(.secondary)
+
+                        Text(String(format: "%.6f°", longitude))
+                            .font(.system(.callout, design: .monospaced).weight(.semibold))
+                    }
                 }
 
-                Spacer()
+                // P6-03: Reverse geocoded address
+                if let address = addressText {
+                    HStack(spacing: Spacing.sm) {
+                        Image(systemName: "mappin.circle.fill")
+                            .font(Typography.caption)
+                            .foregroundStyle(.secondary)
 
-                Divider()
-                    .frame(height: 36)
-                    .padding(.horizontal, 16)
+                        Text(address)
+                            .font(Typography.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
 
-                Spacer()
+                        Spacer()
 
-                VStack(alignment: .trailing, spacing: 4) {
-                    Label("Longitude", systemImage: "arrow.right")
-                        .font(.caption2.weight(.medium))
-                        .foregroundStyle(.secondary)
-
-                    Text(String(format: "%.6f°", longitude))
-                        .font(.system(.callout, design: .monospaced).weight(.semibold))
+                        ShareLink(
+                            item: String(format: "%.6f, %.6f", latitude, longitude)
+                        ) {
+                            Image(systemName: "square.and.arrow.up")
+                                .font(Typography.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                 }
             }
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Pet coordinates")
-        .accessibilityValue("Latitude \(String(format: "%.4f", latitude)) degrees, Longitude \(String(format: "%.4f", longitude)) degrees")
+        .accessibilityValue(
+            (addressText.map { "\($0). " } ?? "") +
+            "Latitude \(String(format: "%.4f", latitude)) degrees, Longitude \(String(format: "%.4f", longitude)) degrees"
+        )
+        .task(id: "\(String(format: "%.4f", latitude)),\(String(format: "%.4f", longitude))") {
+            await reverseGeocode()
+        }
+    }
+
+    private func reverseGeocode() async {
+        let location = CLLocation(latitude: latitude, longitude: longitude)
+        do {
+            let placemarks = try await CLGeocoder().reverseGeocodeLocation(location)
+            if let placemark = placemarks.first {
+                let parts = [placemark.name, placemark.locality, placemark.administrativeArea].compactMap { $0 }
+                if !parts.isEmpty {
+                    addressText = parts.joined(separator: ", ")
+                }
+            }
+        } catch {
+            // Geocoding failure is non-critical; coordinates remain visible
+        }
     }
 }
 
@@ -618,24 +793,24 @@ private struct TrailSummaryCard: View {
     }
 
     var body: some View {
-        GlassCard(cornerRadius: theme.cornerRadiusButton, padding: 14) {
-            HStack(spacing: 12) {
+        GlassCard(cornerRadius: theme.cornerRadiusButton, padding: Spacing.md) {
+            HStack(spacing: Spacing.md) {
                 ZStack {
                     Circle()
                         .fill(theme.accentPrimary.opacity(0.12))
                         .frame(width: 40, height: 40)
 
                     Image(systemName: "point.3.connected.trianglepath.dotted")
-                        .font(.body.weight(.semibold))
+                        .font(Typography.body.weight(.semibold))
                         .foregroundStyle(theme.accentPrimary.gradient)
                 }
 
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: Spacing.xxxs) {
                     Text("Trail History")
-                        .font(.subheadline.weight(.semibold))
+                        .font(Typography.sectionTitle)
 
                     Text("\(count) of \(limit) locations")
-                        .font(.caption)
+                        .font(Typography.caption)
                         .foregroundStyle(.secondary)
                 }
 
@@ -654,7 +829,7 @@ private struct TrailSummaryCard: View {
                         .rotationEffect(.degrees(-90))
 
                     Text("\(percentage)")
-                        .font(.system(size: 9, weight: .bold, design: .rounded))
+                        .font(Typography.labelUppercase)
                         .foregroundStyle(.secondary)
                 }
             }
@@ -672,17 +847,17 @@ private struct ForegroundNotice: View {
     private let theme = LiquidGlassTheme.current
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: Spacing.sm) {
             Image(systemName: "iphone.radiowaves.left.and.right")
-                .font(.caption)
+                .font(Typography.caption)
                 .foregroundStyle(.secondary)
 
             Text(message)
-                .font(.caption2)
+                .font(Typography.captionSmall)
                 .foregroundStyle(.secondary)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.horizontal, Spacing.md)
+        .padding(.vertical, Spacing.sm)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: theme.cornerRadiusSmall - 4, style: .continuous)
@@ -698,19 +873,19 @@ private struct DashboardErrorBanner: View {
     private let theme = LiquidGlassTheme.current
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: Spacing.md) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.title3)
                 .foregroundStyle(.orange.gradient)
 
             Text(message)
-                .font(.caption)
+                .font(Typography.caption)
                 .foregroundStyle(.primary)
                 .lineLimit(3)
 
             Spacer()
         }
-        .padding(14)
+        .padding(Spacing.md)
         .background(
             RoundedRectangle(cornerRadius: theme.cornerRadiusSmall - 2, style: .continuous)
                 .fill(.orange.opacity(0.1))
@@ -719,6 +894,100 @@ private struct DashboardErrorBanner: View {
                         .strokeBorder(.orange.opacity(0.25), lineWidth: 1)
                 )
         )
+    }
+}
+
+// MARK: - Connectivity Health Badge (P4-05)
+
+private struct ConnectivityHealthBadge: View {
+    let health: PetLocationManager.ConnectivityHealth
+
+    private var statusColor: Color {
+        switch health {
+        case .excellent:
+            return .green
+        case .degraded:
+            return .yellow
+        case .unreachable:
+            return .red
+        case .unknown:
+            return .gray
+        }
+    }
+
+    private var statusText: String {
+        switch health {
+        case .excellent:
+            return "Excellent"
+        case .degraded:
+            return "Degraded"
+        case .unreachable:
+            return "Unreachable"
+        case .unknown:
+            return "Unknown"
+        }
+    }
+
+    private var statusIcon: String {
+        switch health {
+        case .excellent:
+            return "antenna.radiowaves.left.and.right"
+        case .degraded:
+            return "exclamationmark.triangle.fill"
+        case .unreachable:
+            return "wifi.slash"
+        case .unknown:
+            return "questionmark.circle"
+        }
+    }
+
+    var body: some View {
+        if #available(iOS 26, *) {
+            modernBadge
+        } else {
+            legacyBadge
+        }
+    }
+
+    @available(iOS 26, *)
+    private var modernBadge: some View {
+        HStack(spacing: Spacing.sm) {
+            Image(systemName: statusIcon)
+                .font(.system(size: IconSize.xs, weight: .semibold))
+                .foregroundStyle(statusColor.gradient)
+
+            Text(statusText)
+                .font(Typography.label)
+                .foregroundStyle(.primary)
+        }
+        .padding(.horizontal, Spacing.md)
+        .padding(.vertical, Spacing.sm)
+        .glassEffect(.regular.interactive(), in: .capsule)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Connectivity health")
+        .accessibilityValue(statusText)
+    }
+
+    private var legacyBadge: some View {
+        HStack(spacing: Spacing.xs) {
+            Image(systemName: statusIcon)
+                .font(Typography.captionSmall.weight(.semibold))
+                .foregroundStyle(statusColor)
+
+            Text(statusText)
+                .font(Typography.captionSmall.weight(.semibold))
+                .foregroundStyle(.white)
+        }
+        .padding(.horizontal, Spacing.sm)
+        .padding(.vertical, Spacing.xs)
+        .background(
+            Capsule()
+                .fill(.ultraThinMaterial)
+                .shadow(color: .black.opacity(0.2), radius: 8, y: 4)
+        )
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Connectivity health")
+        .accessibilityValue(statusText)
     }
 }
 

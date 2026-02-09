@@ -11,6 +11,9 @@ public struct MainTabView: View {
     @Environment(PetLocationManager.self) private var locationManager
     @AppStorage("useMetricUnits") private var useMetricUnits = true
     @State private var selectedTab: TabSelection = .dashboard
+    // P2-02: Track geofence violations for badge display
+    @State private var geofenceMonitor: GeofenceMonitor?
+    @State private var hasActiveViolation = false
 
     public init() {}
 
@@ -33,11 +36,13 @@ public struct MainTabView: View {
             }
 
             // Custom Liquid Glass tab bar at bottom
+            // P2-02: Pass badge info to tab bar
             LiquidGlassTabBar(
                 selection: $selectedTab,
-                items: tabItems
+                items: tabItems,
+                badgedTabs: hasActiveViolation ? [.dashboard] : []
             ) { tab in
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                withAnimation(Animations.standard) {
                     selectedTab = tab
                 }
             }
@@ -46,6 +51,23 @@ public struct MainTabView: View {
         .background {
             GlassSurface { Color.clear }
                 .ignoresSafeArea()
+        }
+        // P2-02: Monitor geofence events for badge updates
+        .task {
+            geofenceMonitor = GeofenceMonitor()
+            // Poll for violations every few seconds
+            while !Task.isCancelled {
+                if let monitor = geofenceMonitor {
+                    let events = await monitor.getRecentEvents(limit: 10)
+                    // Check if any recent exit events in the last 5 minutes
+                    let now = Date()
+                    let recentExits = events.filter { event in
+                        event.type == .exited && now.timeIntervalSince(event.timestamp) < 300
+                    }
+                    hasActiveViolation = !recentExits.isEmpty
+                }
+                try? await Task.sleep(for: .seconds(5))
+            }
         }
     }
 }

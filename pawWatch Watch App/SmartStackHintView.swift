@@ -24,7 +24,7 @@ struct SmartStackHintView: View {
                 Text("Smart Stack preview")
                     .font(.caption)
                     .fontWeight(.semibold)
-                Text("WidgetKit card will mirror \(latency) + \(drain) snapshot when Phase 6 lands.")
+                Text("Live widget showing \(latency) latency and \(drain) battery drain.")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }

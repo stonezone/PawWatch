@@ -276,18 +276,37 @@ public enum Shadow {
 public enum AnimationDuration {
     /// Extra fast: 0.1s
     public static let xfast: Double = 0.1
-    
+
     /// Fast: 0.2s
     public static let fast: Double = 0.2
-    
+
     /// Normal: 0.3s
     public static let normal: Double = 0.3
-    
+
     /// Slow: 0.5s
     public static let slow: Double = 0.5
-    
+
     /// Extra slow: 0.8s
     public static let xslow: Double = 0.8
+}
+
+/// Pre-built Animation constants for consistent motion across the app.
+/// P3-01: Standardized animation tokens replacing inline .spring() calls.
+public enum Animations {
+    /// Standard spring for most UI transitions (response: 0.35s, damping: 0.85)
+    public static let standard: Animation = .spring(response: 0.35, dampingFraction: 0.85)
+
+    /// Quick spring for immediate feedback (response: 0.25s, damping: 0.9)
+    public static let quick: Animation = .spring(response: 0.25, dampingFraction: 0.9)
+
+    /// Smooth spring for fluid motion (response: 0.4s, damping: 0.8)
+    public static let smooth: Animation = .spring(response: 0.4, dampingFraction: 0.8)
+
+    /// Map camera transitions (ease-in-out, 1s)
+    public static let mapCamera: Animation = .easeInOut(duration: 1.0)
+
+    /// Quick ease for zoom controls (0.2s)
+    public static let quickEase: Animation = .easeInOut(duration: 0.2)
 }
 
 // MARK: - View Modifiers
@@ -408,8 +427,20 @@ public extension View {
             .imageScale(.medium)
     }
     
+    // MARK: Glass Button Style
+
+    /// P8-02: Applies .glass button style on iOS 26+, falls back to .borderedProminent.
+    @ViewBuilder
+    func glassButtonStyle() -> some View {
+        if #available(iOS 26.0, *) {
+            self.buttonStyle(.glass)
+        } else {
+            self.buttonStyle(.borderedProminent)
+        }
+    }
+
     // MARK: Section Modifiers
-    
+
     /// Applies section spacing for vertical lists.
     /// - Returns: A view with proper section spacing.
     func sectionSpacing() -> some View {
@@ -453,6 +484,93 @@ public enum Layout {
     
     /// Tab bar icon container size
     public static let tabBarIconSize: CGFloat = 32
+}
+
+// MARK: - Map Constants
+
+/// Map-specific constants for PetMapView layout, zoom, and trail rendering.
+public enum MapConstants {
+    // MARK: Rendering Safety
+
+    /// Minimum frame dimension to prevent Metal multisampling crash on iOS 26
+    public static let minRenderSize: CGFloat = 20
+
+    /// Delay (ms) before enabling map render after valid size detected
+    public static let renderDelayMs: UInt64 = 100
+
+    // MARK: Zoom
+
+    /// Minimum zoom scale (zoomed in)
+    public static let zoomScaleMin: Double = 0.25
+
+    /// Maximum zoom scale (zoomed out)
+    public static let zoomScaleMax: Double = 8.0
+
+    /// Zoom in multiplier per tap
+    public static let zoomInFactor: Double = 0.7
+
+    /// Zoom out multiplier per tap
+    public static let zoomOutFactor: Double = 1.4
+
+    /// Scale clamping range for coordinate delta calculations
+    public static let scaleDeltaMin: Double = 0.1
+    public static let scaleDeltaMax: Double = 20.0
+
+    /// Coordinate delta clamping to prevent extreme zoom levels
+    public static let coordDeltaMin: Double = 0.0002
+    public static let coordDeltaMax: Double = 40.0
+
+    // MARK: Default View
+
+    /// Default span delta when showing pet location only
+    public static let defaultSpanDelta: Double = 0.002
+
+    /// Inset padding for dual-marker bounding rect
+    public static let boundingRectInset: Double = -250
+
+    // MARK: Trail
+
+    /// Number of recent fixes shown as solid bright line
+    public static let trailRecentCount: Int = 20
+
+    /// Minimum fixes needed to draw a trail segment
+    public static let trailMinFixCount: Int = 2
+
+    // MARK: Trail Appearance
+
+    /// Older trail line width
+    public static let trailOlderLineWidth: CGFloat = 2
+
+    /// Recent trail line width
+    public static let trailRecentLineWidth: CGFloat = 3
+
+    /// Dash pattern for older trail [dash, gap]
+    public static let trailDashPattern: [CGFloat] = [6, 4]
+
+    // MARK: Marker Sizes
+
+    /// Pet marker outer circle diameter
+    public static let petMarkerSize: CGFloat = 48
+
+    /// Pet marker inner icon/avatar diameter
+    public static let petMarkerIconSize: CGFloat = 32
+
+    /// Owner marker diameter
+    public static let ownerMarkerSize: CGFloat = 44
+
+    /// Predicted location marker diameter
+    public static let predictedMarkerSize: CGFloat = 40
+
+    // MARK: Adaptive Layout
+
+    /// Small screen height threshold (e.g., iPhone SE)
+    public static let smallScreenHeight: CGFloat = 400
+
+    /// Medium screen height threshold
+    public static let mediumScreenHeight: CGFloat = 500
+
+    /// Small screen width threshold
+    public static let compactScreenWidth: CGFloat = 350
 }
 
 // MARK: - Transitions
