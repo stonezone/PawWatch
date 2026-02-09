@@ -136,7 +136,7 @@ struct HistoryView: View {
             Spacer(minLength: Spacing.xxxl + Spacing.sm)
         }
         .refreshable {
-            locationManager.requestUpdate(force: true)
+            _ = locationManager.requestUpdateWithFallback(force: true)
         }
     }
 

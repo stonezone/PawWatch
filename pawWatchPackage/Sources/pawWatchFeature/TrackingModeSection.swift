@@ -89,13 +89,12 @@ struct TrackingModeSection: View {
         }
 
         Button {
-            locationManager.requestUpdate(force: true)
+            _ = locationManager.requestUpdateWithFallback(force: true)
         } label: {
             Label("Request Fresh Location", systemImage: "location.fill")
                 .frame(maxWidth: .infinity)
         }
         .glassButtonStyle()
-        .disabled(!locationManager.isWatchReachable)
     }
 }
 

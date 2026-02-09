@@ -20,7 +20,7 @@ struct BatteryProfilerTests {
 
     @Test("Start and end activity session")
     func testActivitySession() async {
-        let profiler = BatteryProfiler.shared
+        let profiler = makeProfiler()
         await profiler.clearAllEvents()
 
         // Start GPS activity
@@ -48,7 +48,7 @@ struct BatteryProfilerTests {
 
     @Test("Record instant activity")
     func testInstantActivity() async {
-        let profiler = BatteryProfiler.shared
+        let profiler = makeProfiler()
         await profiler.clearAllEvents()
 
         // Record a quick activity
@@ -72,7 +72,7 @@ struct BatteryProfilerTests {
 
     @Test("Multiple activities can run concurrently")
     func testConcurrentActivities() async {
-        let profiler = BatteryProfiler.shared
+        let profiler = makeProfiler()
         await profiler.clearAllEvents()
 
         // Start multiple activities
@@ -100,7 +100,7 @@ struct BatteryProfilerTests {
 
     @Test("Generate report for 24 hours")
     func testReportGeneration() async {
-        let profiler = BatteryProfiler.shared
+        let profiler = makeProfiler()
         await profiler.clearAllEvents()
 
         // Record multiple events
@@ -124,7 +124,7 @@ struct BatteryProfilerTests {
 
     @Test("Report filters by time period")
     func testReportFiltering() async {
-        let profiler = BatteryProfiler.shared
+        let profiler = makeProfiler()
         await profiler.clearAllEvents()
 
         // Record event
@@ -141,7 +141,7 @@ struct BatteryProfilerTests {
 
     @Test("Activity stats calculate correctly")
     func testActivityStats() async {
-        let profiler = BatteryProfiler.shared
+        let profiler = makeProfiler()
         await profiler.clearAllEvents()
 
         // Record several GPS events
@@ -166,7 +166,7 @@ struct BatteryProfilerTests {
 
     @Test("Report sorts activities by impact")
     func testReportSorting() async {
-        let profiler = BatteryProfiler.shared
+        let profiler = makeProfiler()
         await profiler.clearAllEvents()
 
         // Record events with different impacts
@@ -187,7 +187,7 @@ struct BatteryProfilerTests {
 
     @Test("Report sorts activities by drain rate")
     func testSortByDrainRate() async {
-        let profiler = BatteryProfiler.shared
+        let profiler = makeProfiler()
         await profiler.clearAllEvents()
 
         // Record events with different drain rates
@@ -206,7 +206,7 @@ struct BatteryProfilerTests {
 
     @Test("Events persist across instances")
     func testEventPersistence() async {
-        let profiler = BatteryProfiler.shared
+        let profiler = makeProfiler()
         await profiler.clearAllEvents()
 
         // Record event
@@ -223,7 +223,7 @@ struct BatteryProfilerTests {
 
     @Test("Event limit prevents memory issues")
     func testEventLimit() async {
-        let profiler = BatteryProfiler.shared
+        let profiler = makeProfiler()
         await profiler.clearAllEvents()
 
         // Record many events (would exceed typical limit of 10000)
@@ -240,7 +240,7 @@ struct BatteryProfilerTests {
 
     @Test("Track GPS session convenience method")
     func testTrackGPSSession() async {
-        let profiler = BatteryProfiler.shared
+        let profiler = makeProfiler()
         await profiler.clearAllEvents()
 
         // Use convenience method
@@ -262,7 +262,7 @@ struct BatteryProfilerTests {
 
     @Test("Track CloudKit upload convenience method")
     func testTrackCloudKitUpload() async throws {
-        let profiler = BatteryProfiler.shared
+        let profiler = makeProfiler()
         await profiler.clearAllEvents()
 
         // Use convenience method with throwing operation
@@ -281,4 +281,8 @@ struct BatteryProfilerTests {
         #expect(events.count > 0)
         #expect(events.last?.activity == .cloudKitUpload)
     }
+}
+
+private func makeProfiler() -> BatteryProfiler {
+    BatteryProfiler(suiteName: "test.battery-profiler.\(UUID().uuidString)")
 }

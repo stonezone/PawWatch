@@ -90,8 +90,8 @@ struct LocationManagerLogicTests {
         let manager = PetLocationManager()
         manager.setTrackingMode(.emergency)
 
-        // Act - Emergency mode has 15m threshold, test 16m
-        let fix = makeFix(sequence: 3, timestamp: Date(), accuracy: 16.0)
+        // Act - Emergency mode has 150m threshold, test 151m
+        let fix = makeFix(sequence: 3, timestamp: Date(), accuracy: 151.0)
         let result = manager.shouldAccept(fix)
 
         // Assert
@@ -104,8 +104,8 @@ struct LocationManagerLogicTests {
         let manager = PetLocationManager()
         manager.setTrackingMode(.emergency)
 
-        // Act - Emergency mode has 15m threshold, test 10m
-        let fix = makeFix(sequence: 4, timestamp: Date(), accuracy: 10.0)
+        // Act - Emergency mode has 150m threshold, test 120m
+        let fix = makeFix(sequence: 4, timestamp: Date(), accuracy: 120.0)
         let result = manager.shouldAccept(fix)
 
         // Assert
@@ -241,9 +241,9 @@ struct LocationManagerLogicTests {
         #expect(result == true)
     }
 
-    @Test("Emergency mode rejects smaller jumps than balanced mode")
-    func emergencyModeStricterJumpDetection() {
-        // Arrange - Emergency mode has 500m jump limit, balanced has 5000m
+    @Test("Emergency mode accepts larger jumps than balanced mode")
+    func emergencyModeLargerJumpAllowance() {
+        // Arrange - Emergency mode has 10km jump limit, balanced has 5km
         let manager = PetLocationManager()
         manager.setTrackingMode(.emergency)
         let now = Date()
@@ -255,17 +255,17 @@ struct LocationManagerLogicTests {
         )
         manager._testSetLatestLocation(baseline)
 
-        // Act - Jump ~600m in 1 second (0.0054 degrees ≈ 600m)
+        // Act - Jump ~8km in 1 second
         let jumped = makeFix(
             sequence: 51,
             timestamp: now.addingTimeInterval(1),
             accuracy: 5.0,
-            coordinate: LocationFix.Coordinate(latitude: 37.0054, longitude: -122.0)
+            coordinate: LocationFix.Coordinate(latitude: 37.072, longitude: -122.0)
         )
         let result = manager.shouldAccept(jumped)
 
         // Assert
-        #expect(result == false)
+        #expect(result == true)
     }
 
     // MARK: - Helper Functions

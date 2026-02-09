@@ -27,6 +27,17 @@ protocol WatchCloudKitRelayDelegate: AnyObject, Sendable {
     func cloudKitRelay(_ relay: WatchCloudKitRelay, didFailUpload error: Error)
 }
 
+private enum WatchCloudKitRelayError: LocalizedError {
+    case uploadFailed
+
+    var errorDescription: String? {
+        switch self {
+        case .uploadFailed:
+            return "Emergency CloudKit upload did not complete successfully."
+        }
+    }
+}
+
 // MARK: - Watch CloudKit Relay
 
 /// Manages emergency CloudKit uploads when iPhone is unreachable.
@@ -82,15 +93,19 @@ final class WatchCloudKitRelay {
             return
         }
 
-        lastEmergencyCloudRelayDate = now
         logger.notice("Emergency relay: uploading fix seq=\(fix.sequence) to CloudKit")
 
         // Upload in background with low priority
         Task.detached(priority: .utility) {
-            await CloudKitLocationSync.shared.saveLocation(fix)
+            let didSave = await CloudKitLocationSync.shared.saveLocation(fix)
             await MainActor.run { [weak self] in
                 guard let self = self else { return }
-                self.delegate?.cloudKitRelay(self, didUploadFix: fix)
+                if didSave {
+                    self.lastEmergencyCloudRelayDate = now
+                    self.delegate?.cloudKitRelay(self, didUploadFix: fix)
+                } else {
+                    self.delegate?.cloudKitRelay(self, didFailUpload: WatchCloudKitRelayError.uploadFailed)
+                }
             }
         }
     }

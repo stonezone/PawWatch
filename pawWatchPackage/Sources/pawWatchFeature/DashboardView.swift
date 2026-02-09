@@ -138,7 +138,7 @@ struct DashboardView: View {
         withAnimation(Animations.standard) {
             isRefreshing = true
         }
-        locationManager.requestUpdate(force: true)
+        _ = locationManager.requestUpdateWithFallback(force: true)
         try? await Task.sleep(for: .milliseconds(800))
         withAnimation(Animations.standard) {
             isRefreshing = false

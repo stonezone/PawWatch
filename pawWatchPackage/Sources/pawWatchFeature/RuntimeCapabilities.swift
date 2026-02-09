@@ -15,7 +15,8 @@ enum RuntimeCapabilities {
         guard let backgroundModes = Bundle.main.object(forInfoDictionaryKey: "WKBackgroundModes") as? [String] else {
             return false
         }
-        return backgroundModes.contains("extendedRuntimeSession")
+        return backgroundModes.contains("workout-processing")
+            || backgroundModes.contains("extendedRuntimeSession")
     }
     #else
     static var supportsExtendedRuntime: Bool { false }

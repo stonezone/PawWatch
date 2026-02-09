@@ -25,6 +25,10 @@ struct pawWatchApp: App {
     init() {
         // Create and register the shared location manager
         let manager = PetLocationManager()
+        if let persistedModeRaw = UserDefaults.standard.string(forKey: "trackingMode"),
+           let persistedMode = TrackingMode(rawValue: persistedModeRaw) {
+            manager.setTrackingMode(persistedMode)
+        }
         _locationManager = State(initialValue: manager)
         PetLocationManager.setShared(manager)
         _petProfileStore = State(initialValue: PetProfileStore.shared)

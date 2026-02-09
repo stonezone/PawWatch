@@ -88,14 +88,22 @@ struct PawWatchWidget: Widget {
 
 #if DEBUG
 @available(watchOS 10.0, *)
-#Preview("Rectangular") {
-    WatchWidgetRectangularView(snapshot: .init(latencyMs: 132, batteryDrainPerHour: 2.2, instantBatteryDrainPerHour: 2.8, reachable: true))
-        .previewContext(WidgetPreviewContext(family: .accessoryRectangular))
+#Preview("Rectangular", as: .accessoryRectangular) {
+    PawWatchWidget()
+} timeline: {
+    WatchWidgetEntry(
+        date: .now,
+        snapshot: .init(latencyMs: 132, batteryDrainPerHour: 2.2, instantBatteryDrainPerHour: 2.8, reachable: true)
+    )
 }
 
 @available(watchOS 10.0, *)
-#Preview("Inline") {
-    WatchWidgetInlineView(snapshot: .init(latencyMs: 132, batteryDrainPerHour: 2.2, instantBatteryDrainPerHour: 2.8, reachable: true))
-        .previewContext(WidgetPreviewContext(family: .accessoryInline))
+#Preview("Inline", as: .accessoryInline) {
+    PawWatchWidget()
+} timeline: {
+    WatchWidgetEntry(
+        date: .now,
+        snapshot: .init(latencyMs: 132, batteryDrainPerHour: 2.2, instantBatteryDrainPerHour: 2.8, reachable: true)
+    )
 }
 #endif

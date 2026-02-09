@@ -67,7 +67,7 @@ struct PredictedLocationTests {
         #expect(prediction != nil)
         #expect(prediction?.predictionMethod == .lastKnown)
         #expect(prediction?.coordinate == baseFix.coordinate)
-        #expect(prediction?.secondsSinceLastFix == 10.0)
+        #expect(abs((prediction?.secondsSinceLastFix ?? 0) - 10.0) < 0.01)
     }
 
     @Test("Velocity extrapolation for 15-60 seconds elapsed with movement")
@@ -86,7 +86,7 @@ struct PredictedLocationTests {
         #expect(prediction != nil)
         #expect(prediction?.predictionMethod == .velocityExtrapolation)
         #expect(prediction?.coordinate != baseFix.coordinate) // Should have moved
-        #expect(prediction?.secondsSinceLastFix == 30.0)
+        #expect(abs((prediction?.secondsSinceLastFix ?? 0) - 30.0) < 0.01)
 
         // Latitude should increase (moving north)
         if let pred = prediction {
@@ -123,7 +123,7 @@ struct PredictedLocationTests {
         #expect(prediction != nil)
         #expect(prediction?.predictionMethod == .expandingUncertainty)
         #expect(prediction?.coordinate == baseFix.coordinate)
-        #expect(prediction?.secondsSinceLastFix == 120.0)
+        #expect(abs((prediction?.secondsSinceLastFix ?? 0) - 120.0) < 0.01)
 
         // Confidence should be very large
         if let pred = prediction {

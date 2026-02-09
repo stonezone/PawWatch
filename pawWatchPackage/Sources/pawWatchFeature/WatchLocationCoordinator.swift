@@ -378,7 +378,7 @@ public final class WatchLocationProvider: NSObject {
         gpsManager.stopUpdatingLocation()
         gpsManager.stopWorkoutSession()
 
-        fileQueue.clearAll()
+        fileQueue.cancelActiveTransfersPreservingPending()
 
         if let state = trackingIntervalState {
             signposter.endInterval("TrackingSession", state)
@@ -499,14 +499,22 @@ public final class WatchLocationProvider: NSObject {
 
         cloudKitRelay.uploadFixIfNeeded(fix, phoneReachable: connectivityRelay.isReachable)
 
-        guard connectivityRelay.activationState == .activated else {
-            ConnectivityLog.verbose("WCSession not activated; skipping transmit")
-            delegate?.didFail(WatchConnectivityIssue.sessionNotActivated)
-            return
+        let enqueueBackground: () -> Void = { [weak self] in
+            guard let self else { return }
+            // If backlog grows beyond 3 batches, switch to file transfers to reduce
+            // memory pressure and leverage WC file delivery semantics.
+            if self.fileQueue.pendingFixCount >= 180 {
+                self.fileQueue.queueFileTransfer(for: fix)
+            } else {
+                self.fileQueue.enqueueFix(fix)
+            }
         }
 
-        let enqueueBackground: () -> Void = { [weak self] in
-            self?.fileQueue.enqueueFix(fix)
+        guard connectivityRelay.activationState == .activated else {
+            ConnectivityLog.verbose("WCSession not activated; buffering for later delivery")
+            enqueueBackground()
+            delegate?.didFail(WatchConnectivityIssue.sessionNotActivated)
+            return
         }
 
         if connectivityRelay.isReachable, connectivityRelay.shouldSendInteractive(horizontalAccuracy: fix.horizontalAccuracyMeters) {
@@ -935,7 +943,7 @@ extension WatchLocationProvider: WatchGPSManagerDelegate {
         gpsManager.stopUpdatingLocation()
         gpsManager.stopWorkoutSession()
 
-        fileQueue.clearAll()
+        fileQueue.cancelActiveTransfersPreservingPending()
 
         if let state = trackingIntervalState {
             signposter.endInterval("TrackingSession", state)
@@ -1054,6 +1062,9 @@ extension WatchLocationProvider: WatchConnectivityRelayDelegate {
 
     func relayDidActivateSession(_ relay: WatchConnectivityRelay) {
         logger.log("WatchConnectivity session activated")
+        if fileQueue.pendingFixCount > 0 {
+            fileQueue.flushPendingFixes()
+        }
     }
 
     func relay(_ relay: WatchConnectivityRelay, didFailActivationWith error: Error) {

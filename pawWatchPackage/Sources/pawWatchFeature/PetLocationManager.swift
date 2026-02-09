@@ -16,6 +16,7 @@ import Foundation
 import CoreLocation
 import Observation
 import OSLog
+import SwiftData
 #if canImport(HealthKit)
 import HealthKit
 #endif
@@ -262,6 +263,7 @@ public final class PetLocationManager: NSObject {
 
     private let trailHistoryLimitKey = "TrailHistoryLimit"
     private let runtimePreferenceKey = RuntimePreferenceKey.runtimeOptimizationsEnabled
+    private let trackingModePreferenceKey = "trackingMode"
     private let idleCadenceKey = "IdleCadencePreset"
     private let emergencyCadenceKey = "EmergencyCadencePreset"
     private let sharedDefaults: UserDefaults
@@ -286,9 +288,9 @@ public final class PetLocationManager: NSObject {
             maxJumpDistanceMeters: 3_000
         )
         static let emergency = FixAcceptancePolicy(
-            maxHorizontalAccuracyMeters: 15,
+            maxHorizontalAccuracyMeters: 150,
             maxFixStaleness: 60,
-            maxJumpDistanceMeters: 500
+            maxJumpDistanceMeters: 10_000
         )
     }
 
@@ -300,7 +302,7 @@ public final class PetLocationManager: NSObject {
         }
 
         static func key(mode: TrackingMode, field: Field) -> String {
-            "FixAcceptancePolicy.\(mode.rawValue).\(field.rawValue)"
+            "FixAcceptancePolicy.v2.\(mode.rawValue).\(field.rawValue)"
         }
     }
 
@@ -365,6 +367,8 @@ public final class PetLocationManager: NSObject {
     private let locationManager: CLLocationManager
     private let logger = Logger(subsystem: PawWatchLog.subsystem, category: "PetLocationManager")
     private let signposter = OSSignposter(subsystem: PawWatchLog.subsystem, category: "PetLocationManager")
+    private var locationModelContainer: ModelContainer?
+    private var locationDataManager: LocationDataManager?
     private let sessionSignposter = OSSignposter(subsystem: PawWatchLog.subsystem, category: "SessionExport")
     #if canImport(HealthKit)
     private let healthStore = HKHealthStore()
@@ -465,6 +469,8 @@ public final class PetLocationManager: NSObject {
         }
 
         refreshHealthAuthorizationState()
+        configureLocationDataPipeline()
+        restorePersistedHistoryIfNeeded()
 
         // Attempt CloudKit recovery if no local data
         Task { @MainActor [weak self] in
@@ -481,6 +487,43 @@ public final class PetLocationManager: NSObject {
         startStaleConnectionMonitor()
 
         logFixAcceptancePolicy(reason: "init")
+    }
+
+    private func configureLocationDataPipeline() {
+        do {
+            let container = try ModelContainer(for: PersistedLocationFix.self)
+            let context = ModelContext(container)
+            locationModelContainer = container
+            locationDataManager = LocationDataManager(modelContext: context)
+        } catch {
+            logger.error("Failed to initialize location persistence pipeline: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    private func restorePersistedHistoryIfNeeded() {
+        guard latestLocation == nil, locationHistory.isEmpty, let locationDataManager else { return }
+        do {
+            let persisted = try locationDataManager.loadRecentHistory(count: trailHistoryLimit)
+            guard !persisted.isEmpty else { return }
+
+            let chronological = persisted.sorted { $0.timestamp < $1.timestamp }
+            locationHistory = chronological
+
+            if let newest = chronological.last {
+                latestLocation = newest
+                lastUpdateTime = newest.timestamp
+                latestUpdateSource = .watchConnectivity
+                watchBatteryFraction = newest.batteryFraction
+            }
+
+            for fix in chronological.suffix(recentSequenceCapacity) {
+                recordSequence(fix.sequence)
+            }
+
+            logger.log("Restored \(chronological.count, privacy: .public) persisted fixes")
+        } catch {
+            logger.error("Failed to restore persisted fixes: \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     private func logFixAcceptancePolicy(reason: String) {
@@ -696,6 +739,28 @@ public final class PetLocationManager: NSObject {
         return false
         #endif
     }
+
+    /// Request a location update with automatic fallback to queued background delivery.
+    /// Returns true when a request was sent or queued.
+    @discardableResult
+    public func requestUpdateWithFallback(force: Bool = false) -> Bool {
+        #if canImport(WatchConnectivity)
+        if isWatchReachable {
+            requestUpdate(force: force)
+            return true
+        }
+
+        let queued = requestBackgroundUpdate()
+        if queued {
+            errorMessage = "Apple Watch unreachable. Queued request for next connectivity window."
+        } else {
+            errorMessage = "Apple Watch request failed. Session not active."
+        }
+        return queued
+        #else
+        return false
+        #endif
+    }
     
     /// Sends a stop command to the Watch.
     public func sendStopCommand() {
@@ -777,6 +842,7 @@ public final class PetLocationManager: NSObject {
     public func setTrackingMode(_ mode: TrackingMode) {
         let previousMode = trackingMode
         trackingMode = mode
+        persistTrackingMode(mode)
         logFixAcceptancePolicy(reason: "user-mode-change")
 
         if mode == .emergency {
@@ -1315,6 +1381,15 @@ public final class PetLocationManager: NSObject {
         signposter.emitEvent("FixReceived")
 
         insertIntoHistory(locationFix)
+        if let locationDataManager {
+            Task { @MainActor [weak self] in
+                do {
+                    _ = try await locationDataManager.processLocationFix(locationFix)
+                } catch {
+                    self?.logger.error("Failed to persist location fix seq=\(locationFix.sequence, privacy: .public): \(error.localizedDescription, privacy: .public)")
+                }
+            }
+        }
         appendSessionSample(locationFix)
         PerformanceMonitor.shared.recordRemoteFix(locationFix, watchReachable: isWatchReachable)
 
@@ -1331,11 +1406,13 @@ public final class PetLocationManager: NSObject {
         if source == .watchConnectivity, didUpdateLatest {
             let now = Date()
             if lastCloudKitSync == nil || now.timeIntervalSince(lastCloudKitSync!) >= cloudKitSyncInterval {
-                lastCloudKitSync = now
-                Task.detached {
+                Task { [weak self] in
                     let uploadState = PerformanceInstrumentation.beginCloudKitUpload()
-                    await CloudKitLocationSync.shared.saveLocation(locationFix)
-                    PerformanceInstrumentation.endCloudKitUpload(uploadState, success: true)
+                    let didSave = await CloudKitLocationSync.shared.saveLocation(locationFix)
+                    PerformanceInstrumentation.endCloudKitUpload(uploadState, success: didSave)
+                    if didSave {
+                        self?.lastCloudKitSync = now
+                    }
                 }
             } else {
                 let timeSince = now.timeIntervalSince(lastCloudKitSync!)
@@ -1478,6 +1555,11 @@ public final class PetLocationManager: NSObject {
 
     private func persistRuntimePreference(_ enabled: Bool) {
         sharedDefaults.set(enabled, forKey: runtimePreferenceKey)
+    }
+
+    private func persistTrackingMode(_ mode: TrackingMode) {
+        UserDefaults.standard.set(mode.rawValue, forKey: trackingModePreferenceKey)
+        sharedDefaults.set(mode.rawValue, forKey: trackingModePreferenceKey)
     }
 
     private func applyRuntimePreferenceFromWatch(_ enabled: Bool) {
@@ -1715,6 +1797,7 @@ extension PetLocationManager: WCSessionDelegate {
             if let modeRaw, let mode = TrackingMode(rawValue: modeRaw) {
                 if self.trackingMode != mode {
                     self.trackingMode = mode
+                    self.persistTrackingMode(mode)
                     self.logFixAcceptancePolicy(reason: "watch-context")
                 }
             }

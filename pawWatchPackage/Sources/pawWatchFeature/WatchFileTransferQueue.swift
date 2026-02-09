@@ -72,6 +72,10 @@ final class WatchFileTransferQueue: NSObject {
     /// Maximum time before flushing batch
     private let batchFlushInterval: TimeInterval = 60.0
 
+    /// Hard ceiling for buffered fixes while fully offline.
+    /// Oldest fixes are dropped once this cap is exceeded to prevent unbounded growth.
+    private let maxPendingFixes = 3_600
+
     /// Last time we flushed the batch buffer
     private var lastBatchFlushDate: Date = .distantPast
 
@@ -85,26 +89,28 @@ final class WatchFileTransferQueue: NSObject {
     override init() {
         super.init()
         encoder.outputFormatting = [.withoutEscapingSlashes]
+        loadPersistedPendingFixes()
     }
 
     // MARK: - Public Methods
 
     /// Enqueues a fix for batched delivery
     func enqueueFix(_ fix: LocationFix) {
-        guard wcSession.activationState == .activated else {
-            logger.warning("Session not activated, dropping fix seq=\(fix.sequence)")
-            return
-        }
-
         pendingFixes.append(fix)
+        trimPendingFixesIfNeeded()
+        persistPendingFixes()
         ConnectivityLog.verbose("Buffered fix seq=\(fix.sequence) (buffer count: \(self.pendingFixes.count))")
 
-        // Check if we should flush
-        let shouldFlush = pendingFixes.count >= batchThreshold ||
+        // Check if we should flush when session is active.
+        let shouldFlush = wcSession.activationState == .activated && (
+            pendingFixes.count >= batchThreshold ||
             Date().timeIntervalSince(lastBatchFlushDate) >= batchFlushInterval
+        )
 
         if shouldFlush {
             flushPendingFixes()
+        } else if wcSession.activationState != .activated {
+            logger.notice("Session not activated, buffered fix seq=\(fix.sequence) for later delivery")
         }
     }
 
@@ -116,11 +122,8 @@ final class WatchFileTransferQueue: NSObject {
             return
         }
 
-        let fixesToFlush = pendingFixes
-        pendingFixes.removeAll()
-        lastBatchFlushDate = Date()
-
         do {
+            let fixesToFlush = pendingFixes
             let data = try encoder.encode(fixesToFlush)
             let firstSeq = fixesToFlush.first?.sequence ?? -1
             let lastSeq = fixesToFlush.last?.sequence ?? -1
@@ -132,6 +135,9 @@ final class WatchFileTransferQueue: NSObject {
             ]
 
             wcSession.transferUserInfo(userInfo)
+            pendingFixes.removeAll()
+            persistPendingFixes()
+            lastBatchFlushDate = Date()
             ConnectivityLog.notice("Flushed \(fixesToFlush.count) fixes in batched transfer (seqs: \(firstSeq)-\(lastSeq))")
 
             if firstSeq >= 0, lastSeq >= 0 {
@@ -147,7 +153,8 @@ final class WatchFileTransferQueue: NSObject {
     func queueFileTransfer(for fix: LocationFix) {
         guard fileTransfersEnabled else { return }
         guard wcSession.activationState == .activated else {
-            logger.warning("Session not activated, cannot queue file transfer")
+            logger.warning("Session not activated, buffering fix seq=\(fix.sequence) for batched delivery")
+            enqueueFix(fix)
             return
         }
 
@@ -179,6 +186,7 @@ final class WatchFileTransferQueue: NSObject {
     /// Clears all pending fixes and active transfers
     func clearAll() {
         pendingFixes.removeAll()
+        persistPendingFixes()
 
         // Clean up temp files for active transfers
         for (_, record) in activeFileTransfers {
@@ -187,6 +195,15 @@ final class WatchFileTransferQueue: NSObject {
 
         activeFileTransfers.removeAll()
         logger.log("Cleared all pending fixes and active transfers")
+    }
+
+    /// Clears only active transfer bookkeeping while preserving pending fixes.
+    func cancelActiveTransfersPreservingPending() {
+        for (_, record) in activeFileTransfers {
+            try? fileManager.removeItem(at: record.url)
+        }
+        activeFileTransfers.removeAll()
+        logger.log("Cleared active transfers (preserved pending fixes: \(self.pendingFixes.count))")
     }
 
     // MARK: - WCSessionDelegate File Transfer Handling
@@ -211,6 +228,62 @@ final class WatchFileTransferQueue: NSObject {
             ConnectivityLog.verbose("File transfer completed successfully for seq=\(record.fix.sequence)")
             delegate?.fileQueue(self, didCompleteTransfer: record.fix)
         }
+    }
+
+    // MARK: - Persistence
+
+    private var pendingFixesURL: URL {
+        let baseURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? fileManager.temporaryDirectory
+        let directory = baseURL.appendingPathComponent("pawwatch-connectivity", isDirectory: true)
+        return directory.appendingPathComponent("pending-fixes.json")
+    }
+
+    private func persistPendingFixes() {
+        do {
+            let url = pendingFixesURL
+            let directory = url.deletingLastPathComponent()
+            try fileManager.createDirectory(at: directory, withIntermediateDirectories: true, attributes: nil)
+
+            if pendingFixes.isEmpty {
+                if fileManager.fileExists(atPath: url.path) {
+                    try fileManager.removeItem(at: url)
+                }
+                return
+            }
+
+            let data = try encoder.encode(pendingFixes)
+            try data.write(to: url, options: .atomic)
+        } catch {
+            logger.error("Failed to persist pending fixes: \(error.localizedDescription)")
+        }
+    }
+
+    private func loadPersistedPendingFixes() {
+        let url = pendingFixesURL
+        guard fileManager.fileExists(atPath: url.path) else { return }
+        do {
+            let data = try Data(contentsOf: url)
+            pendingFixes = try JSONDecoder().decode([LocationFix].self, from: data)
+            if trimPendingFixesIfNeeded() {
+                persistPendingFixes()
+            }
+            if !pendingFixes.isEmpty {
+                logger.notice("Restored \(self.pendingFixes.count) pending fixes from disk")
+            }
+        } catch {
+            logger.error("Failed to restore pending fixes: \(error.localizedDescription)")
+            pendingFixes.removeAll()
+        }
+    }
+
+    @discardableResult
+    private func trimPendingFixesIfNeeded() -> Bool {
+        let overflow = pendingFixes.count - maxPendingFixes
+        guard overflow > 0 else { return false }
+        pendingFixes.removeFirst(overflow)
+        logger.warning("Dropped \(overflow) oldest pending fixes to enforce queue cap (\(self.maxPendingFixes))")
+        return true
     }
 }
 

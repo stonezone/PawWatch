@@ -20,18 +20,14 @@ public struct MainTabView: View {
     public var body: some View {
         VStack(spacing: 0) {
             // Tab content - manual switching to avoid native TabView artifacts
-            // Using .id() to force view recreation on tab change, preventing observation leaks
             Group {
                 switch selectedTab {
                 case .dashboard:
                     DashboardView(useMetricUnits: useMetricUnits)
-                        .id("dashboard-\(selectedTab)")
                 case .history:
                     HistoryView(useMetricUnits: useMetricUnits)
-                        .id("history-\(selectedTab)")
                 case .settings:
                     SettingsView(useMetricUnits: $useMetricUnits)
-                        .id("settings-\(selectedTab)")
                 }
             }
 

@@ -47,6 +47,7 @@ struct ContentView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(PetProfileStore.self) private var petProfileStore
     @State private var showEmergencyStopConfirmation = false
+    @State private var showTelemetry = false
     @State private var hasEverHadFix = false
     @State private var previousAccuracyLevel: AccuracyLevel = .unknown
 
@@ -193,72 +194,18 @@ struct ContentView: View {
                                 .clipShape(RoundedRectangle(cornerRadius: 8))
                             }
 
-                            // Coordinates
-                            HStack(spacing: Spacing.xxs) {
-                                Image(systemName: "globe")
-                                    .font(.caption2)
-                                VStack(alignment: .leading, spacing: Spacing.xxxs) {
-                                    Text("Lat: \(fix.coordinate.latitude, specifier: "%.6f")")
-                                        .font(.caption2)
-                                        .monospaced()
-                                    Text("Lon: \(fix.coordinate.longitude, specifier: "%.6f")")
-                                        .font(.caption2)
-                                        .monospaced()
-                                }
-                            }
-                            .foregroundStyle(.secondary)
-
-                            // Accuracy
-                            HStack(spacing: Spacing.xxs) {
-                                Image(systemName: "scope")
-                                    .font(.caption2)
-                                Text("Accuracy: ±\(fix.horizontalAccuracyMeters, specifier: "%.1f")m")
-                                    .font(.caption2)
-                            }
-                            .foregroundStyle(.secondary)
-
-                            // Time since fix
                             HStack(spacing: Spacing.xxs) {
                                 Image(systemName: "clock")
                                     .font(.caption2)
                                 Text("Updated: \(timeSinceFix(fix.timestamp))")
                                     .font(.caption2)
+                                Spacer()
+                                Text("±\(fix.horizontalAccuracyMeters, specifier: "%.1f")m")
+                                    .font(.caption2.weight(.semibold))
+                                    .foregroundStyle(accuracyColor(for: fix.horizontalAccuracyMeters))
                             }
                             .foregroundStyle(.secondary)
 
-                            // Accuracy visualization (circle size relative to accuracy)
-                            Circle()
-                                .stroke(
-                                    accuracyColor(for: fix.horizontalAccuracyMeters),
-                                    lineWidth: Spacing.xxxs
-                                )
-                                .frame(width: accuracyCircleSize(for: fix.horizontalAccuracyMeters))
-                                .overlay {
-                                    Circle()
-                                        .fill(accuracyColor(for: fix.horizontalAccuracyMeters).opacity(Opacity.xlow))
-                                }
-
-                            // Speed
-                            HStack(spacing: Spacing.xxs) {
-                                Image(systemName: "speedometer")
-                                    .font(.caption2)
-                                Text("Speed: \(fix.speedMetersPerSecond * 3.6, specifier: "%.1f") km/h")
-                                    .font(.caption2)
-                            }
-                            .foregroundStyle(.secondary)
-
-                            // Altitude (if available)
-                            if let altitude = fix.altitudeMeters {
-                                HStack(spacing: Spacing.xxs) {
-                                    Image(systemName: "mountain.2")
-                                        .font(.caption2)
-                                    Text("Altitude: \(altitude, specifier: "%.0f")m")
-                                        .font(.caption2)
-                                }
-                                .foregroundStyle(.secondary)
-                            }
-
-                            // Battery
                             HStack(spacing: Spacing.xxs) {
                                 Image(systemName: batteryIcon(for: fix.batteryFraction))
                                     .font(.caption2)
@@ -267,14 +214,35 @@ struct ContentView: View {
                             }
                             .foregroundStyle(.secondary)
 
-                            // Update frequency
-                            HStack(spacing: Spacing.xxs) {
-                                Image(systemName: "waveform.path.ecg")
-                                    .font(.caption2)
-                                Text("Update: \(locationManager.updateFrequency, specifier: "%.2f") Hz")
+                            Button {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    showTelemetry.toggle()
+                                }
+                            } label: {
+                                Label(showTelemetry ? "Hide Telemetry" : "Show Telemetry", systemImage: "waveform.path.ecg")
                                     .font(.caption2)
                             }
-                            .foregroundStyle(.secondary)
+                            .buttonStyle(.bordered)
+
+                            if showTelemetry {
+                                VStack(alignment: .leading, spacing: Spacing.xxs) {
+                                    Text("Lat: \(fix.coordinate.latitude, specifier: "%.6f")")
+                                        .font(.caption2.monospaced())
+                                    Text("Lon: \(fix.coordinate.longitude, specifier: "%.6f")")
+                                        .font(.caption2.monospaced())
+                                    Text("Speed: \(fix.speedMetersPerSecond * 3.6, specifier: "%.1f") km/h")
+                                        .font(.caption2)
+                                    if let altitude = fix.altitudeMeters {
+                                        Text("Altitude: \(altitude, specifier: "%.0f")m")
+                                            .font(.caption2)
+                                    }
+                                    Text("Update: \(locationManager.updateFrequency, specifier: "%.2f") Hz")
+                                        .font(.caption2)
+                                }
+                                .foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.top, Spacing.xxxs)
+                            }
                         }
                         .padding(.vertical, Spacing.sm)
                     } else if locationManager.isTracking {
@@ -596,25 +564,6 @@ struct ContentView: View {
         return CGImageSourceCreateImageAtIndex(source, 0, nil)
     }
 
-    /// Calculates circle size for accuracy visualization.
-    ///
-    /// Maps accuracy to visual size:
-    /// - <10m: Small circle (20pt)
-    /// - 10-25m: Medium circle (30pt)
-    /// - >25m: Large circle (40pt)
-    ///
-    /// - Parameter accuracy: Horizontal accuracy in meters
-    /// - Returns: Circle diameter in points
-    private func accuracyCircleSize(for accuracy: Double) -> CGFloat {
-        switch accuracy {
-        case 0..<10:
-            return 20  // Small circle for excellent accuracy
-        case 10..<25:
-            return 30  // Medium circle for good accuracy
-        default:
-            return 40  // Large circle for poor accuracy
-        }
-    }
 }
 
 // MARK: - Lock Overlay

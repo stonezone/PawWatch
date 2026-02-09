@@ -38,7 +38,7 @@ class PawWatchAppDelegate: NSObject, WKApplicationDelegate {
                 connectivityTask.setTaskCompletedWithSnapshot(false)
 
             case let urlSessionTask as WKURLSessionRefreshBackgroundTask:
-                urlSessionTask.setTaskCompleted()
+                urlSessionTask.setTaskCompletedWithSnapshot(false)
 
             default:
                 task.setTaskCompletedWithSnapshot(false)

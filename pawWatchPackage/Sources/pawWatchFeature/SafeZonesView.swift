@@ -633,14 +633,6 @@ struct ValidationMessages: View {
     let allZones: [SafeZone]
 
     private var overlappingZone: SafeZone? {
-        // Create a temporary zone to check against
-        let currentZone = SafeZone(
-            id: existingZoneId ?? UUID(),
-            name: "temp",
-            coordinate: centerCoordinate,
-            radiusMeters: radiusMeters
-        )
-
         for zone in allZones {
             // Skip comparing with itself
             if zone.id == existingZoneId {

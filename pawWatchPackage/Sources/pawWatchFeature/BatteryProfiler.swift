@@ -20,6 +20,7 @@ import UIKit
 
 /// Actor that profiles battery consumption by tracking activity sessions and measuring battery drain
 public actor BatteryProfiler {
+    private static let defaultSuiteName = "group.com.stonezone.pawWatch"
     public static let shared = BatteryProfiler()
 
     // MARK: - Storage
@@ -28,7 +29,8 @@ public actor BatteryProfiler {
     private var activeSessionsStorage: [BatteryActivity: ActiveSession] = [:]
     private let maxStoredEvents = 10000 // Limit memory footprint
     private let storageKey = "BatteryProfiler.events"
-    private let suiteName = "group.com.stonezone.pawWatch"
+    private let suiteName: String
+    private var hasLoadedStoredEvents = false
 
     // MARK: - Active Session Tracking
 
@@ -41,10 +43,9 @@ public actor BatteryProfiler {
 
     // MARK: - Initialization
 
-    private init() {
-        Task {
-            await loadStoredEvents()
-        }
+    init(suiteName: String = BatteryProfiler.defaultSuiteName) {
+        self.suiteName = suiteName
+        // Lazy-load persisted events on first API use to avoid init races.
     }
 
     // MARK: - Session Management
@@ -54,6 +55,7 @@ public actor BatteryProfiler {
         _ activity: BatteryActivity,
         metadata: [String: String]? = nil
     ) async {
+        await ensureEventsLoaded()
         let batteryLevel = await getCurrentBatteryLevel()
         let session = ActiveSession(
             activity: activity,
@@ -66,6 +68,7 @@ public actor BatteryProfiler {
 
     /// End tracking for a specific activity and record the battery impact
     public func endActivity(_ activity: BatteryActivity) async {
+        await ensureEventsLoaded()
         guard let session = activeSessionsStorage.removeValue(forKey: activity) else {
             return
         }
@@ -90,7 +93,7 @@ public actor BatteryProfiler {
             metadata: session.metadata
         )
 
-        await recordEvent(event)
+        recordEvent(event)
     }
 
     /// Record a one-off battery impact event (for activities that don't need start/end tracking)
@@ -100,6 +103,7 @@ public actor BatteryProfiler {
         batteryDelta: Double,
         metadata: [String: String]? = nil
     ) async {
+        await ensureEventsLoaded()
         let now = Date()
         let startTime = now.addingTimeInterval(-duration)
         let batteryLevel = await getCurrentBatteryLevel()
@@ -114,12 +118,12 @@ public actor BatteryProfiler {
             metadata: metadata
         )
 
-        await recordEvent(event)
+        recordEvent(event)
     }
 
     // MARK: - Event Recording
 
-    private func recordEvent(_ event: BatteryImpactEvent) async {
+    private func recordEvent(_ event: BatteryImpactEvent) {
         events.append(event)
 
         // Trim old events if exceeding limit
@@ -128,13 +132,14 @@ public actor BatteryProfiler {
             events.removeFirst(excess)
         }
 
-        await saveEvents()
+        saveEvents()
     }
 
     // MARK: - Analytics & Reporting
 
     /// Generate a battery impact report for a specific time period
     public func generateReport(for period: BatteryReportPeriod) async -> BatteryImpactReport {
+        await ensureEventsLoaded()
         let filteredEvents = filterEvents(for: period)
         let activityStats = calculateActivityStats(from: filteredEvents)
         let totalBatteryConsumed = filteredEvents.reduce(0) { $0 + $1.batteryDelta }
@@ -148,29 +153,35 @@ public actor BatteryProfiler {
 
     /// Get statistics for a specific activity
     public func getStats(for activity: BatteryActivity, period: BatteryReportPeriod) async -> BatteryActivityStats? {
+        await ensureEventsLoaded()
         let report = await generateReport(for: period)
         return report.activityStats.first { $0.activity == activity }
     }
 
     /// Get all recorded events (for debugging/detailed analysis)
     public func getAllEvents() async -> [BatteryImpactEvent] {
-        events
+        await ensureEventsLoaded()
+        return events
     }
 
     /// Get events within a specific time period
     public func getEvents(for period: BatteryReportPeriod) async -> [BatteryImpactEvent] {
-        filterEvents(for: period)
+        await ensureEventsLoaded()
+        return filterEvents(for: period)
     }
 
     /// Clear all stored events (useful for testing or resetting analytics)
     public func clearAllEvents() async {
+        await ensureEventsLoaded()
         events.removeAll()
-        await saveEvents()
+        activeSessionsStorage.removeAll()
+        saveEvents()
     }
 
     /// Get currently active sessions
     public func getActiveSessions() async -> [BatteryActivity] {
-        Array(activeSessionsStorage.keys)
+        await ensureEventsLoaded()
+        return Array(activeSessionsStorage.keys)
     }
 
     // MARK: - Private Helpers
@@ -240,8 +251,8 @@ public actor BatteryProfiler {
 
     // MARK: - Persistence
 
-    private func saveEvents() async {
-        guard let defaults = UserDefaults(suiteName: suiteName) else { return }
+    private func saveEvents() {
+        let defaults = makeDefaults()
 
         do {
             let encoded = try JSONEncoder().encode(events)
@@ -251,9 +262,9 @@ public actor BatteryProfiler {
         }
     }
 
-    private func loadStoredEvents() async {
-        guard let defaults = UserDefaults(suiteName: suiteName),
-              let data = defaults.data(forKey: storageKey) else {
+    private func loadStoredEvents() {
+        let defaults = makeDefaults()
+        guard let data = defaults.data(forKey: storageKey) else {
             return
         }
 
@@ -262,6 +273,16 @@ public actor BatteryProfiler {
         } catch {
             print("Failed to load battery events: \(error)")
         }
+    }
+
+    private func ensureEventsLoaded() async {
+        guard !hasLoadedStoredEvents else { return }
+        loadStoredEvents()
+        hasLoadedStoredEvents = true
+    }
+
+    private func makeDefaults() -> UserDefaults {
+        UserDefaults(suiteName: suiteName) ?? .standard
     }
 }
 
@@ -273,12 +294,14 @@ extension BatteryProfiler {
         _ operation: () async throws -> T
     ) async rethrows -> T {
         await startActivity(.gpsActive)
-        defer {
-            Task {
-                await endActivity(.gpsActive)
-            }
+        do {
+            let result = try await operation()
+            await endActivity(.gpsActive)
+            return result
+        } catch {
+            await endActivity(.gpsActive)
+            throw error
         }
-        return try await operation()
     }
 
     /// Track a CloudKit operation
@@ -286,12 +309,14 @@ extension BatteryProfiler {
         _ operation: () async throws -> T
     ) async rethrows -> T {
         await startActivity(.cloudKitUpload)
-        defer {
-            Task {
-                await endActivity(.cloudKitUpload)
-            }
+        do {
+            let result = try await operation()
+            await endActivity(.cloudKitUpload)
+            return result
+        } catch {
+            await endActivity(.cloudKitUpload)
+            throw error
         }
-        return try await operation()
     }
 
     /// Track a watch communication session
@@ -299,11 +324,13 @@ extension BatteryProfiler {
         _ operation: () async throws -> T
     ) async rethrows -> T {
         await startActivity(.watchCommunication)
-        defer {
-            Task {
-                await endActivity(.watchCommunication)
-            }
+        do {
+            let result = try await operation()
+            await endActivity(.watchCommunication)
+            return result
+        } catch {
+            await endActivity(.watchCommunication)
+            throw error
         }
-        return try await operation()
     }
 }

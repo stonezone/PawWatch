@@ -16,8 +16,6 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
-	<key>LSApplicationCategoryType</key>
-	<string>public.app-category.lifestyle</string>
 	<key>NSHealthShareUsageDescription</key>
 	<string>pawWatch reads Health data (like heart rate) to validate tracking sessions and safety.</string>
 	<key>NSHealthUpdateUsageDescription</key>
